@@ -15,6 +15,10 @@ function parseNotionSection(raw: unknown): NotionConfig | undefined {
   const r = raw as Record<string, unknown>;
   const out: NotionConfig = {
     enabled: typeof r.enabled === "boolean" ? r.enabled : false,
+    projectsTargetId:
+      typeof r.projectsTargetId === "string" ? r.projectsTargetId : "",
+    tasksTargetId:
+      typeof r.tasksTargetId === "string" ? r.tasksTargetId : "",
     projectsDatabaseId:
       typeof r.projectsDatabaseId === "string" ? r.projectsDatabaseId : "",
     tasksDatabaseId:
@@ -76,11 +80,21 @@ export function mergeNotionConfig(
 ): { merged: VibeopsConfig; changed: boolean } {
   const current: NotionConfig = base.notion ?? {
     enabled: false,
+    projectsTargetId: "",
+    tasksTargetId: "",
     projectsDatabaseId: "",
     tasksDatabaseId: "",
   };
   const next: NotionConfig = {
     enabled: patch.enabled ?? current.enabled,
+    projectsTargetId:
+      patch.projectsTargetId !== undefined && patch.projectsTargetId.length > 0
+        ? patch.projectsTargetId
+        : current.projectsTargetId,
+    tasksTargetId:
+      patch.tasksTargetId !== undefined && patch.tasksTargetId.length > 0
+        ? patch.tasksTargetId
+        : current.tasksTargetId,
     projectsDatabaseId:
       patch.projectsDatabaseId !== undefined && patch.projectsDatabaseId.length > 0
         ? patch.projectsDatabaseId
@@ -93,9 +107,23 @@ export function mergeNotionConfig(
   const changed =
     base.notion === undefined ||
     next.enabled !== current.enabled ||
+    next.projectsTargetId !== current.projectsTargetId ||
+    next.tasksTargetId !== current.tasksTargetId ||
     next.projectsDatabaseId !== current.projectsDatabaseId ||
     next.tasksDatabaseId !== current.tasksDatabaseId;
   return { merged: { ...base, notion: next }, changed };
+}
+
+/** Preferred Projects target id for API calls: data_source target first, legacy DB fallback. */
+export function notionProjectsTargetId(notion: NotionConfig): string {
+  return notion.projectsTargetId.length > 0
+    ? notion.projectsTargetId
+    : notion.projectsDatabaseId;
+}
+
+/** Preferred Tasks target id for API calls: data_source target first, legacy DB fallback. */
+export function notionTasksTargetId(notion: NotionConfig): string {
+  return notion.tasksTargetId.length > 0 ? notion.tasksTargetId : notion.tasksDatabaseId;
 }
 
 export function readNotionEnvSnapshot(env: NodeJS.ProcessEnv = process.env): NotionEnvSnapshot {

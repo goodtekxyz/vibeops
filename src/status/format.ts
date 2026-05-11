@@ -90,6 +90,12 @@ export function printHuman(report: StatusReport): void {
       `  ${n.enabled ? green("✓") : gray("·")} notion.enabled ${dim(`(${n.enabled})`)}`,
     );
     log.info(
+      `  ${n.projectsTargetId.length > 0 ? green("✓") : gray("·")} projectsTargetId ${dim(`(${n.projectsTargetId.length > 0 ? "set" : "empty"})`)}`,
+    );
+    log.info(
+      `  ${n.tasksTargetId.length > 0 ? green("✓") : gray("·")} tasksTargetId ${dim(`(${n.tasksTargetId.length > 0 ? "set" : "empty"})`)}`,
+    );
+    log.info(
       `  ${n.projectsDatabaseId.length > 0 ? green("✓") : gray("·")} projectsDatabaseId ${dim(`(${n.projectsDatabaseId.length > 0 ? "set" : "empty"})`)}`,
     );
     log.info(

@@ -236,10 +236,33 @@ task
 
 task
   .command("pull")
-  .description("Notion → docs/tasks/*.md 메타 정합 (MVP 4)")
-  .action(() => {
-    taskPullCommand();
-  });
+  .description(
+    "Notion Tasks DB → docs/tasks/*.md skeleton 생성 (기본 Status=Planned, MVP 4)",
+  )
+  .option("--dry-run", "파일/Notion 변경 없이 계획만 출력")
+  .option("--json", "기계 가독 JSON 으로 출력")
+  .option(
+    "--status <name>",
+    "가져올 Notion Status (콤마 구분 가능: 'Planned,Ready'). 기본 Planned",
+  )
+  .option("--limit <number>", "Notion에서 가져올 최대 row 개수 (기본 20, 최대 100)")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option(
+    "--verbose",
+    "considered 행마다 결정 trace (taskId / pageId / docsPath / 선택 사유) 출력",
+  )
+  .action(
+    async (options: {
+      dryRun?: boolean;
+      json?: boolean;
+      status?: string;
+      limit?: string;
+      cwd?: string;
+      verbose?: boolean;
+    }) => {
+      await taskPullCommand(options);
+    },
+  );
 
 const notion = program.command("notion").description("Notion 대시보드 동기화 (MVP 4)");
 
@@ -271,17 +294,38 @@ notion
   .command("test")
   .description("Notion API 인증 + Projects/Tasks DB 접근 + 필수 속성 스키마 검증 (read-only, TASK-010)")
   .option("--json", "기계 가독 JSON 으로 출력")
+  .option(
+    "--debug-shape",
+    "Projects/Tasks DB retrieve 응답의 token-safe shape 진단(top-level keys / data_sources 등) 추가 출력",
+  )
   .option("--cwd <path>", "다른 디렉터리에서 실행")
-  .action(async (options: { json?: boolean; cwd?: string }) => {
-    await notionTestCommand(options);
-  });
+  .action(
+    async (options: { json?: boolean; debugShape?: boolean; cwd?: string }) => {
+      await notionTestCommand(options);
+    },
+  );
 
 notion
   .command("sync")
-  .description("docs/tasks · docs/project → Notion 메타 푸시")
-  .action(() => {
-    notionSyncCommand();
-  });
+  .description(
+    "docs/project · docs/tasks → Notion Projects/Tasks DB 메타 푸시 (read-only on local files, MVP 4)",
+  )
+  .option("--dry-run", "Notion API mutation 없이 plan 만 출력 (query 만 수행)")
+  .option("--json", "기계 가독 JSON 으로 출력")
+  .option("--only-tasks", "Tasks DB 만 sync (Project row 건드리지 않음)")
+  .option("--only-project", "Project DB 만 sync (TASK row 건드리지 않음)")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (options: {
+      dryRun?: boolean;
+      json?: boolean;
+      onlyTasks?: boolean;
+      onlyProject?: boolean;
+      cwd?: string;
+    }) => {
+      await notionSyncCommand(options);
+    },
+  );
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error("[vibeops] error:", err);

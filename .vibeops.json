@@ -6,6 +6,8 @@
   "notion": {
     "enabled": false,
     "projectsDatabaseId": "",
-    "tasksDatabaseId": ""
+    "tasksDatabaseId": "",
+    "projectsTargetId": "",
+    "tasksTargetId": ""
   }
 }

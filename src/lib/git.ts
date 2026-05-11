@@ -257,3 +257,15 @@ export async function detectDefaultBranch(cwd: string): Promise<string | null> {
   }
   return null;
 }
+
+/**
+ * Read the `origin` remote URL (e.g. `git@github.com:org/repo.git`).
+ * Returns `null` if the repo has no `origin` remote or git isn't available.
+ * Read-only — never adds, sets, or fetches.
+ */
+export async function gitRemoteUrl(cwd: string, name = "origin"): Promise<string | null> {
+  const res = await tryGit(cwd, ["remote", "get-url", name]);
+  if (!res) return null;
+  const url = res.stdout.trim();
+  return url.length > 0 ? url : null;
+}

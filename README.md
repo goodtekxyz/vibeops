@@ -43,9 +43,12 @@ vibeops task check TASK-001
 vibeops task done TASK-001
 
 # 5) (옵션) Notion 운영판과 동기화
-vibeops notion init
-vibeops notion test
-vibeops notion sync
+vibeops notion init            # .vibeops.json notion 섹션 + .vibeops.env 안내
+vibeops notion test            # 토큰·DB 스키마 (read-only)
+vibeops notion sync --dry-run  # Notion mutation 없이 plan 미리 보기
+vibeops notion sync            # Projects/Tasks DB 메타 upsert
+vibeops task pull --dry-run    # Notion에 새로 만든 TASK 만 스캔 (file 생성 0)
+vibeops task pull              # Notion → docs/tasks/TASK-NNN-slug.md skeleton 생성
 ```
 
 그 다음 실제 개발은 그 프로젝트 안에서 Cursor가 `docs/tasks/TASK-*.md` 기준으로 단계별로 수행한다.
@@ -118,12 +121,68 @@ pnpm dlx vibeops init
 | `vibeops task check TASK-NNN`                 | 3   | Acceptance Criteria/Test Plan vs Git 상태 비교 보고         |
 | `vibeops task done TASK-NNN`                  | 3   | Status·Result·Test Result 검증 + 머지 가이드               |
 | `vibeops task rollback TASK-NNN`              | 3   | 안내가 기본, `--confirm` 시에만 파괴적 Git 작업             |
-| `vibeops notion init`                         | 4   | `.vibeops.env` 작성 안내                                   |
-| `vibeops notion test`                         | 4   | API 접근·DB 스키마 검증                                    |
-| `vibeops notion sync`                         | 4   | Git docs → Notion (메타 푸시)                              |
-| `vibeops task pull`                           | 4   | Notion → docs/tasks 메타 정합                              |
+| `vibeops notion init`                         | 4   | `.vibeops.json` notion 섹션 + `.vibeops.env.example` 정합  |
+| `vibeops notion test`                         | 4   | API 접근·DB 스키마 검증 (read-only)                        |
+| `vibeops notion sync`                         | 4   | docs/project · docs/tasks → Notion (메타 푸시; `--dry-run` / `--json` / `--only-tasks` / `--only-project`) |
+| `vibeops task pull`                           | 4   | Notion → `docs/tasks/TASK-NNN-slug.md` skeleton 생성 (`--dry-run` / `--json` / `--status <list>` / `--limit <n>`) |
 
 모든 변경 명령은 가능한 한 `--dry-run`을 지원한다.
+
+---
+
+## Notion sync / task pull
+
+VibeOps는 **Git이 source of truth**, **Notion은 사람이 보는 dashboard** 라는 비대칭을 유지한다. 따라서 동기화는 **메타만** 다룬다.
+
+### 사전 준비 (한 번)
+
+1. Notion에서 두 DB를 사람이 직접 만든다. 각 DB가 가져야 할 속성은 `vibeops notion test` 가 친절하게 알려 준다.
+   - **Projects DB (8 속성)**: `Name (title)` · `Project ID (rich_text)` · `Status (status)` · `Local Path (rich_text)` · `Git Repo (rich_text 또는 url)` · `Current Phase (select)` · `Docs Path (rich_text)` · `Summary (rich_text)`
+   - **Tasks DB (10 속성)**: `Name (title)` · `Task ID (rich_text)` · `Project ID (rich_text)` · `Status (status)` · `Priority (select)` · `MVP Phase (select)` · `Git Branch (rich_text)` · `Docs Path (rich_text)` · `Summary (rich_text)` · `Result Summary (rich_text)`
+   - `Status` 는 반드시 Notion **status** 타입 (select 아님).
+   - **Status property option 필수값** (Notion `Status` → `Edit options` 에서 추가). VibeOps 는 옵션을 자동 생성하지 않는다 — 누락된 옵션은 `vibeops notion test` 가 `status-options-missing` 위반으로 잡고 추가해야 할 항목을 직접 알려 준다.
+     - Projects DB Status options: `Building`, `Planning`, `Paused`, `Done`, `Archived`
+     - Tasks DB Status options: `Planned`, `In Progress`, `Review`, `Done`, `Blocked`
+2. 두 DB 페이지 우측 상단 ⋯ → Connections 로 Notion integration 을 추가해 토큰이 접근할 수 있게 만든다.
+3. 로컬에서 `vibeops notion init` 을 실행한다. `NOTION_TOKEN` 을 입력하면 VibeOps가 API-first 방식으로 접근 가능한 data source를 찾는다.
+   - 먼저 `/v1/search` `object=data_source` 로 직접 접근 가능한 data source를 찾는다.
+   - 검색 결과가 없으면 `/v1/search` `object=page` 로 접근 가능한 부모 page를 보여 주고, 선택한 page의 `/v1/blocks/{page_id}/children` 에서 inline `child_database`를 스캔한다.
+   - 찾은 `child_database` block id를 `/v1/databases/{id}` 로 조회하고, `database.data_sources[]` 에서 실제 `data_source` id를 뽑아 `/v1/data_sources/{id}` 의 `properties` 로 schema를 미리 검사한다.
+   - 성공하면 `.vibeops.json` 에는 `notion.projectsTargetId` / `notion.tasksTargetId` 로 resolved data source id를 우선 저장한다. 기존 `projectsDatabaseId` / `tasksDatabaseId` 는 container/debug fallback으로 유지한다.
+   - data source를 API로 찾지 못할 때만 마지막 fallback으로 data source id를 수동 입력한다.
+4. `NOTION_TOKEN` 은 `.vibeops.env` (gitignored) 에만 넣는다.
+5. `vibeops notion test` 가 모두 ✓ 가 되는지 확인한다. 문제 진단에는 `vibeops notion test --debug-shape` 를 사용한다.
+
+### `vibeops notion sync`
+
+`docs/project/00-overview.md` (Summary), `docs/project/{05,03}-current-state.md` (Current Phase 추론), `docs/tasks/*.md` (Goal / Result Summary / Status / Priority / MVP Phase / Git Branch / Docs Path) 를 읽어 Notion 의 Projects 1 행 + Tasks N 행을 **upsert** 한다.
+
+- 매칭 키: Project 는 `Project ID`, Task 는 `(Project ID, Task ID)` 동시 일치. 없으면 create, 있으면 update.
+- **본문은 절대 푸시하지 않는다.** Summary / Result Summary 만 1500자 한도로 잘라 푸시. 사용자가 Notion 안에서 작성한 page body 는 그대로 보존된다.
+- `--dry-run` 은 query 만 호출하고 page mutation 은 **호출하지 않는다.** “create N / update M” 미리 보기만 출력.
+- `--json` 은 동일한 plan + 결과를 stdout 으로 JSON.
+- `--only-tasks` / `--only-project` 로 한 쪽만 sync.
+- 친절한 에러: `notion-not-enabled` · `no-token` · `restricted_resource (DB 미공유)` · `unauthorized` · `schema (속성 누락 / 타입 불일치)` · timeout.
+- target id 우선순위: `projectsTargetId/tasksTargetId`(data source) → `projectsDatabaseId/tasksDatabaseId`(legacy/container fallback). Sync/query도 resolved data source target을 우선 사용한다.
+- Notion API 표면은 **2025-09-03 data_source 우선**: query 는 `data_sources/{id}/query`, page create 의 parent 는 `{ data_source_id }`, update 는 기존 `pages.update(page_id)`. dry-run 의 schema target 블록과 actual sync 가 같은 `data_source` id 를 쓴다는 사실을 `create parent  data_source_id <id>` / `query target  data_source <id>` 두 줄로 출력해 확인할 수 있다. 4xx 가 나면 `action=create-page, target=<id>, parent=data_source_id` 가 함께 표시되며, 404 일 때는 `vibeops notion test --debug-shape` 힌트가 따라붙는다. `NOTION_TOKEN` 은 어떤 출력에도 노출되지 않는다.
+- **`TASK-000-template.md` 는 sync 대상에서 기본 제외.** 이 파일은 `task generate` 가 복제하는 템플릿이라 Notion row 가 생기면 안 된다. 향후 `--include-template` 옵션은 필요 시 별도 polish 라운드에서 추가.
+
+### `vibeops task pull`
+
+Notion Tasks DB 에서 현재 프로젝트의 `Status ∈ {Planned}` 행을 query 해, `Docs Path` 가 비어 있거나 로컬 파일이 없는 TASK 만 골라 `docs/tasks/TASK-NNN-slug.md` 18-섹션 skeleton 을 새로 만든다.
+
+- `Task ID` 가 비어 있으면 자동으로 `docs/tasks` 의 가장 큰 번호 + 1 부터 할당.
+- 새로 만든 파일의 `## Notion Page` 섹션에 `Page ID` 와 `Docs Path` 를 기록 → 다음 `notion sync` 가 같은 row 를 정확히 update.
+- 빈 `Docs Path` 만 역방향 update (한 줄짜리). 다른 Notion 속성은 건드리지 않는다.
+- **본문 덮어쓰기 0건**, 기존 로컬 파일 0건.
+- `--dry-run` / `--json` / `--status <list>` (예: `--status Planned,Ready`) / `--limit <n>` (기본 20, 최대 100).
+
+### 보안 / 안전
+
+- `NOTION_TOKEN` 원본 값은 stdout 에 절대 노출되지 않는다 (`secr…last4 (len=N)` 로 마스킹).
+- Notion mutation 은 `notion sync` (dry-run 아닐 때) 와 `task pull` (dry-run 아닐 때, 빈 Docs Path 만) 에만 일어난다. 그 외 모든 명령은 read-only.
+- DB 자동 생성·page body block 동기화·Webhook·GitHub API·Cursor CLI·LLM API 호출은 본 라운드 범위 밖이며 정책상 금지.
+- `@notionhq/client` 호출은 5 초 timeout — Notion 장애 시에도 명령이 매달리지 않는다.
 
 ---
 
