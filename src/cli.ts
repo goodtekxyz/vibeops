@@ -245,16 +245,35 @@ const notion = program.command("notion").description("Notion 대시보드 동기
 
 notion
   .command("init")
-  .description(".vibeops.env 작성 안내")
-  .action(() => {
-    notionInitCommand();
-  });
+  .description(
+    "대화형: 방향키 + Enter 로 Yes/No 선택 후 .vibeops.json notion 섹션 / .vibeops.env / .vibeops.env.example 정합 (TASK-010)",
+  )
+  .option("--dry-run", "파일 변경 없이 계획만 출력 (대화형 질문 없음)")
+  .option("--enable", "notion.enabled = true 로 설정 (대화형 첫 질문 건너뜀)")
+  .option("--projects-db <id>", "notion.projectsDatabaseId 설정 (대화형 입력 건너뜀)")
+  .option("--tasks-db <id>", "notion.tasksDatabaseId 설정 (대화형 입력 건너뜀)")
+  .option("--non-interactive", "TTY 환경에서도 대화형 질문 없이 flag 값 / 기본값만 사용 (CI 용)")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (options: {
+      dryRun?: boolean;
+      enable?: boolean;
+      projectsDb?: string;
+      tasksDb?: string;
+      nonInteractive?: boolean;
+      cwd?: string;
+    }) => {
+      await notionInitCommand(options);
+    },
+  );
 
 notion
   .command("test")
-  .description("Notion API 접근 + DB 스키마 검증")
-  .action(() => {
-    notionTestCommand();
+  .description("Notion API 인증 + Projects/Tasks DB 접근 + 필수 속성 스키마 검증 (read-only, TASK-010)")
+  .option("--json", "기계 가독 JSON 으로 출력")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(async (options: { json?: boolean; cwd?: string }) => {
+    await notionTestCommand(options);
   });
 
 notion

@@ -11,6 +11,9 @@ importers:
       '@inquirer/prompts':
         specifier: ^8.4.3
         version: 8.4.3(@types/node@20.19.40)
+      '@notionhq/client':
+        specifier: ^5.20.0
+        version: 5.20.0
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -320,6 +323,10 @@ packages:
       '@types/node':
         optional: true
 
+  '@notionhq/client@5.20.0':
+    resolution: {integrity: sha512-MS0DFSfHPLZ0wi+e9mOP16gCCYbWAkaiMuu/rVK9KxDlKac4oAgHReOfTglcd77g/nlg78snp+KB7fNWP75bEw==}
+    engines: {node: '>=18'}
+
   '@types/node@20.19.40':
     resolution: {integrity: sha512-xxx6M2IpSTnnKcR0cMvIiohkiCx20/oRPtWGbenFygKCGl3zqUzdNjQ/1V4solq1LU+dgv0nQzeGOuqkqZGg0Q==}
 
@@ -624,6 +631,8 @@ snapshots:
   '@inquirer/type@4.0.5(@types/node@20.19.40)':
     optionalDependencies:
       '@types/node': 20.19.40
+
+  '@notionhq/client@5.20.0': {}
 
   '@types/node@20.19.40':
     dependencies:

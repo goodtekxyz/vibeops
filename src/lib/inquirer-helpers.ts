@@ -114,3 +114,45 @@ export async function askConfirm(opts: AskConfirmOptions): Promise<boolean> {
   if (opts.nonInteractive) return opts.default;
   return await confirm({ message: opts.message, default: opts.default });
 }
+
+export interface YesNoSelectOptions {
+  message: string;
+  /** default selection — defaults to true (Yes) */
+  defaultValue?: boolean;
+}
+
+/**
+ * Yes/No question rendered as a 2-choice `select` prompt instead of a
+ * `confirm` prompt. This means the user navigates with ←/→ or ↑/↓ and
+ * presses Enter — they never have to type `y` or `n`.
+ *
+ * Returns a boolean (`true` = Yes, `false` = No).
+ */
+export async function yesNoSelect(opts: YesNoSelectOptions): Promise<boolean> {
+  return await select<boolean>({
+    message: opts.message,
+    choices: [
+      { name: "Yes", value: true },
+      { name: "No", value: false },
+    ],
+    default: opts.defaultValue ?? true,
+    loop: false,
+    pageSize: 2,
+  });
+}
+
+export interface AskYesNoOptions {
+  message: string;
+  /** when true, skip the prompt and return `defaultValue` */
+  nonInteractive: boolean;
+  /** default selection — defaults to true (Yes) */
+  defaultValue?: boolean;
+}
+
+/**
+ * Wrapper around `yesNoSelect` that respects a non-interactive flag (CI).
+ */
+export async function askYesNo(opts: AskYesNoOptions): Promise<boolean> {
+  if (opts.nonInteractive) return opts.defaultValue ?? true;
+  return yesNoSelect({ message: opts.message, defaultValue: opts.defaultValue ?? true });
+}

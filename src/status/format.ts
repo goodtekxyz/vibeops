@@ -76,12 +76,25 @@ export function printHuman(report: StatusReport): void {
 
   log.info(bold("Notion"));
   const keys = [
+    ["NOTION_TOKEN", report.notion.hasToken],
     ["NOTION_API_KEY", report.notion.hasApiKey],
     ["NOTION_PROJECT_DB", report.notion.hasProjectDb],
     ["NOTION_TASK_DB", report.notion.hasTaskDb],
   ] as const;
   for (const [name, present] of keys) {
     log.info(`  ${present ? green("✓") : gray("·")} ${name}`);
+  }
+  if (report.config?.notion) {
+    const n = report.config.notion;
+    log.info(
+      `  ${n.enabled ? green("✓") : gray("·")} notion.enabled ${dim(`(${n.enabled})`)}`,
+    );
+    log.info(
+      `  ${n.projectsDatabaseId.length > 0 ? green("✓") : gray("·")} projectsDatabaseId ${dim(`(${n.projectsDatabaseId.length > 0 ? "set" : "empty"})`)}`,
+    );
+    log.info(
+      `  ${n.tasksDatabaseId.length > 0 ? green("✓") : gray("·")} tasksDatabaseId ${dim(`(${n.tasksDatabaseId.length > 0 ? "set" : "empty"})`)}`,
+    );
   }
   log.blank();
 

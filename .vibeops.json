@@ -2,5 +2,10 @@
   "name": "vibeops",
   "vibeopsVersion": "0.1.0",
   "schemaVersion": 1,
-  "createdAt": "2026-05-11T01:53:45.788Z"
+  "createdAt": "2026-05-11T01:53:45.788Z",
+  "notion": {
+    "enabled": false,
+    "projectsDatabaseId": "",
+    "tasksDatabaseId": ""
+  }
 }
