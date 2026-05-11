@@ -45,12 +45,12 @@ export function printHuman(report: StatusReport): void {
   log.blank();
 
   log.info(bold("Tasks"));
-  const { total, planned, in_progress, blocked, done } = report.taskCounts;
+  const { total, planned, in_progress, review, blocked, done } = report.taskCounts;
   log.info(
     `  ${cyan(`total:${total}`)}  ${statusBadge(planned, "planned")}  ${statusBadge(
       in_progress,
       "in_progress",
-    )}  ${statusBadge(blocked, "blocked")}  ${statusBadge(done, "done")}`,
+    )}  ${statusBadge(review, "review")}  ${statusBadge(blocked, "blocked")}  ${statusBadge(done, "done")}`,
   );
   if (report.nextTask) {
     log.info(

@@ -124,10 +124,19 @@ task
 
 task
   .command("start <taskId>")
-  .description("base branch/commit 기록 + task branch 생성 (MVP 3)")
-  .action((taskId: string) => {
-    taskStartCommand(taskId);
-  });
+  .description("Git clean 확인 + task branch 생성 + Status/Git Context 기록 + Builder 프롬프트 출력 (MVP 3)")
+  .option("--dry-run", "파일·Git 변경 없이 계획만 출력")
+  .option("--allow-dirty", "Git working tree가 dirty여도 진행")
+  .option("--agent <name>", "프롬프트를 만들 에이전트 (기본 builder)")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (
+      taskId: string,
+      options: { dryRun?: boolean; allowDirty?: boolean; agent?: string; cwd?: string },
+    ) => {
+      await taskStartCommand(taskId, options);
+    },
+  );
 
 task
   .command("prompt <taskId>")
@@ -152,24 +161,61 @@ task
 
 task
   .command("check <taskId>")
-  .description("Acceptance Criteria / Test Plan vs Git 상태 비교 보고 (MVP 3)")
-  .action((taskId: string) => {
-    taskCheckCommand(taskId);
-  });
+  .description("read-only · git diff/log + AC + 문서 갱신 + Result 확인 + Reviewer 프롬프트 (MVP 3)")
+  .option("--strict", "누락 항목이 있으면 exit code 1")
+  .option("--agent <name>", "프롬프트를 만들 에이전트 (기본 reviewer)")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(
+    async (
+      taskId: string,
+      options: { strict?: boolean; agent?: string; cwd?: string },
+    ) => {
+      await taskCheckCommand(taskId, options);
+    },
+  );
 
 task
   .command("done <taskId>")
-  .description("TASK 완료 검증 + 머지 가이드 (자동 머지 금지) (MVP 3)")
-  .action((taskId: string) => {
-    taskDoneCommand(taskId);
-  });
+  .description("Result/Test Result 검증 + Status → Review + 커밋 메시지 안내 (자동 commit 금지) (MVP 3)")
+  .option("--dry-run", "파일 변경 없이 계획만 출력")
+  .option("--finalize", "Review 대신 Done으로 마무리 (사람 검토 후 사용)")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (
+      taskId: string,
+      options: { dryRun?: boolean; finalize?: boolean; cwd?: string },
+    ) => {
+      await taskDoneCommand(taskId, options);
+    },
+  );
 
 task
   .command("rollback <taskId>")
-  .description("TASK 롤백 안내 (파괴적 작업은 --confirm 필요) (MVP 3)")
-  .action((taskId: string) => {
-    taskRollbackCommand(taskId);
-  });
+  .description("기본: 안내만. --confirm: 비파괴(branch-delete). --confirm-destructive: hard reset. (MVP 3)")
+  .option("--confirm", "비파괴 rollback 실행 허용 (branch-delete 등)")
+  .option("--confirm-destructive", "파괴적 rollback 실행 허용 (reset --hard 등)")
+  .option(
+    "--strategy <name>",
+    "branch-delete | reset-base | revert-merge (기본 branch-delete)",
+  )
+  .option("--keep-branch", "branch-delete 시에도 task branch는 남긴다")
+  .option("--dry-run", "--confirm이 있어도 실제 git 명령은 실행하지 않고 출력만")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (
+      taskId: string,
+      options: {
+        confirm?: boolean;
+        confirmDestructive?: boolean;
+        strategy?: "branch-delete" | "reset-base" | "revert-merge";
+        keepBranch?: boolean;
+        dryRun?: boolean;
+        cwd?: string;
+      },
+    ) => {
+      await taskRollbackCommand(taskId, options);
+    },
+  );
 
 task
   .command("pull")

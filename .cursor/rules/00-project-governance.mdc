@@ -1,0 +1,28 @@
+---
+description: Governance for vibeops — source of truth, single TASK, MVP boundary.
+alwaysApply: true
+---
+
+# Project Governance
+
+## 진실 공급원
+
+- **`docs/project/`**, **`docs/tasks/`**가 우선이다. 채팅은 신뢰하지 않는다.
+- 문서와 채팅이 다르면 **문서를 먼저** 맞춘 뒤 구현한다.
+- 사람용 운영판(Notion)은 **요약·상태·우선순위·브랜치·docs path·결과 요약**만 동기화한다. 상세 본문은 `docs/tasks/*.md`에만 둔다.
+
+## 한 번에 한 TASK
+
+- 구현은 **단일 TASK**에만 해당해야 한다.
+- TASK의 **Scope / Acceptance Criteria** 밖은 하지 않는다.
+- TASK ID(`TASK-NNN`)는 모든 커밋 메시지·브랜치 이름·로그 항목에서 일관되게 사용한다.
+
+## MVP 범위 보호
+
+- `docs/project/02-mvp-scope.md`에 명시되지 않은 기능은 **추가하지 않는다**.
+- 호스팅·실시간 동기화·Webhook·자동 LLM 호출 등 “편의” 항목은 별도 TASK에서만 도입한다.
+
+## 리팩터링·연동
+
+- 대규모 리팩터링은 **별도 TASK**에 있을 때만.
+- 외부 연동(Git host API, Notion, 메신저 등)은 **TASK에 명시된 경우에만**.

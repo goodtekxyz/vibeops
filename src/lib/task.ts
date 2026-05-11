@@ -1,24 +1,45 @@
 import { readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import matter from "gray-matter";
 
-import { isDirectory, readText } from "./filesystem.js";
-import { type TaskCounts, type TaskMeta, type TaskStatus } from "../types/task.js";
+import { isDirectory, readText, writeText } from "./filesystem.js";
+import {
+  type GitContext,
+  type TaskCounts,
+  type TaskMeta,
+  type TaskStatus,
+} from "../types/task.js";
 
 const KNOWN_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>([
   "planned",
   "in_progress",
+  "review",
   "blocked",
   "done",
 ]);
 
-function normalizeStatus(value: unknown): TaskStatus {
+export function normalizeStatus(value: unknown): TaskStatus {
   if (typeof value === "string") {
     const s = value.toLowerCase().replace(/\s+/g, "_");
     if (KNOWN_STATUSES.has(s as TaskStatus)) return s as TaskStatus;
   }
   return "planned";
+}
+
+export function statusDisplay(status: TaskStatus): string {
+  switch (status) {
+    case "planned":
+      return "Planned";
+    case "in_progress":
+      return "In Progress";
+    case "review":
+      return "Review";
+    case "blocked":
+      return "Blocked";
+    case "done":
+      return "Done";
+  }
 }
 
 function extractIdFromFilename(file: string): string {
@@ -112,6 +133,7 @@ export function countTasks(tasks: TaskMeta[]): TaskCounts {
     total: tasks.length,
     planned: 0,
     in_progress: 0,
+    review: 0,
     blocked: 0,
     done: 0,
   };
@@ -122,6 +144,231 @@ export function countTasks(tasks: TaskMeta[]): TaskCounts {
 export function pickNextTask(tasks: TaskMeta[]): TaskMeta | null {
   const inProgress = tasks.find((t) => t.status === "in_progress");
   if (inProgress) return inProgress;
+  const review = tasks.find((t) => t.status === "review");
+  if (review) return review;
   const planned = tasks.find((t) => t.status === "planned");
   return planned ?? null;
+}
+
+export async function findTaskFile(
+  tasksDir: string,
+  taskId: string,
+): Promise<string | null> {
+  const all = await scanTasks(tasksDir);
+  const target = taskId.toUpperCase();
+  for (const t of all) {
+    if (t.id.toUpperCase() === target) return t.filePath;
+  }
+  return null;
+}
+
+const TASK_FILENAME_RE = /^TASK-(\d+)(?:-(.+))?$/i;
+
+export interface TaskNameParts {
+  id: string;
+  number: string;
+  slug: string;
+}
+
+export function parseTaskFilename(filePath: string): TaskNameParts {
+  const stem = basename(filePath, extname(filePath));
+  const m = TASK_FILENAME_RE.exec(stem);
+  if (!m) {
+    return { id: stem.toUpperCase(), number: "000", slug: stem.toLowerCase() };
+  }
+  const number = m[1]!;
+  const tail = (m[2] ?? "").trim().toLowerCase();
+  const slug = tail.length > 0 ? `${number}-${tail}` : number;
+  return { id: `TASK-${number}`, number, slug };
+}
+
+export function branchNameForTaskFile(filePath: string): string {
+  return `task/${parseTaskFilename(filePath).slug}`;
+}
+
+const HEADING_RE = /^(##+)\s+(.+?)\s*$/;
+
+interface SectionBlock {
+  start: number;
+  end: number;
+  contentStart: number;
+  level: number;
+  title: string;
+}
+
+function locateSection(text: string, title: string, level = 2): SectionBlock | null {
+  const lines = text.split("\n");
+  const wantTitle = title.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const m = HEADING_RE.exec(lines[i]!);
+    if (!m) continue;
+    if (m[1]!.length !== level) continue;
+    if (m[2]!.trim().toLowerCase() !== wantTitle) continue;
+    const start = i;
+    const contentStart = i + 1;
+    let j = i + 1;
+    while (j < lines.length) {
+      const nm = HEADING_RE.exec(lines[j]!);
+      if (nm && nm[1]!.length <= level) break;
+      j++;
+    }
+    return { start, end: j, contentStart, level, title: m[2]!.trim() };
+  }
+  return null;
+}
+
+export function readSection(body: string, title: string): string {
+  const block = locateSection(body, title);
+  if (block === null) return "";
+  const lines = body.split("\n").slice(block.contentStart, block.end);
+  // trim leading/trailing blank lines
+  while (lines.length > 0 && lines[0]!.trim().length === 0) lines.shift();
+  while (lines.length > 0 && lines[lines.length - 1]!.trim().length === 0) lines.pop();
+  return lines.join("\n");
+}
+
+export function isPlaceholderContent(content: string): boolean {
+  const trimmed = content.trim();
+  if (trimmed.length === 0) return true;
+  if (/^\(.*미수행.*\)$/.test(trimmed)) return true;
+  if (/^_*\(none\)_*$/i.test(trimmed)) return true;
+  return false;
+}
+
+export function hasNonEmptySection(body: string, title: string): boolean {
+  return !isPlaceholderContent(readSection(body, title));
+}
+
+export function findExpectedFiles(body: string): string[] {
+  const content = readSection(body, "Expected Files to Change");
+  if (content.length === 0) return [];
+  const out: string[] = [];
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    if (!line.startsWith("- ")) continue;
+    let rest = line.slice(2).trim();
+    rest = rest.replace(/^(신규|갱신|new|update|update:|신규:|갱신:)\s*[:：-]?\s*/i, "");
+    const tickMatch = rest.match(/`([^`]+)`/);
+    if (tickMatch) {
+      out.push(tickMatch[1]!.trim());
+    } else {
+      const candidate = rest.split(/[\s,]/)[0];
+      if (typeof candidate === "string" && candidate.length > 0 && /[./]/.test(candidate)) {
+        out.push(candidate);
+      }
+    }
+  }
+  return out;
+}
+
+export function findAcceptanceCriteria(body: string): string[] {
+  const content = readSection(body, "Acceptance Criteria");
+  if (content.length === 0) return [];
+  const out: string[] = [];
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    const m = /^(\d+)\.\s+(.+)$/.exec(line);
+    if (m) out.push(m[2]!.trim());
+  }
+  return out;
+}
+
+function replaceSectionContent(
+  body: string,
+  title: string,
+  newContent: string,
+): string {
+  const lines = body.split("\n");
+  const block = locateSection(body, title);
+  if (block === null) return body;
+  const before = lines.slice(0, block.contentStart);
+  const after = lines.slice(block.end);
+  const contentLines = ["", newContent.trim(), ""];
+  return [...before, ...contentLines, ...after].join("\n");
+}
+
+function insertSectionAfter(
+  body: string,
+  afterTitle: string,
+  newTitle: string,
+  newContent: string,
+): string {
+  const block = locateSection(body, afterTitle);
+  const lines = body.split("\n");
+  const newSection = ["", `## ${newTitle}`, "", newContent.trim(), ""];
+  if (block === null) {
+    return [...lines, ...newSection].join("\n");
+  }
+  const before = lines.slice(0, block.end);
+  const after = lines.slice(block.end);
+  return [...before, ...newSection, ...after].join("\n");
+}
+
+export async function updateInlineStatus(
+  filePath: string,
+  next: TaskStatus,
+): Promise<void> {
+  const raw = await readText(filePath);
+  const display = statusDisplay(next);
+  const updated = replaceSectionContent(raw, "Status", display);
+  if (updated !== raw) {
+    await writeText(filePath, updated);
+  }
+}
+
+function renderGitContextBlock(ctx: GitContext): string {
+  const lines: string[] = [
+    `- Base Branch: \`${ctx.baseBranch}\``,
+    `- Base Commit: \`${ctx.baseCommit}\``,
+    `- Task Branch: \`${ctx.taskBranch}\``,
+    `- Started At: \`${ctx.startedAt}\``,
+  ];
+  if (typeof ctx.doneAt === "string" && ctx.doneAt.length > 0) {
+    lines.push(`- Done At: \`${ctx.doneAt}\``);
+  }
+  return lines.join("\n");
+}
+
+export async function upsertGitContext(
+  filePath: string,
+  ctx: GitContext,
+): Promise<void> {
+  const raw = await readText(filePath);
+  const block = renderGitContextBlock(ctx);
+  let updated: string;
+  if (locateSection(raw, "Git Context")) {
+    updated = replaceSectionContent(raw, "Git Context", block);
+  } else if (locateSection(raw, "MVP Phase")) {
+    updated = insertSectionAfter(raw, "MVP Phase", "Git Context", block);
+  } else if (locateSection(raw, "Status")) {
+    updated = insertSectionAfter(raw, "Status", "Git Context", block);
+  } else {
+    updated = `${raw.trimEnd()}\n\n## Git Context\n\n${block}\n`;
+  }
+  if (updated !== raw) {
+    await writeText(filePath, updated);
+  }
+}
+
+const GIT_CTX_RE: Record<keyof GitContext, RegExp> = {
+  baseBranch: /^-\s+Base Branch:\s*`([^`]+)`/m,
+  baseCommit: /^-\s+Base Commit:\s*`([^`]+)`/m,
+  taskBranch: /^-\s+Task Branch:\s*`([^`]+)`/m,
+  startedAt: /^-\s+Started At:\s*`([^`]+)`/m,
+  doneAt: /^-\s+Done At:\s*`([^`]+)`/m,
+};
+
+export async function readGitContext(filePath: string): Promise<GitContext | null> {
+  const raw = await readText(filePath);
+  const content = readSection(raw, "Git Context");
+  if (content.length === 0) return null;
+  const baseBranch = content.match(GIT_CTX_RE.baseBranch)?.[1];
+  const baseCommit = content.match(GIT_CTX_RE.baseCommit)?.[1];
+  const taskBranch = content.match(GIT_CTX_RE.taskBranch)?.[1];
+  const startedAt = content.match(GIT_CTX_RE.startedAt)?.[1];
+  if (!baseBranch || !baseCommit || !taskBranch || !startedAt) return null;
+  const doneAt = content.match(GIT_CTX_RE.doneAt)?.[1];
+  const ctx: GitContext = { baseBranch, baseCommit, taskBranch, startedAt };
+  if (typeof doneAt === "string" && doneAt.length > 0) ctx.doneAt = doneAt;
+  return ctx;
 }
