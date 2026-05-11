@@ -162,6 +162,36 @@ export async function findTaskFile(
   return null;
 }
 
+/**
+ * Read the highest TASK number currently present in `tasksDir`.
+ * Considers only filenames that match `TASK-NNN-*.md` (the `TASK-000-template.md`
+ * scaffolding file is included — callers can subtract its `0` if they want to
+ * skip the placeholder).
+ *
+ * Returns 0 if no TASK files exist or the directory is missing.
+ */
+export async function highestTaskNumber(tasksDir: string): Promise<number> {
+  if (!(await isDirectory(tasksDir))) return 0;
+  const entries = await readdir(tasksDir, { withFileTypes: true });
+  let max = 0;
+  for (const e of entries) {
+    if (!e.isFile() || !e.name.endsWith(".md")) continue;
+    const m = /^TASK-(\d+)/i.exec(e.name);
+    if (!m) continue;
+    const n = Number.parseInt(m[1]!, 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
+
+export async function nextTaskNumber(tasksDir: string): Promise<number> {
+  return (await highestTaskNumber(tasksDir)) + 1;
+}
+
+export function formatTaskId(n: number, width = 3): string {
+  return `TASK-${String(n).padStart(width, "0")}`;
+}
+
 const TASK_FILENAME_RE = /^TASK-(\d+)(?:-(.+))?$/i;
 
 export interface TaskNameParts {

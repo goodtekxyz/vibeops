@@ -2,7 +2,14 @@
 
 ## Status
 
-planned
+Review
+
+## Git Context
+
+- Base Branch: `main`
+- Base Commit: `b717254`
+- Task Branch: `task/008-task-lifecycle`
+- Started At: `2026-05-11T02:18:00Z`
 
 ## MVP Phase
 
@@ -89,8 +96,75 @@ MVP 2 · Project Planner
 
 ## Result
 
-(미수행)
+2026-05-11 완료(Review 대기). `vibeops task generate` 본체를 구현했다. 사용자의 갱신된 요구를 반영해 원 TASK-007 문서의 옵션 세트(`--from-backlog`, `--title`, `--mvp`, `--out`)를 다음과 같이 재구성했다.
+
+### 사용자 요구사항 vs 원 TASK-007 문서 (deviation)
+
+- 원 문서: `--from-backlog <id-or-title>` + `--title <text>` 두 입력 모드.  
+  실제 구현: **컨텍스트 통합 모드**로 단순화. 기본은 `docs/project/07-backlog.md` + 나머지 `00 ~ 09` + `.vibeops/brief/project-brief.md`를 모두 읽어 한 번에 합산한다. 임의 입력은 `--from <path>`로 들어가며 inline 코드 블록으로 프롬프트에 포함된다.
+- 원 문서: `--mvp <n>` → 구현 옵션 이름을 `--phase <name>` (예: `MVP 4`)로 통일. plan 명령과 표현을 맞추기 위함.
+- 원 문서: `--out <path>` → `--output <path>`로 통일(plan 명령과 같은 이름).
+- 원 문서: `--scaffold` 사용 시 1개의 TASK 파일 골격 작성.  
+  실제 구현: `--count <number>`(기본 8)를 둬 한 번에 여러 개의 placeholder TASK 파일을 만들 수 있다. 기존 TASK 번호를 스캔해 다음 번호부터 시작하고, 충돌 시 다음 사용 가능한 번호로 자동 건너뛴다. 기존 파일은 절대 덮어쓰지 않는다.
+- 원 문서: AC에 15개 섹션 명시.  
+  실제 구현: 사용자 요구에 따라 **18 섹션**(15개 + `Git Context` + `Notion Page` + `Review Notes`)을 강제한다. 본 라운드의 TASK-008 / TASK-009 에 추가한 `Git Context` 섹션, MVP 4 동기화용 `Notion Page` 섹션, 사람·Reviewer Agent용 `Review Notes` 섹션이 신규로 들어간다.
+
+### 추가/변경 파일
+
+- 신규: `src/lib/project-docs.ts` — `docs/project/*` 와 `.vibeops/brief/project-brief.md`를 슬롯 단위로 읽고, 옛 네이밍(`05-backlog.md` 등)이 남아 있는 저장소를 위해 legacy fallback 지도(`07-backlog.md ← 05-backlog.md`, `03-architecture.md ← 01-architecture.md`, 기타)를 둬 본 VibeOps 저장소 자신에게도 동작한다.
+- 신규: `src/lib/task-generator.ts` — 다음 항목을 export.
+  - `slugify(text, fallback)` — ASCII / lowercase / `-` join / NFKD diacritic 제거 / 빈 결과는 `task` 폴백.
+  - `REQUIRED_TASK_SECTIONS` — 18 섹션 상수.
+  - `buildTaskGeneratePrompt(inputs)` — Cursor Planner Agent에 붙여 넣을 단일 마크다운 빌더. Hard rules(코드 작성 금지, LLM·Cursor CLI·Notion·GitHub API 호출 금지), 진실 공급원 규칙(`docs/tasks/* = AI execution source of truth`, `Notion = human dashboard`), 입력 문서 인벤토리(`✓`/`·`), 권장 개수·페이즈 필터, 18 섹션 강제, 입력 문서 inline 코드 블록, 응답 형식(plan summary → TASK 블록 → changed file list → generated TASK summary → Assumptions) 포함.
+- 신규: `src/lib/task-scaffold.ts` — `planScaffoldEntries`(번호 충돌 회피하며 N개 예약) + `renderScaffoldMarkdown`(18 섹션 placeholder skeleton) + `writeScaffoldFiles`(존재 시 건너뜀).
+- 갱신: `src/lib/task.ts` — `highestTaskNumber(tasksDir)`, `nextTaskNumber(tasksDir)`, `formatTaskId(n, width=3)` 헬퍼 추가.
+- 갱신: `src/commands/task-generate.ts` — stub 대체. `--from`(존재 확인 후 친절한 에러), `--output`, `--count`(>20이면 경고, 유효하지 않으면 8로 폴백 + 경고), `--phase`, `--scaffold`, `--dry-run`, `--cwd` 처리. 두 모드 분기. dry-run / 실제 모두 LLM·Cursor CLI·Notion·GitHub API·Git mutation 호출 0건.
+- 갱신: `src/cli.ts` — `task generate`에 위 옵션 노출 + 한국어 설명.
+
+### 기본 동작 흐름 (prompt 모드)
+
+1. `docs/project/07-backlog.md` + `00 ~ 09` + `.vibeops/brief/project-brief.md` (+ `--from <path>`)를 읽는다. 누락 슬롯은 인벤토리에 `·` 표시.
+2. `docs/tasks/TASK-*.md`의 최대 번호를 찾아 `nextTaskId`(예: `TASK-013`) 계산.
+3. `count`(기본 8) + `phase`(있으면)를 반영한 Cursor 붙여넣기 프롬프트를 빌드.
+4. `.vibeops/generated/task-generate-prompt.md` (또는 `--output <path>`)에 저장.
+5. 터미널에는 인벤토리·계획·다음 액션(`Cursor에 붙여넣기` → `git diff` 검토 → `vibeops task start TASK-NNN`)을 출력.
+
+### scaffold 모드 흐름
+
+1. 기존 번호 스캔 후 다음 번호부터 `count`개 예약(이미 같은 번호 파일이 있으면 건너뛰며 다음 사용 가능한 번호로).
+2. `--dry-run`이면 만들어질 파일 경로 목록 + 첫 항목의 skeleton preview만 출력하고 종료.
+3. 실제 모드면 각 파일에 18 섹션 placeholder를 가진 markdown을 쓴다. 기존 파일은 덮어쓰지 않는다.
+
+### 안전장치
+
+- **VibeOps는 LLM/Cursor CLI/Notion/GitHub API/Git mutation 호출 0건.** prompt 모드는 `writeText`로 markdown 한 개만 디스크에 쓴다. scaffold 모드는 새 markdown만 만들고 기존 파일은 절대 안 건드린다.
+- `--from <path>` 미존재 시 친절한 에러 + exit 1.
+- `--count`가 정수가 아니면 8로 폴백 + 경고. `--count > 20`이면 경고만(중단하지 않음, "Planner Agent may push back").
+- `--dry-run`은 prompt / scaffold 양쪽 모두 파일 변경 0건.
+- `.vibeops/generated/`는 `.gitignore` 적용 대상이므로 생성된 prompt는 커밋되지 않는다.
 
 ## Test Result
 
-(미수행)
+- `pnpm typecheck` → exit 0.
+- `pnpm build` → exit 0.
+- `pnpm exec tsx src/cli.ts task generate --help` → 7개 옵션(`--from / --output / --count / --phase / --scaffold / --dry-run / --cwd`) 모두 노출.
+- Sandbox(`/var/folders/.../vibeops-gen-XXXX/`) — `init` 후 TASK-001/002 fixture 추가하고 다음 11 케이스 검증:
+
+  | # | 명령 | 결과 |
+  | --- | --- | --- |
+  | 1 | `task generate --dry-run` | next id `TASK-003`, 인벤토리 10 ✓ + brief 1 ·, "no LLM / Cursor / Notion / GitHub / Git call" 출력, `.vibeops/generated/` **미생성** |
+  | 2 | `task generate` (real) | `.vibeops/generated/task-generate-prompt.md` 456줄 생성. 헤더에 schema=1, version=0.1.0, 18 섹션 모두 강제 명시 ✓ |
+  | 3 | `task generate --count 5 --phase "MVP 4"` | `**5개 내외**`, `MVP Phase 필터: MVP 4`, `## MVP Phase 의 본문은 MVP 4`, `Notion Page (MVP 4 / TASK-011…)` 모두 프롬프트에 정확히 박힘 |
+  | 4 | `task generate --output .vibeops/generated/test-task-prompt.md` | 지정한 경로로 출력 ✓ |
+  | 5 | `task generate --scaffold --dry-run --count 2` | 파일 0건 생성, 첫 항목 skeleton preview 출력 |
+  | 6 | `task generate --scaffold --count 2` | `TASK-003-planned-task.md`, `TASK-004-planned-task.md` 생성. **18 섹션 모두 포함 ✓** (Status / MVP Phase / Goal / Background / Scope / Out of Scope / Acceptance Criteria / Files to Inspect First / Expected Files to Change / Risks / Test Plan / Rollback Plan / Git Context / Notion Page / Implementation Plan / Result / Test Result / Review Notes) |
+  | 7 | `task generate --scaffold --count 2` (재실행) | 충돌 회피 — `TASK-005 / TASK-006` 로 자동 진행. 기존 003/004 미변경 |
+  | 8 | `task generate --from doesnotexist.md` | `✗ --from path not found: …` + exit 1, 파일 0건 |
+  | 9 | `task generate --from my-backlog.md` | 인벤토리 첫 줄에 `Custom input (--from) **(primary)**` 추가, 프롬프트 본문에 `my-backlog.md` inline 블록 포함 |
+  | 10 | `task generate --count 25 --dry-run` | `! --count 25 is large (soft cap 20). Continuing, but the Planner Agent may push back.` 경고, count=25로 진행 |
+  | 11 | `task generate --count abc --dry-run` | `! --count must be a positive integer (got: "abc"). Falling back to default 8.` + count=8로 진행 |
+
+- 라이브 저장소 read-only 검증: `node dist/cli.js task generate --dry-run --cwd /Users/hjhamm/goodtek/vibeops` → next id `TASK-013`(현재 최대 TASK-012의 +1), 인벤토리 10 ✓ + brief 1 ·, 파일 0건 생성. 명령 전/후 `git status --porcelain | wc -l` 동일.
+- Sandbox 정리: `--scaffold`로 만든 TASK-003 ~ TASK-006-planned-task.md 4개 파일은 sandbox 임시 디렉터리(`/var/folders/...`)에서만 생성됐으며 라이브 저장소에는 만들지 않음. 라이브에서는 `--dry-run`만 실행.
+- 본 라운드에서 LLM API · Cursor CLI · Notion API · GitHub API · Git mutation 호출 0건.
+- 보류: vitest 자동 회귀(TASK-007까지 누적). polish 라운드에서 통합 예정.

@@ -117,10 +117,27 @@ const task = program.command("task").description("TASK 라이프사이클 (MVP 2
 
 task
   .command("generate")
-  .description("TASK 파일 생성 또는 생성용 프롬프트 출력 (MVP 2)")
-  .action(() => {
-    taskGenerateCommand();
-  });
+  .description("docs/project 컨텍스트로 Cursor TASK 생성 프롬프트를 만들거나 (--scaffold면) skeleton TASK 파일을 생성 (MVP 2)")
+  .option("--from <path>", "주 입력으로 쓸 backlog/brief markdown 경로")
+  .option("--output <path>", "생성된 프롬프트 저장 경로 (기본 .vibeops/generated/task-generate-prompt.md)")
+  .option("--count <number>", "Cursor에 권장할 TASK 개수 (기본 8, 20 초과면 경고)")
+  .option("--phase <name>", "특정 MVP phase 만 생성 (예: 'MVP 4')")
+  .option("--scaffold", "LLM 없이 VibeOps가 직접 skeleton TASK markdown 파일을 만든다")
+  .option("--dry-run", "파일 생성/수정 없이 계획만 출력")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (options: {
+      from?: string;
+      output?: string;
+      count?: string;
+      phase?: string;
+      scaffold?: boolean;
+      dryRun?: boolean;
+      cwd?: string;
+    }) => {
+      await taskGenerateCommand(options);
+    },
+  );
 
 task
   .command("start <taskId>")
