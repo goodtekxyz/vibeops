@@ -5,9 +5,18 @@
   "createdAt": "2026-05-11T01:53:45.788Z",
   "notion": {
     "enabled": false,
-    "projectsDatabaseId": "",
-    "tasksDatabaseId": "",
     "projectsTargetId": "",
-    "tasksTargetId": ""
+    "tasksTargetId": "",
+    "projectsDatabaseId": "",
+    "tasksDatabaseId": ""
+  },
+  "github": {
+    "enabled": true,
+    "mode": "gh-cli",
+    "owner": "goodtekxyz",
+    "repo": "vibeops",
+    "remote": "origin",
+    "visibility": "private",
+    "url": "https://github.com/goodtekxyz/vibeops"
   }
 }

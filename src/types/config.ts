@@ -18,12 +18,32 @@ export interface NotionConfig {
   tasksDatabaseId: string;
 }
 
+export type GithubVisibility = "public" | "private" | "";
+
+export interface GithubConfig {
+  enabled: boolean;
+  /**
+   * Mode VibeOps uses to talk to GitHub. For now only `gh-cli` (GitHub CLI
+   * `gh`) is supported. A future polish round may add `rest-api` driven by
+   * `GITHUB_TOKEN` as a fallback for headless environments.
+   */
+  mode: "gh-cli";
+  owner: string;
+  repo: string;
+  /** Git remote name VibeOps points at this repo. Default `origin`. */
+  remote: string;
+  visibility: GithubVisibility;
+  /** Canonical remote URL VibeOps stored (https or ssh, normalized). */
+  url: string;
+}
+
 export interface VibeopsConfig {
   name: string;
   vibeopsVersion: string;
   schemaVersion: typeof VIBEOPS_CONFIG_SCHEMA_VERSION;
   createdAt: string;
   notion?: NotionConfig;
+  github?: GithubConfig;
 }
 
 export interface NotionEnvSnapshot {
@@ -39,4 +59,14 @@ export const DEFAULT_NOTION_CONFIG: NotionConfig = {
   tasksTargetId: "",
   projectsDatabaseId: "",
   tasksDatabaseId: "",
+};
+
+export const DEFAULT_GITHUB_CONFIG: GithubConfig = {
+  enabled: false,
+  mode: "gh-cli",
+  owner: "",
+  repo: "",
+  remote: "origin",
+  visibility: "",
+  url: "",
 };

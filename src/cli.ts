@@ -4,6 +4,8 @@ import { Command } from "commander";
 import { agentListCommand } from "./commands/agent-list.js";
 import { agentPromptCommand } from "./commands/agent-prompt.js";
 import { agentShowCommand } from "./commands/agent-show.js";
+import { githubInitCommand } from "./commands/github-init.js";
+import { githubStatusCommand } from "./commands/github-status.js";
 import { initCommand } from "./commands/init.js";
 import { notionInitCommand } from "./commands/notion-init.js";
 import { notionSyncCommand } from "./commands/notion-sync.js";
@@ -324,6 +326,60 @@ notion
       cwd?: string;
     }) => {
       await notionSyncCommand(options);
+    },
+  );
+
+const github = program
+  .command("github")
+  .description("GitHub repository 연동 (post-MVP 4, TASK-013)");
+
+github
+  .command("status")
+  .description("gh 설치/인증 + git remote + .vibeops.json/github + package.json repo 점검 (read-only)")
+  .option("--json", "기계 가독 JSON 으로 출력")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(async (options: { json?: boolean; cwd?: string }) => {
+    await githubStatusCommand(options);
+  });
+
+github
+  .command("init")
+  .description(
+    "interactive: gh 인증 확인 + git remote + (옵션) gh repo create + .vibeops.json/github + package.json repository 채움",
+  )
+  .option("--dry-run", "gh / git / 파일 변경 없이 계획만 출력")
+  .option("--yes", "interactive 질문 건너뛰고 가능한 기본값으로 진행")
+  .option("--owner <owner>", "GitHub owner (user or org)")
+  .option("--repo <repo>", "GitHub repo name")
+  .option("--public", "visibility=public (질문 생략)")
+  .option("--private", "visibility=private (질문 생략)")
+  .option("--remote <name>", "git remote 이름 (기본 origin)")
+  .option(
+    "--connect <ownerOrUrl>",
+    "새 repo 생성 없이 기존 repo 연결 (owner/repo 또는 https/ssh URL)",
+  )
+  .option("--no-package-update", "package.json repository/homepage/bugs 수정 안 함")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (options: {
+      dryRun?: boolean;
+      yes?: boolean;
+      owner?: string;
+      repo?: string;
+      public?: boolean;
+      private?: boolean;
+      remote?: string;
+      connect?: string;
+      packageUpdate?: boolean;
+      cwd?: string;
+    }) => {
+      await githubInitCommand({
+        ...options,
+        // Commander turns `--no-package-update` into `packageUpdate: false`.
+        // Our command type still accepts the legacy `noPackageUpdate`
+        // shape for tests / direct invocation.
+        noPackageUpdate: options.packageUpdate === false,
+      });
     },
   );
 

@@ -4,6 +4,9 @@ import { readTextOrNull, writeText } from "./filesystem.js";
 import { VIBEOPS_CONFIG_FILE } from "./paths.js";
 import { VERSION } from "../version.js";
 import {
+  DEFAULT_GITHUB_CONFIG,
+  type GithubConfig,
+  type GithubVisibility,
   type NotionConfig,
   type NotionEnvSnapshot,
   type VibeopsConfig,
@@ -27,12 +30,33 @@ function parseNotionSection(raw: unknown): NotionConfig | undefined {
   return out;
 }
 
+function parseGithubVisibility(raw: unknown): GithubVisibility {
+  if (raw === "public" || raw === "private") return raw;
+  return "";
+}
+
+function parseGithubSection(raw: unknown): GithubConfig | undefined {
+  if (raw === null || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  return {
+    enabled: typeof r.enabled === "boolean" ? r.enabled : false,
+    mode: r.mode === "gh-cli" ? "gh-cli" : "gh-cli",
+    owner: typeof r.owner === "string" ? r.owner : "",
+    repo: typeof r.repo === "string" ? r.repo : "",
+    remote:
+      typeof r.remote === "string" && r.remote.length > 0 ? r.remote : "origin",
+    visibility: parseGithubVisibility(r.visibility),
+    url: typeof r.url === "string" ? r.url : "",
+  };
+}
+
 export async function readConfig(root: string): Promise<VibeopsConfig | null> {
   const text = await readTextOrNull(join(root, VIBEOPS_CONFIG_FILE));
   if (text === null) return null;
   try {
     const parsed = JSON.parse(text) as Partial<VibeopsConfig> & {
       notion?: unknown;
+      github?: unknown;
     };
     if (
       typeof parsed.name === "string" &&
@@ -41,6 +65,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
       parsed.schemaVersion === VIBEOPS_CONFIG_SCHEMA_VERSION
     ) {
       const notion = parseNotionSection(parsed.notion);
+      const github = parseGithubSection(parsed.github);
       const config: VibeopsConfig = {
         name: parsed.name,
         vibeopsVersion: parsed.vibeopsVersion,
@@ -48,6 +73,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
         createdAt: parsed.createdAt,
       };
       if (notion) config.notion = notion;
+      if (github) config.github = github;
       return config;
     }
     return null;
@@ -134,4 +160,49 @@ export function readNotionEnvSnapshot(env: NodeJS.ProcessEnv = process.env): Not
     hasProjectDb: get("NOTION_PROJECT_DB"),
     hasTaskDb: get("NOTION_TASK_DB"),
   };
+}
+
+/**
+ * Merge a partial github section into an existing config without touching
+ * other fields (notion, name, etc.). Empty strings in the patch are treated
+ * as "no value provided" — the existing value is kept. Pass through
+ * `enabled` / `mode` always (booleans / enums always overwrite).
+ */
+export function mergeGithubConfig(
+  base: VibeopsConfig,
+  patch: Partial<GithubConfig>,
+): { merged: VibeopsConfig; changed: boolean } {
+  const current: GithubConfig = base.github ?? DEFAULT_GITHUB_CONFIG;
+  const next: GithubConfig = {
+    enabled: patch.enabled ?? current.enabled,
+    mode: patch.mode ?? current.mode,
+    owner:
+      patch.owner !== undefined && patch.owner.length > 0
+        ? patch.owner
+        : current.owner,
+    repo:
+      patch.repo !== undefined && patch.repo.length > 0
+        ? patch.repo
+        : current.repo,
+    remote:
+      patch.remote !== undefined && patch.remote.length > 0
+        ? patch.remote
+        : current.remote,
+    visibility:
+      patch.visibility !== undefined && patch.visibility.length > 0
+        ? patch.visibility
+        : current.visibility,
+    url:
+      patch.url !== undefined && patch.url.length > 0 ? patch.url : current.url,
+  };
+  const changed =
+    base.github === undefined ||
+    next.enabled !== current.enabled ||
+    next.mode !== current.mode ||
+    next.owner !== current.owner ||
+    next.repo !== current.repo ||
+    next.remote !== current.remote ||
+    next.visibility !== current.visibility ||
+    next.url !== current.url;
+  return { merged: { ...base, github: next }, changed };
 }
