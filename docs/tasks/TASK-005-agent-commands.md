@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## MVP Phase
 
@@ -86,8 +86,54 @@ MVP 1 · Project Bootstrapper
 
 ## Result
 
-(미수행)
+2026-05-11 완료. 에이전트를 “파일”로 다루는 세 개 명령(`agent list / show / prompt`)을 구현했다.
+
+- **에이전트 로더**: `src/agent/loader.ts` — gray-matter로 frontmatter(`name`, `role`, `description`) 파싱 + 본문 분리. `findAgent(dir, name)`은 frontmatter의 `name` 우선 매칭, 그 뒤 파일명 매칭. `loadAgent`/`listAgents`는 malformed 파일을 조용히 건너뛴다.
+- **프롬프트 빌더**: `src/agent/prompt.ts` — `buildPrompt({ agent, config, task?, projectRoot, contextPaths? })`이 “Header(프로젝트 이름·VibeOps 버전·TASK 메타) + Agent definition 본문 + (있다면) TASK 파일 본문 + (있다면) 추가 컨텍스트 파일 인용 + Footer(보고 형식 안내)”를 합쳐 단일 마크다운을 반환.
+- **명령**:
+  - `agent list` — `.vibeops/agents/*.md` 목록 + 한 줄 description. `--json` 시 `{name, role, description, filePath}` 배열.
+  - `agent show <name> [--raw]` — 본문(가독성 우선) 또는 원본(`--raw`).
+  - `agent prompt <name> <taskId> [--context <path...>]` — TASK 파일을 docs/tasks/에서 찾아 본문과 함께 묶어 stdout 출력. taskId가 `TASK-NNN` 형태가 아니면 경고 후 TASK 컨텍스트 없이 진행.
+- **에러 경로**: 알 수 없는 에이전트 이름이면 `Available: <list>` 안내 + exit 1. 에이전트 디렉터리가 없으면 `Run \`vibeops init\` first.` 안내.
+- **TASK ↔ agent 결합 재사용**: `cli.ts`의 `task prompt <taskId> --agent <name>`도 동일한 `agentPromptCommand`를 호출(인수 순서만 바꿔서). 이로써 TASK-008에서 task prompt를 별도 구현할 필요가 줄어든다.
+- **`--copy`(macOS pbcopy)**: TASK 본문에 “시간 없으면 미구현 OK”로 적힌 항목 — **미구현** 유지. 후속 보강 TASK 후보.
+
+### 변경 파일
+
+| 파일 | 종류 |
+| --- | --- |
+| `src/commands/agent-list.ts` | 갱신 (stub → 실제 구현) |
+| `src/commands/agent-show.ts` | 갱신 (stub → 실제 구현) |
+| `src/commands/agent-prompt.ts` | 갱신 (stub → 실제 구현) |
+| `src/agent/loader.ts` | 신규 |
+| `src/agent/prompt.ts` | 신규 |
+| `src/cli.ts` | 갱신 (`--raw`, `--cwd`, `--context` 옵션 wiring + `task prompt` 위임) |
 
 ## Test Result
 
-(미수행)
+- **sandbox에서 list**: `pnpm dev agent list --cwd /tmp/vibeops-sandbox` →
+  ```
+  Agents
+    architect     시스템 구조와 기술 스택을 결정한다.
+    builder       한 TASK의 Scope 안에서 코드를 짓는다.
+    docs          구현 후 세 가지 문서를 함께 갱신한다.
+    orchestrator  다음에 할 일을 정하고 적절한 에이전트로 위임한다.
+    planner       아이디어를 받아 비전·요구·MVP 범위·백로그를 만든다.
+    recovery      무엇이 어긋났는지 진단하고 되돌릴 명령을 안내한다.
+    reviewer      builder의 결과를 TASK 기준으로 점검한다.
+    tester        TASK의 Test Plan을 실행한다. 통과/실패와 증거를 기록한다.
+  ```
+  8개 에이전트 모두 `name`과 한 줄 설명 표시 — AC#1 통과.
+- **show**: `pnpm dev agent show builder --cwd /tmp/vibeops-sandbox` → 본문(Role / Inputs / Output Format / Rules / 금지사항)이 출력되고 frontmatter 4줄(name/role/description/`---`)은 포함되지 않음. `--raw` 옵션은 cli에 wiring되어 있음. — AC#2 통과.
+- **prompt**: `pnpm dev agent prompt builder TASK-000 --cwd /tmp/vibeops-sandbox` → 단일 마크다운 출력. 다음 요소를 모두 포함:
+  - `# Cursor prompt — agent: builder`
+  - `Project: \`byobrowser\``, `VibeOps: \`0.1.0\``
+  - `TASK: \`TASK-000\``, `TASK file: \`docs/tasks/TASK-000-template.md\``
+  - `## Agent definition (builder)` + 본문
+  - `## TASK file content` + 본문
+  - Footer (보고 형식 안내)
+  — AC#3, AC#5 통과.
+- **알 수 없는 이름**: `pnpm dev agent show ghost --cwd /tmp/vibeops-sandbox` → exit 1, `✗ Unknown agent: "ghost".`와 `Available: architect, builder, docs, orchestrator, planner, recovery, reviewer, tester` 표시 — AC#4 통과(가용 목록이 TASK 본문 예시인 `planner, builder, reviewer, releaser`가 아니라 실제 설치된 8개 에이전트인 점은 TASK-003 확장 명세에 따른 결과).
+- **agent prompt 재사용**: `pnpm dev task prompt TASK-000 --agent builder --cwd /tmp/vibeops-sandbox` → 동일한 프롬프트 출력. AC#3 통과.
+- ReadLints (`src/`) → 0 issues.
+- Acceptance Criteria 1~5 모두 통과.

@@ -29,7 +29,8 @@ VibeOps는 이걸 **부트스트랩 + TASK 라이프사이클 + Notion 운영판
 # 1) 새 프로젝트 디렉터리에 운영 구조 설치
 vibeops init
 
-# 2) 아이디어를 받아 docs/project 골격과 백로그 계획 프롬프트 생성
+# 2) 20개 짧은 질문(select·checkbox·confirm·input)으로 ProjectBrief를 만들고
+#    docs/project 골격을 채울 Cursor 프롬프트 생성
 vibeops plan
 
 # 3) 백로그에서 첫 TASK 생성
@@ -110,7 +111,7 @@ pnpm dlx vibeops init
 | `vibeops init`                                | 1   | 현재 디렉터리에 VibeOps 운영 구조 설치                     |
 | `vibeops status`                              | 1   | 설치 상태, TASK 현황, Notion 연결 여부                     |
 | `vibeops agent list / show / prompt`          | 1   | 에이전트 목록·내용·프롬프트 출력                            |
-| `vibeops plan`                                | 2   | 아이디어 → docs/project 계획 프롬프트                       |
+| `vibeops plan`                                | 2   | 20개 대화형 질문 → ProjectBrief → docs/project 계획 프롬프트 |
 | `vibeops task generate`                       | 2   | 백로그에서 TASK 파일 생성/생성용 프롬프트                  |
 | `vibeops task start TASK-NNN`                 | 3   | base branch·commit·task branch 기록, task branch 생성       |
 | `vibeops task prompt TASK-NNN --agent <name>` | 3   | Cursor 붙여넣기 프롬프트 출력                              |

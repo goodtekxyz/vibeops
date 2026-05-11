@@ -72,3 +72,13 @@
 
 - 구현 완료 시 **반드시** 함께 갱신: `docs/project/03-current-state.md`, 해당 TASK 파일의 Result/Test Result, `docs/logs/YYYY-MM-DD.md`.
 - 세 가지를 갱신하지 않으면 TASK는 완료로 치지 않는다.
+
+## D-013 · `vibeops plan`은 대화형 Q&A를 1순위로 한다
+
+- `vibeops plan`은 자유 텍스트 한 덩어리만 받지 않는다. **20개 짧은 질문**을 `input` · `select` · `checkbox` · `confirm`을 섞어서 받는다.
+- 키 입력 규약: select·checkbox 둘 다 방향키, checkbox는 스페이스 토글 + 엔터 확정, confirm은 엔터로 default 사용. checkbox는 다중 default 허용.
+- `select` / `checkbox`에서 `Other`를 고르면 곧바로 follow-up `input` 질문을 띄우고, 결과는 표준 옵션 라벨 ∪ `Custom: <text>` 형식으로 정규화한다.
+- 결과는 **정규화된 `ProjectBrief`(JSON, `schemaVersion=1`)** 로 `.vibeops/plan/brief.json`에 저장한다. Cursor 프롬프트는 항상 이 brief를 입력으로 빌드한다.
+- 인터랙티브 흐름이 막힐 환경(non-TTY, CI, 파이프)에서는 진입을 거부하고 `--brief <path>`를 요구한다. CI에서 미리 만든 brief.json을 재사용할 수 있게 한다.
+- `vibeops plan`은 `docs/project/` 10개 중 8개(00, 01, 02, 04, 06, 07, 08, 09)만 채운다. `03-architecture`는 `architect` 에이전트가, `05-current-state`는 init·TASK lifecycle이 책임진다.
+- VibeOps는 여전히 LLM을 직접 호출하지 않는다. brief를 가지고 채우는 작업은 Cursor가 한다. 이 결정은 D-001과 D-002에 정합한다.

@@ -3,3 +3,16 @@ dist/
 .vibeops.env
 *.log
 .DS_Store
+
+# VibeOps local/runtime files
+
+.vibeops.env
+
+.vibeops/tmp/
+
+.vibeops/cache/
+
+.vibeops/brief/
+
+.vibeops/generated/
+

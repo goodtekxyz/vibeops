@@ -32,23 +32,49 @@ program
 program
   .command("init")
   .description("현재 디렉터리에 VibeOps 운영 구조 설치 (MVP 1)")
-  .action(() => {
-    initCommand();
-  });
+  .option("--dry-run", "실제 파일 변경 없이 무엇이 만들어질지만 표시")
+  .option("--force", "기존 파일을 덮어쓴다 (주의)")
+  .option("--cwd <path>", "다른 디렉터리에 설치")
+  .option("--name <projectName>", ".vibeops.json에 들어갈 프로젝트 이름")
+  .action(
+    async (options: {
+      dryRun?: boolean;
+      force?: boolean;
+      cwd?: string;
+      name?: string;
+    }) => {
+      await initCommand(options);
+    },
+  );
 
 program
   .command("status")
   .description("VibeOps 설치 · TASK 현황 · Notion 연결 상태 표시 (MVP 1)")
-  .action(() => {
-    statusCommand();
+  .option("--json", "기계 가독 JSON으로 출력")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(async (options: { json?: boolean; cwd?: string }) => {
+    await statusCommand(options);
   });
 
 program
   .command("plan")
-  .description("아이디어 → docs/project 계획 프롬프트 (MVP 2)")
-  .action(() => {
-    planCommand();
-  });
+  .description("20개 대화형 질문으로 ProjectBrief + Cursor Planner 프롬프트 생성 (MVP 2)")
+  .option("--idea <text>", "one-line idea의 기본값 (`Name: idea` 형식이면 name도 추출)")
+  .option("--from <path>", "기존 brief markdown을 읽어 prompt 재생성")
+  .option("--output <path>", "Cursor 계획 프롬프트 출력 경로 (기본 .vibeops/generated/plan-prompt.md)")
+  .option("--non-interactive", "질문 없이 주어진 값 + 안전한 placeholder로 생성")
+  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .action(
+    async (options: {
+      idea?: string;
+      from?: string;
+      output?: string;
+      nonInteractive?: boolean;
+      cwd?: string;
+    }) => {
+      await planCommand(options);
+    },
+  );
 
 const agent = program
   .command("agent")
@@ -57,27 +83,37 @@ const agent = program
 agent
   .command("list")
   .description("에이전트 목록 출력")
-  .action(() => {
-    agentListCommand();
+  .option("--json", "기계 가독 JSON으로 출력")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(async (options: { json?: boolean; cwd?: string }) => {
+    await agentListCommand(options);
   });
 
 agent
   .command("show <name>")
   .description("에이전트 정의 본문 출력")
-  .action((name: string) => {
-    agentShowCommand(name);
+  .option("--raw", "frontmatter 포함 원본 출력")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(async (name: string, options: { raw?: boolean; cwd?: string }) => {
+    await agentShowCommand(name, options);
   });
 
 agent
   .command("prompt <name> <taskId>")
   .description("에이전트 + TASK 컨텍스트로 Cursor 붙여넣기 프롬프트 출력")
-  .action((name: string, taskId: string) => {
-    agentPromptCommand(name, taskId);
-  });
+  .option("--context <path...>", "추가 컨텍스트 파일 경로")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(
+    async (
+      name: string,
+      taskId: string,
+      options: { context?: string[]; cwd?: string },
+    ) => {
+      await agentPromptCommand(name, taskId, options);
+    },
+  );
 
-const task = program
-  .command("task")
-  .description("TASK 라이프사이클 (MVP 2 ~ 4)");
+const task = program.command("task").description("TASK 라이프사이클 (MVP 2 ~ 4)");
 
 task
   .command("generate")
@@ -96,10 +132,23 @@ task
 task
   .command("prompt <taskId>")
   .description("TASK + 에이전트 컨텍스트로 Cursor 붙여넣기 프롬프트 출력 (MVP 3)")
-  .option("--agent <name>", "사용할 에이전트 이름 (planner / builder / reviewer / releaser)")
-  .action((taskId: string, options: { agent?: string }) => {
-    agentPromptCommand(options.agent ?? "(unspecified)", taskId);
-  });
+  .option(
+    "--agent <name>",
+    "사용할 에이전트 이름 (orchestrator / planner / architect / builder / reviewer / tester / docs / recovery)",
+  )
+  .option("--context <path...>", "추가 컨텍스트 파일 경로")
+  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .action(
+    async (
+      taskId: string,
+      options: { agent?: string; context?: string[]; cwd?: string },
+    ) => {
+      await agentPromptCommand(options.agent ?? "builder", taskId, {
+        cwd: options.cwd,
+        context: options.context,
+      });
+    },
+  );
 
 task
   .command("check <taskId>")
@@ -129,9 +178,7 @@ task
     taskPullCommand();
   });
 
-const notion = program
-  .command("notion")
-  .description("Notion 대시보드 동기화 (MVP 4)");
+const notion = program.command("notion").description("Notion 대시보드 동기화 (MVP 4)");
 
 notion
   .command("init")

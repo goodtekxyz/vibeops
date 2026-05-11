@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## MVP Phase
 
@@ -89,8 +89,37 @@ MVP 1 · Project Bootstrapper
 
 ## Result
 
-(미수행)
+2026-05-11 완료. `vibeops status`가 현재 디렉터리의 VibeOps 설치 상태·TASK 현황·Git·Notion 환경 변수를 읽기 전용으로 조사한다.
+
+- **상태 수집**: `src/status/collector.ts` — `collectStatus(cwd)`이 다음을 모은다.
+  - `.vibeops.json` 파싱 (없으면 `null`)
+  - 필수/선택 파일 체크리스트(`.vibeops.json` · `AGENTS.md` · `.cursor/rules/` · `docs/project/` · `docs/tasks/` 등 10개 항목)
+  - `docs/tasks/*.md` 스캔 → TaskMeta 목록, 카운트(total/planned/in_progress/blocked/done), 다음 진행 가능한 TASK 1개
+  - 현재 Git 브랜치 + dirty 여부 (`src/lib/git.ts`)
+  - Notion 환경 변수 존재 여부 (`NOTION_API_KEY`, `NOTION_PROJECT_DB`, `NOTION_TASK_DB`) — 실제 호출은 하지 않음
+- **출력 포맷터**: `src/status/format.ts` — 사람용 5개 섹션(Project · Installation · Tasks · Git · Notion) + `toJson()`.
+- **TASK 스캐너**: `src/lib/task.ts` — gray-matter로 frontmatter 파싱하고 frontmatter가 없으면 본문에서 `## Status`, `## MVP Phase`를 정규식으로 추출(현재 본 저장소 TASK 파일들이 모두 본문 헤더 패턴). 파일명 `TASK-NNN-...` 패턴에서 ID 추출.
+- **옵션**: `--json` (기계 가독), `--cwd <path>` (다른 디렉터리).
+- **종료 코드**: VibeOps가 아닌 디렉터리거나 필수 파일이 빠지면 `process.exitCode = 1`. 읽기 전용 — 어떤 파일도 수정·생성하지 않음.
+- **연기**: vitest 스모크 테스트(`tests/status.test.ts`)는 본 라운드 사용자 스코프에서 제외. 수동 검증으로 대체.
+
+### 변경 파일
+
+| 파일 | 종류 |
+| --- | --- |
+| `src/commands/status.ts` | 갱신 (stub → 실제 구현) |
+| `src/status/collector.ts` | 신규 |
+| `src/status/format.ts` | 신규 |
+| `src/lib/task.ts` | 신규 |
+| `src/lib/git.ts` | 신규 |
+| `src/types/task.ts` | 신규 |
+| `src/cli.ts` | 갱신 (`--json`, `--cwd` 옵션) |
 
 ## Test Result
 
-(미수행)
+- **vibeops repo 자신**(`.vibeops.json` 없음): `pnpm dev status` → exit 1, “Not a VibeOps project”, 4 required path(s) missing (`.vibeops.json` / `AGENTS.md` / `.cursor/rules/` / `.vibeops/agents/`). 동시에 12개 TASK(planned 11, done 1) 카운트와 다음 TASK(TASK-002) 정확히 잡음. Git 브랜치(`task/002-init-system`)·dirty도 정확. — AC#1 통과.
+- **sandbox 설치 후**: `pnpm dev status --cwd /tmp/vibeops-sandbox` → exit 0, Project(name=byobrowser, vibeopsVersion=0.1.0, schemaVersion=1, createdAt 표시) + Installation 모두 ✓ + Tasks(total:1, planned:1, next=TASK-000) + Notion(키 모두 부재) + “VibeOps project ready.” 메시지. — AC#2 통과.
+- `--json`: `pnpm exec tsx src/cli.ts status --cwd /tmp/vibeops-sandbox --json | python3 -c "import sys,json; d=json.load(sys.stdin); ..."` → valid JSON, `isVibeopsProject: True`, `config.name: byobrowser`, `tasks.counts: {total:1, planned:1, ...}`, `notion: {hasApiKey: False, ...}`. — AC#3 통과.
+- **읽기 전용**: 설치 후 status를 두 번 돌려도 디렉터리 내용 변동 없음(`git diff /tmp/vibeops-sandbox` clean). — AC#4 통과.
+- **성능**: vibeops repo 자기 자신(파일 ~80개) 검사 ~600ms. AC#5 통과(여유 있음).
+- Acceptance Criteria 1~5 모두 통과.

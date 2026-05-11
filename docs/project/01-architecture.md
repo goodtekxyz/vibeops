@@ -85,19 +85,41 @@
 
 ### Plan (`vibeops plan`, `vibeops task generate`)
 
+`vibeops plan`은 **자유 텍스트 한 덩어리를 받지 않는다.** 20개 짧은 질문(input · select · checkbox · confirm) 흐름으로 답을 모으고, 결과를 **`ProjectBrief`(정규화된 JSON)** 으로 만든 뒤, 그 brief를 바탕으로 **Cursor 붙여넣기 프롬프트**를 출력한다. 코드 생성은 여전히 Cursor가 한다.
+
 ```
-프로젝트 아이디어 ─▶ vibeops plan
+프로젝트 아이디어 ─▶ vibeops plan (interactive Q&A · 20문항)
                        │
-                       ├─ docs/project/00-overview·02-tech-stack·05-backlog 초안용
-                       │  Cursor 붙여넣기 프롬프트 출력
+                       ├─ input        : 프로젝트명, one-line idea, core problem, success criteria 등
+                       ├─ select       : project type, frontend, backend, DB, ORM, package manager, agent level
+                       ├─ checkbox     : target users, MVP must-have, out-of-scope, deploy, auth, integrations, risks
+                       ├─ confirm      : Notion dashboard 동기화?, Git task branch 사용?
+                       └─ "Other" 선택 시 follow-up input → "Custom: <text>" 라벨로 저장
                        │
-                       └─ --apply 옵션이 있으면 docs/project/ 골격을 갱신
+                       ▼
+              .vibeops/plan/brief.json   (ProjectBrief, schemaVersion=1)
+                       │
+                       ├─ stdout / --out : Cursor 붙여넣기 프롬프트 (8개 docs/project/* 채우기용)
+                       │   채울 파일: 00-overview, 01-requirements, 02-mvp-scope, 04-tech-stack,
+                       │              06-decisions, 07-backlog, 08-env, 09-deployment
+                       │   채우지 않음: 03-architecture (architect 에이전트), 05-current-state (자동)
+                       │
+                       └─ --apply <Cursor 응답> : docs/project/* 8개에 분배 (*.bak 백업 후 덮어쓰기)
+                                                  --dry-run 시 변경 미리보기만, 실제 변경 0건
+
+다른 진입점:
+- vibeops plan --brief <path>    : 대화형 건너뛰고 외부 brief 재사용
+- vibeops plan --resume          : .vibeops/plan/draft.json 이어서
+
+non-TTY (파이프·CI)에서는 한 줄 안내 후 exit 1 — interactive 또는 --brief를 요구한다.
 
 백로그 결정 ───▶ vibeops task generate
                        │
                        ├─ docs/tasks/TASK-NNN-*.md 파일 생성 또는
                        └─ TASK 생성용 프롬프트 출력
 ```
+
+ProjectBrief 스키마(요약): `projectName`, `oneLineIdea`, `projectType`, `targetUsers[]`, `coreProblem`, `mvpMustHave[]`, `outOfScope[]`, `techStack{frontend, backend, database, ormLayer, packageManager}`, `deploymentTargets[]`, `authRequirements[]`, `externalIntegrations[]`, `workflow{useNotionDashboard, useGitTaskBranch, agentWorkflowLevel}`, `riskAreas[]`, `successCriteria`, `meta{vibeopsVersion, createdAt, schemaVersion}`. 상세는 `docs/tasks/TASK-006-plan-command.md` 참조.
 
 ### Task Lifecycle (`task start / prompt / check / done / rollback`)
 

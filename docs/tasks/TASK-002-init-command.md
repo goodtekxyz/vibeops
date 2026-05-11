@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## MVP Phase
 
@@ -102,8 +102,43 @@ MVP 1 · Project Bootstrapper
 
 ## Result
 
-(미수행)
+2026-05-11 완료. `vibeops init`이 현재 디렉터리(또는 `--cwd <path>`)에 VibeOps 운영 구조를 설치한다.
+
+- **명령 구현**: `src/commands/init.ts` — `--dry-run` / `--force` / `--cwd` / `--name` 옵션 처리. 프로젝트 이름은 `--name` 우선, 없으면 `basename(cwd)`로 결정.
+- **복사 엔진**: `src/bootstrap/manifest.ts`(템플릿 디렉터리 walk + 정렬), `src/bootstrap/installer.ts`(idempotent 복사, dry-run/force 처리), `src/bootstrap/substitute.ts`(`{{PROJECT_NAME}}`, `{{VIBEOPS_VERSION}}`, `{{CREATED_AT}}` 치환).
+- **설정 파일**: `src/lib/config.ts`에 `readConfig` / `buildConfig` / `writeConfig` / `readNotionEnvSnapshot`. `.vibeops.json`은 `{ name, vibeopsVersion, schemaVersion: 1, createdAt }` 스키마.
+- **`.vibeops.env.example`**: `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` 라인 포함.
+- **`.gitignore`**: `.vibeops.env`가 없으면 한 줄 추가. 이미 있으면 손대지 않음.
+- **idempotent**: 두 번째 실행 시 기존 파일은 “skipped (already exists)” 카운트로 표시. `--force` 시에만 덮어쓴다.
+- 본 TASK는 명령 로직과 복사기까지로 한정되어 있었고, **템플릿 콘텐츠는 같은 라운드의 TASK-003에서 함께 채웠다**.
+- **연기**: vitest 스모크 테스트(`tests/init.test.ts`)는 본 라운드 사용자 스코프에서 제외 — 후속 보강 TASK로 남김. 검증은 sandbox(`/tmp/vibeops-sandbox`) 수동 실행으로 대체.
+
+### 변경 파일
+
+| 파일 | 종류 |
+| --- | --- |
+| `src/commands/init.ts` | 갱신 (stub → 실제 구현) |
+| `src/bootstrap/manifest.ts` | 신규 |
+| `src/bootstrap/installer.ts` | 신규 |
+| `src/bootstrap/substitute.ts` | 신규 |
+| `src/lib/config.ts` | 신규 |
+| `src/lib/filesystem.ts` | 신규 |
+| `src/lib/paths.ts` | 신규 |
+| `src/lib/logger.ts` | 신규 |
+| `src/types/config.ts` | 신규 |
+| `src/cli.ts` | 갱신 (옵션 wiring) |
+| `package.json` | 갱신 (`gray-matter` 의존성, `files`에 `templates` 추가) |
+| `pnpm-lock.yaml` | 갱신 |
 
 ## Test Result
 
-(미수행)
+- `pnpm typecheck` → exit 0, 에러 0건.
+- `pnpm build` → exit 0, `dist/` 생성.
+- `pnpm dev init --dry-run` (vibeops repo) → 37개 “would create”, 1개 “skipped (already exists: docs/project/00-overview.md)”, exit 0. 가상 변경 검사만 수행하고 실제 파일 변경 0건 확인.
+- sandbox 실제 설치: `rm -rf /tmp/vibeops-sandbox && mkdir -p /tmp/vibeops-sandbox && git -C /tmp/vibeops-sandbox init -q && pnpm dev init --cwd /tmp/vibeops-sandbox --name byobrowser` → **39 created** (templates 36 + `.vibeops.json` + `.vibeops.env.example` + `.gitignore`), 0 overwritten, 0 skipped, exit 0.
+- 두 번째 실행(idempotent): `pnpm dev init --cwd /tmp/vibeops-sandbox` → 0 created, 0 overwritten, 모든 파일 skipped. AC#2 통과.
+- 생성된 `.vibeops.json` 확인: `{ "name": "byobrowser", "vibeopsVersion": "0.1.0", "schemaVersion": 1, "createdAt": "2026-05-11T00:14:42.101Z" }` — AC#5 통과.
+- 생성된 `.vibeops.env.example` 확인: `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` 라인 모두 존재 — AC#6 통과.
+- `pnpm dev init --help` → 4개 옵션(`--dry-run`, `--force`, `--cwd`, `--name`) 모두 표시 — AC#7 통과.
+- ReadLints (`src/`) → 0 issues.
+- Acceptance Criteria 1~7 모두 통과.
