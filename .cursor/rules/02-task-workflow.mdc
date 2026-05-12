@@ -5,34 +5,34 @@ alwaysApply: true
 
 # Task Workflow
 
-## 시작 전
+## Before starting
 
-1. `docs/project/05-current-state.md` 를 읽고 다음 진행할 TASK를 확인한다.
-2. `docs/tasks/TASK-NNN-*.md` **전체**를 읽는다.
-3. Scope / Out of Scope / Acceptance Criteria를 머릿속에 둔다.
-4. 기존 코드에서 유사 구현·패턴을 **검색**한다(중복 금지).
+1. Read `docs/project/05-current-state.md` and confirm the next TASK.
+2. Read the **entire** `docs/tasks/TASK-NNN-*.md` file.
+3. Keep Scope / Out of Scope / Acceptance Criteria in mind.
+4. **Search** existing code for similar implementations or patterns before adding anything new; avoid duplication.
 
-## 구현 중
+## During implementation
 
-- **한 번에 하나의 TASK**만 진행한다.
-- 새 파일·함수·패턴을 넣기 전 기존 구현을 다시 한 번 검색한다.
-- **모든 CLI 명령은 가능하면 `--dry-run`(또는 동등)으로** 파일·Git·원격 변경 없이 계획만 보여 줄 수 있어야 한다.
-- 한 TASK가 끝나기 전 다음 TASK 파일을 만지지 않는다.
+- Work on **one TASK at a time**.
+- Search existing implementation one more time before adding a new file, function, or pattern.
+- **Every CLI command should support `--dry-run` (or equivalent) where possible** so it can show the plan without file, Git, or remote mutations.
+- Do not touch the next TASK file before the current TASK finishes.
 
-## 라이프사이클 명령
+## Lifecycle commands
 
-| 단계   | 명령                                                            |
-| ------ | --------------------------------------------------------------- |
-| 시작   | `vibeops task start TASK-NNN`                                   |
-| 작업   | `vibeops task prompt TASK-NNN --agent builder` → Cursor 붙여넣기 |
-| 점검   | `vibeops task check TASK-NNN`                                   |
-| 완료   | `vibeops task done TASK-NNN` (자동 머지 X)                      |
-| 되돌리기 | `vibeops task rollback TASK-NNN` (안내가 기본, 파괴는 `--confirm`) |
+| Stage    | Command                                                         |
+| -------- | --------------------------------------------------------------- |
+| Start    | `vibeops task start TASK-NNN`                                   |
+| Work     | `vibeops task prompt TASK-NNN --agent builder` → paste into Cursor |
+| Check    | `vibeops task check TASK-NNN`                                   |
+| Complete | `vibeops task done TASK-NNN` (no automatic merge)               |
+| Rollback | `vibeops task rollback TASK-NNN` (guidance by default; destructive work requires `--confirm`) |
 
-## 완료 기준
+## Completion criteria
 
-- Acceptance Criteria 모두 통과
-- TASK 파일의 **Result**, **Test Result** 비어 있지 않음
-- `docs/project/05-current-state.md`, `docs/logs/YYYY-MM-DD.md` 갱신
+- All Acceptance Criteria pass.
+- **Result** and **Test Result** in the TASK file are not empty.
+- `docs/project/05-current-state.md` and `docs/logs/YYYY-MM-DD.md` are updated.
 
-세 가지 반영 전에는 TASK 완료로 치지 않는다.
+The TASK is not complete until all three are reflected.

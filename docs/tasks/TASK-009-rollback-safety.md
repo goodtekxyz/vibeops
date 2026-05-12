@@ -17,116 +17,116 @@ MVP 3 · Git Task Lifecycle
 
 ## Goal
 
-`vibeops task rollback TASK-NNN`을 구현한다. 기본 동작은 **안내 출력만**(어떤 브랜치/커밋을 어떻게 되돌릴 수 있는지). 실제 파괴적 Git 작업(브랜치 삭제, reset, revert)은 `--confirm`이 있을 때만 수행한다.
+Implement `vibeops task rollback TASK-NNN`. The default behaviour is **guidance only** (which branch / commit could be rolled back, how). Actual destructive Git operations (branch delete, reset, revert) run only with `--confirm`.
 
 ## Background
 
-VibeOps의 가치 중 하나는 “롤백 가능성”이다. TASK 시작 시 `baseCommit`/`baseBranch`/`taskBranch`를 기록해 두었으므로, 이 정보를 바탕으로 깔끔한 되돌리기 절차를 제시할 수 있다. 그러나 자동으로 파괴적 작업을 하면 사용자의 미푸시 변경을 날릴 수 있어 **기본은 안내**, 명시적 confirm 게이트가 있어야 한다.
+"Rollback feasibility" is one of VibeOps's values. Because `baseCommit` / `baseBranch` / `taskBranch` are recorded at TASK start, that information can present a clean rollback procedure. But running destructive operations automatically could wipe unpushed changes, so **the default must be guidance**, behind an explicit confirm gate.
 
 ## Scope
 
-- `src/commands/task/rollback.ts`
-- `src/rollback/planner.ts` — state 파일과 현재 Git 상태로 “되돌리기 옵션” 목록을 생성
-- `src/rollback/executor.ts` — `--confirm` 시에만 실제 git 호출
-- 옵션:
-  - `--confirm` — 파괴적 작업 허용 (없으면 안내만)
-  - `--strategy <branch-delete | reset-base | revert-merge>` — 어떤 전략을 쓸지 명시
-  - `--keep-branch` — branch 삭제는 하지 않음
-  - `--dry-run` — `--confirm`이 있어도 실행은 하지 않고 “실제로 돌릴 명령”만 stdout 출력
+- `src/commands/task/rollback.ts`.
+- `src/rollback/planner.ts` — produce a list of "rollback options" from the state file + current Git state.
+- `src/rollback/executor.ts` — only call git with `--confirm`.
+- Options:
+  - `--confirm` — allow destructive work (guidance only otherwise).
+  - `--strategy <branch-delete | reset-base | revert-merge>` — pick which strategy.
+  - `--keep-branch` — do not delete the branch.
+  - `--dry-run` — even with `--confirm`, do not execute; only print the "actual commands".
 
 ## Out of Scope
 
-- 자동 머지된 변경을 푸시한 다음의 원격 rollback — `revert-merge` 안내만 출력, force-push는 하지 않음
-- Notion 측 상태 복구(→ TASK-011 동기화 시 사람이 본다)
+- Remote rollback after a merged change was pushed — `revert-merge` only prints guidance; no force-push.
+- Notion-side recovery (→ humans look at it during TASK-011 sync).
 
 ## Acceptance Criteria
 
-1. `vibeops task rollback TASK-001` (인수 없음)은 **파일·Git을 변경하지 않고** 다음을 출력한다.
-   - 현재 브랜치 / dirty 여부
-   - state 파일에서 읽은 `baseBranch` / `baseCommit` / `taskBranch`
-   - 가능한 전략 3개와 각각의 위험 안내
-     - `branch-delete`: task branch 폐기 (머지되지 않은 변경은 모두 사라짐)
-     - `reset-base`: 현재 브랜치를 `baseCommit`으로 hard reset (현재 변경 사라짐)
-     - `revert-merge`: 머지된 커밋을 revert (이미 머지된 경우)
-2. `--confirm --strategy branch-delete`로 호출 시 task branch가 실제로 삭제된다. dirty/현재 브랜치라면 거부.
-3. `--confirm --dry-run` 조합은 실행하지 않고 “돌릴 명령” 목록만 보여준다.
-4. `--confirm`이 없으면 어떤 옵션 조합에서도 파일·Git 변경 0건.
-5. force-push는 어떤 옵션 조합으로도 발생하지 않는다(원격이 있든 없든).
+1. `vibeops task rollback TASK-001` (no args) **without changing any file / Git state** prints:
+   - Current branch / dirty status.
+   - `baseBranch` / `baseCommit` / `taskBranch` read from the state file.
+   - The 3 strategies and their risks:
+     - `branch-delete`: discard the task branch (any unmerged change is lost).
+     - `reset-base`: hard-reset the current branch to `baseCommit` (current changes are lost).
+     - `revert-merge`: revert a merged commit (when already merged).
+2. With `--confirm --strategy branch-delete`, the task branch is actually deleted. Refused if dirty or it is the current branch.
+3. With `--confirm --dry-run`, do not execute; only print the "would run" commands.
+4. Without `--confirm`, any option combination yields zero file / Git changes.
+5. Force-push never happens under any option combination (regardless of remote presence).
 
 ## Files to Inspect First
 
-- `src/lifecycle/state.ts` (TASK-008)
-- `src/lifecycle/git.ts` (TASK-008)
-- 본 저장소 `docs/project/04-decisions.md` § D-007
+- `src/lifecycle/state.ts` (TASK-008).
+- `src/lifecycle/git.ts` (TASK-008).
+- This repo's `docs/project/04-decisions.md` § D-007.
 
 ## Expected Files to Change
 
-- 신규: `src/commands/task/rollback.ts`, `src/rollback/planner.ts`, `src/rollback/executor.ts`
-- 신규: `tests/rollback.test.ts`
-- 갱신: 본 TASK Result/Test Result, `docs/project/03-current-state.md`, `docs/logs/YYYY-MM-DD.md`
+- new: `src/commands/task/rollback.ts`, `src/rollback/planner.ts`, `src/rollback/executor.ts`.
+- new: `tests/rollback.test.ts`.
+- update: this TASK's Result / Test Result, `docs/project/03-current-state.md`, `docs/logs/YYYY-MM-DD.md`.
 
 ## Risks
 
-- 사용자가 `--confirm`을 무심코 켤 위험 → 표준 출력에 “This will run the following git commands:” 후 명령을 모두 나열하고 5초 대기·확인 입력을 옵션으로 둘 수도 있다(MVP에서는 명령 나열까지만).
-- `branch-delete`가 현재 체크아웃된 브랜치를 지우려 하면 git이 거부. 그 경우 “먼저 `git switch <baseBranch>` 후 다시 시도하라”는 안내.
+- Risk of the user toggling `--confirm` carelessly → print "This will run the following git commands:" to stdout and list all the commands; optionally wait 5 seconds for confirmation (MVP only lists the commands).
+- If `branch-delete` targets the currently checked-out branch, git refuses. Show "switch with `git switch <baseBranch>` first, then retry".
 
 ## Test Plan
 
-- vitest tmpdir + 작은 git repo로:
-  - `rollback`(인수 없음) → stdout이 3개 전략과 위험 안내 포함, 파일·Git 변경 0건
-  - `--confirm --strategy branch-delete` → 다른 브랜치에 있을 때 task branch 삭제 성공
-  - `--confirm --strategy reset-base` → 현재 브랜치가 base로 reset 됨
-  - `--confirm --dry-run` → 실제 변경 0건
-  - dirty 상태에서 `--confirm --strategy reset-base` → 거부 + 안내
-- 수동: 자기 자신 저장소에서 `vibeops task rollback TASK-001` 안내 출력 확인.
+- vitest in a tmpdir + small git repo:
+  - `rollback` (no args) → stdout contains the 3 strategies and risks; zero file / Git changes.
+  - `--confirm --strategy branch-delete` → succeed when not on the task branch.
+  - `--confirm --strategy reset-base` → current branch reset to base.
+  - `--confirm --dry-run` → zero changes.
+  - Dirty + `--confirm --strategy reset-base` → refuse + guide.
+- Manual: confirm the guidance output of `vibeops task rollback TASK-001` against this repo.
 
 ## Rollback Plan
 
-- 본 명령 자체가 “rollback”이지만, 그 안전장치(D-007)를 본 TASK가 보장한다.
-- 코드 작업 자체는 task branch 폐기로 되돌릴 수 있다.
+- This command itself is "rollback"; its safeguards (D-007) are what this TASK guarantees.
+- Code itself can be reverted by discarding the working branch.
 
 ## Implementation Plan
 
-1. `rollback/planner.ts`에서 state + git 상태로 전략 목록 생성.
-2. `rollback/executor.ts`에 각 전략의 git 명령을 정의. 옵션 없으면 호출하지 않는다.
-3. `commands/task/rollback.ts`에 옵션 처리.
-4. tests + 문서 갱신.
+1. In `rollback/planner.ts`, generate the strategy list from state + git state.
+2. In `rollback/executor.ts`, define the git commands per strategy. Do not call them without the option.
+3. Wire options in `commands/task/rollback.ts`.
+4. Tests + doc updates.
 
 ## Result
 
-2026-05-11 완료(Review 대기). `vibeops task rollback <taskId>` 를 안전장치와 함께 구현했다. 본 TASK는 TASK-008과 같은 라운드(branch `task/008-task-lifecycle`)에서 함께 구현됐다.
+Completed 2026-05-11 (awaiting review). Implemented `vibeops task rollback <taskId>` with its safeguards. Built in the same round as TASK-008 (branch `task/008-task-lifecycle`).
 
-### 사용자 요구사항 vs 원 TASK-009 문서
+### User requirement vs the original TASK-009 doc
 
-- 원 문서: 파괴적 게이트가 `--confirm` 한 단계.  
-  실제 구현: 사용자 갱신 요구에 따라 **2단계 confirm**으로 분리한다.
-  - 기본(아무 옵션 없음) → 파일·Git 변경 0건. 현재 브랜치/dirty/`## Git Context`(TASK markdown에서 읽음)와 가능한 전략 3개(`branch-delete` / `reset-base` / `revert-merge`)와 각각의 위험·명령을 출력. 안내만.
-  - `--confirm` → **비파괴** rollback만 허용. 기본 전략은 `branch-delete`. `git switch <baseBranch>` 후 `git branch -D <taskBranch>`. dirty면 거부, task branch에 체크아웃돼 있으면 먼저 base로 스위치.
-  - `--confirm-destructive` → **파괴적** rollback 허용. `reset-base` 전략에서 `git reset --hard <baseCommit>` 실행. dirty여도 진행(사용자가 위험 명시 수락). `--confirm`만으로는 reset-base는 거부된다.
-  - `--strategy revert-merge` → 어느 옵션에서도 자동 실행하지 않고 명령만 안내(merge SHA를 사람이 찾아 `git revert -m 1 <sha>` 실행).
-- 원 문서: `.vibeops/state/tasks/TASK-NNN.json`에서 상태 로드.  
-  실제 구현: TASK markdown의 `## Git Context` 섹션에서 로드(TASK-008과 같은 inline 정책).
-- 원 문서: 별도 `src/rollback/planner.ts` + `src/rollback/executor.ts` 분리.  
-  실제 구현: 명령 양이 적어 `src/commands/task-rollback.ts` 단일 파일에 `strategyCommands` / `strategyRisk` 헬퍼로 정리. `src/lib/git.ts`에 공용 `gitDeleteBranch` / `gitResetHard` 추가(TASK-008 git 헬퍼와 공유).
+- Original doc: destructive gate is one stage of `--confirm`.
+  Actual implementation: per user update, split into a **two-stage confirm**:
+  - Default (no option) → zero file / Git changes. Prints current branch / dirty / `## Git Context` (read from the TASK markdown) and the 3 strategies (`branch-delete` / `reset-base` / `revert-merge`) with their risks and commands. Guidance only.
+  - `--confirm` → allows **non-destructive** rollback. Default strategy is `branch-delete`. `git switch <baseBranch>` then `git branch -D <taskBranch>`. Refuses on dirty; if on the task branch, switches to base first.
+  - `--confirm-destructive` → allows **destructive** rollback. The `reset-base` strategy runs `git reset --hard <baseCommit>`. Proceeds even on dirty (the user has accepted the risk). `--confirm` alone refuses `reset-base`.
+  - `--strategy revert-merge` → never executes automatically; only prints the command (the human finds the merge SHA and runs `git revert -m 1 <sha>`).
+- Original doc: load state from `.vibeops/state/tasks/TASK-NNN.json`.
+  Actual implementation: loaded from the TASK markdown's `## Git Context` section (same inline policy as TASK-008).
+- Original doc: separate `src/rollback/planner.ts` + `src/rollback/executor.ts`.
+  Actual implementation: small surface area, so consolidated into one file `src/commands/task-rollback.ts` with `strategyCommands` / `strategyRisk` helpers. `gitDeleteBranch` / `gitResetHard` were added to `src/lib/git.ts` (shared with TASK-008 git helpers).
 
-### 안전장치 (사용자 강조 사항)
+### Safeguards (user-emphasised)
 
-- 기본 실행은 **안내만**. 어떤 옵션도 없으면 파일·Git 변경 0건.
-- `--confirm` 만으로는 `reset --hard` 거부 → `--confirm-destructive` 가 명시적으로 필요.
-- `--confirm` + dirty + `branch-delete`도 dirty면 거부(사용자에게 commit/stash 먼저 안내). `--confirm-destructive`만 dirty 통과.
-- `--dry-run`은 `--confirm` / `--confirm-destructive`와 조합해도 git 명령 0건. 실행될 명령만 출력.
-- `--keep-branch` → `branch-delete` 전략에서 base로 스위치만 하고 task branch는 남긴다.
-- `revert-merge`는 자동 실행 대상이 아니다. 사용자가 직접 머지 SHA를 찾아야 한다.
-- **force-push는 어떤 옵션 조합으로도 발생하지 않는다.** `git push` 자체를 호출하지 않는다.
+- Default execution is **guidance only**. With no option, zero file / Git changes.
+- `--confirm` alone refuses `reset --hard` → `--confirm-destructive` is explicitly required.
+- `--confirm` + dirty + `branch-delete` → refused on dirty (asks the user to commit / stash first). Only `--confirm-destructive` may pass on dirty.
+- `--dry-run` combined with `--confirm` / `--confirm-destructive` yields zero git commands. Only the "would run" commands are printed.
+- `--keep-branch` → in the `branch-delete` strategy, only switches to base and keeps the task branch.
+- `revert-merge` is not subject to auto-execution. The user must find the merge SHA.
+- **Force-push never happens under any option combination.** `git push` itself is never called.
 
 ## Test Result
 
-- 실제 git sandbox 시퀀스(TASK-008과 같은 sandbox에서):
-  1. `task rollback TASK-001` (옵션 없음) → 안내만 출력, `task/001-cli-bootstrap` 브랜치/파일 변경 0건. Git Context를 TASK markdown에서 올바르게 파싱.
-  2. `task rollback TASK-001 --confirm --strategy reset-base` → `✗ reset-base는 파괴적 작업이다. --confirm 만으로는 실행할 수 없다. --confirm-destructive 가 필요하다.` + exit 1, git 변경 0건.
-  3. dirty 상태에서 `task rollback TASK-001 --confirm --strategy branch-delete --dry-run` → `Working tree is dirty. Commit / stash first, or rerun with --confirm-destructive` + exit 1, git 변경 0건.
-  4. clean 상태에서 `task rollback TASK-001 --confirm --strategy branch-delete --dry-run` → “dry-run — would run for strategy=branch-delete: git switch main / git branch -D task/001-cli-bootstrap” 출력만, 브랜치 그대로.
-  5. clean 상태에서 `task rollback TASK-001 --confirm --strategy branch-delete` → 현재 브랜치였던 `task/001-cli-bootstrap`을 base(`main`)로 스위치 후 `-D`로 삭제. 브랜치 목록에서 사라짐. ✓.
-  6. 새 TASK-002로 동일하게 `task start` 후 임의 commit(`experiment.txt`) 추가 → `task rollback TASK-002 --confirm-destructive --strategy reset-base` → 브랜치가 base commit으로 hard reset, `experiment.txt` 사라짐, log이 base 시점으로 복구. exit 0.
-- `git push` 호출은 어떤 케이스에서도 발생하지 않음(소스 검색으로 확인 — `git.ts`에 `push` 명령 없음).
-- 보류: vitest 자동 회귀 테스트(TASK-008과 같이 polish 라운드로 이관).
+- Real-git sandbox sequence (in the same sandbox as TASK-008):
+  1. `task rollback TASK-001` (no option) → guidance only; zero changes to the `task/001-cli-bootstrap` branch / files. Git Context parsed correctly from the TASK markdown.
+  2. `task rollback TASK-001 --confirm --strategy reset-base` → `✗ reset-base is destructive. --confirm alone cannot run it. --confirm-destructive is required.` + exit 1, zero git changes.
+  3. Dirty + `task rollback TASK-001 --confirm --strategy branch-delete --dry-run` → `Working tree is dirty. Commit / stash first, or rerun with --confirm-destructive` + exit 1, zero git changes.
+  4. Clean + `task rollback TASK-001 --confirm --strategy branch-delete --dry-run` → prints `dry-run — would run for strategy=branch-delete: git switch main / git branch -D task/001-cli-bootstrap`, branch unchanged.
+  5. Clean + `task rollback TASK-001 --confirm --strategy branch-delete` → switches from the current branch `task/001-cli-bootstrap` to base (`main`) and deletes it via `-D`. The branch list no longer shows it. ✓.
+  6. With a new TASK-002 similarly `task start`-ed and a random commit (`experiment.txt`) added → `task rollback TASK-002 --confirm-destructive --strategy reset-base` → the branch is hard-reset to the base commit; `experiment.txt` is gone; log restores to the base point. exit 0.
+- No `git push` call occurs in any case (source-search confirms: `git.ts` has no `push` command).
+- Deferred: vitest auto-regressions (moved to the polish round alongside TASK-008).

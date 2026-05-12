@@ -10,15 +10,18 @@
  *   - we collapse blank-line groups so the first non-empty paragraph wins,
  *   - we truncate to `NOTION_TEXT_LIMIT` (default 1500 chars).
  *
- * We never include placeholder content such as `(not yet)` / `(미수행)` /
- * `(scaffolded …)` — those become an empty string.
+ * We never include placeholder content such as `(not yet)`, legacy localized
+ * placeholders, or `(scaffolded ...)`; those become an empty string.
  */
 
 import { readTextOrNull, writeText } from "./filesystem.js";
 import { isPlaceholderContent, readSection } from "./task.js";
 import { truncate } from "./notion-mappers.js";
 
-const PLACEHOLDER_RE = /^\(.*(not yet|fill in|unassigned|scaffold|미수행|미정|채워라).*\)$/i;
+const PLACEHOLDER_RE = new RegExp(
+  String.raw`^\(.*(not yet|fill in|unassigned|scaffold|\uBBF8\uC218\uD589|\uBBF8\uC815|\uCC44\uC6CC\uB77C).*\)$`,
+  "i",
+);
 
 function stripBullet(line: string): string {
   return line.replace(/^\s*(?:[-*+]|\d+\.)\s+/, "").trim();
@@ -115,7 +118,7 @@ export function detectCurrentPhase(body: string): string {
   return "";
 }
 
-// ─── `## Notion Page` section management ──────────────────────────────────
+// --- `## Notion Page` section management ----------------------------------
 
 export interface NotionPageBlockInputs {
   pageId: string;
@@ -189,7 +192,7 @@ export async function writeNotionPageSection(
   return true;
 }
 
-// ─── render a pulled TASK skeleton ────────────────────────────────────────
+// --- render a pulled TASK skeleton ----------------------------------------
 
 export interface PulledTaskInputs {
   taskId: string;

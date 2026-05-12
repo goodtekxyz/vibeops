@@ -10,135 +10,135 @@ MVP 1 · Project Bootstrapper
 
 ## Goal
 
-`vibeops init`을 구현한다. 현재 디렉터리(또는 `--cwd <path>`)에 **VibeOps 운영 구조**(`AGENTS.md`, `.cursor/rules/*`, `docs/project/*`, `docs/tasks/`, `.vibeops/agents/*`, `.vibeops/prompts/*`, `.vibeops/workflows/*`, `.vibeops.json`, `.vibeops.env.example`)를 설치한다.
+Implement `vibeops init`. It installs the **VibeOps operating structure** (`AGENTS.md`, `.cursor/rules/*`, `docs/project/*`, `docs/tasks/`, `.vibeops/agents/*`, `.vibeops/prompts/*`, `.vibeops/workflows/*`, `.vibeops.json`, `.vibeops.env.example`) into the current directory (or `--cwd <path>`).
 
-본 TASK는 **명령 로직과 파일 복사 엔진**에 집중하고, 실제 템플릿 콘텐츠는 [TASK-003](TASK-003-templates.md)에서 채운다. TASK-002에서는 최소한 “placeholder 1개씩”을 가진 템플릿 디렉터리가 있으면 된다.
+This TASK focuses on the **command logic and file-copy engine**; the actual template content is filled in [TASK-003](TASK-003-templates.md). For TASK-002, a placeholder file per template path is enough.
 
 ## Background
 
-새 프로젝트마다 같은 구조를 수작업으로 만들지 않게 하는 것이 VibeOps의 첫 번째 가치다. `init`은 idempotent하고 안전해야 한다. 이미 있는 파일은 기본적으로 건너뛴다.
+The first value VibeOps provides is "don't recreate the same structure by hand for every new project". `init` must be idempotent and safe. Existing files are skipped by default.
 
 ## Scope
 
-- `src/commands/init.ts` — `vibeops init` 등록 및 로직
-- `src/bootstrap/installer.ts` — 디렉터리/파일 복사기(템플릿 디렉터리 → 대상 경로)
-- `src/bootstrap/manifest.ts` — “설치할 파일 목록”을 데이터로 표현(나중 TASK-003에서 항목이 채워짐)
-- `src/config/projectConfig.ts` — `.vibeops.json` 작성(프로젝트 이름·VibeOps 버전·생성일)
-- `templates/` (저장소 안 디렉터리) — 본 TASK에서는 디렉터리 구조와 placeholder만
-- 옵션:
-  - `--dry-run` — 실제 쓰지 않고 “어떤 파일이 생길/덮어쓰일지” 출력
-  - `--force` — 기존 파일을 덮어씀
-  - `--cwd <path>` — 다른 디렉터리에 설치
-  - `--name <projectName>` — `.vibeops.json`에 들어갈 프로젝트 이름
+- `src/commands/init.ts` — register and implement `vibeops init`.
+- `src/bootstrap/installer.ts` — directory/file copier (template dir → target path).
+- `src/bootstrap/manifest.ts` — express "files to install" as data (entries filled in TASK-003).
+- `src/config/projectConfig.ts` — write `.vibeops.json` (project name, VibeOps version, creation date).
+- `templates/` (directory inside the repo) — in this TASK only the directory structure and placeholders.
+- Options:
+  - `--dry-run` — print "what would be created / overwritten" without writing.
+  - `--force` — overwrite existing files.
+  - `--cwd <path>` — install into a different directory.
+  - `--name <projectName>` — project name written into `.vibeops.json`.
 
 ## Out of Scope
 
-- 실제 템플릿 콘텐츠 작성(→ TASK-003)
-- 어떤 도메인 명령도 구현하지 않음
-- Git 초기화(이미 `git init`이 되어 있다고 가정)
+- Writing real template content (→ TASK-003).
+- Any domain command implementation.
+- Git initialisation (assumed `git init` was already done).
 
 ## Acceptance Criteria
 
-1. 빈 디렉터리에서 `vibeops init`을 실행하면 다음 경로들이 생긴다.
+1. In an empty directory, `vibeops init` creates these paths:
    - `AGENTS.md`
    - `.cursor/rules/00-vibeops-governance.mdc`
    - `.cursor/rules/01-ai-workflow.mdc`
    - `.cursor/rules/02-docs-update.mdc`
    - `docs/project/00-overview.md` ~ `05-backlog.md`
-   - `docs/tasks/TASK-000-example.md` (또는 README)
+   - `docs/tasks/TASK-000-example.md` (or a README)
    - `docs/logs/.keep`
    - `.vibeops/agents/{planner,builder,reviewer,releaser}.md`
    - `.vibeops/prompts/{plan,task-generate,task-builder}.md`
    - `.vibeops/workflows/{task-lifecycle,notion-sync}.md`
-   - `.vibeops.json`, `.vibeops.env.example`
-2. 같은 디렉터리에서 `vibeops init`을 두 번째 실행해도 **기존 파일을 덮어쓰지 않는다**. “skipped (already exists)” 카운트가 출력된다.
-3. `vibeops init --dry-run`은 어떤 파일이 만들어질지 목록을 출력하고 실제 변경은 0건.
-4. `vibeops init --force`는 기존 파일을 덮어쓰고, 덮어쓴 카운트를 출력한다.
-5. `.vibeops.json`에는 최소 `{ "name": <projectName>, "vibeopsVersion": <semver>, "createdAt": <iso>, "schemaVersion": 1 }`이 들어간다.
-6. `.vibeops.env.example`에 `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` 라인이 있다.
-7. `vibeops init --help`가 옵션과 동작 요약을 보여준다.
+   - `.vibeops.json`, `.vibeops.env.example`.
+2. Running `vibeops init` a second time in the same directory does **not** overwrite existing files. A "skipped (already exists)" count is printed.
+3. `vibeops init --dry-run` lists what would be created; actual change count is 0.
+4. `vibeops init --force` overwrites existing files and prints the overwrite count.
+5. `.vibeops.json` contains at least `{ "name": <projectName>, "vibeopsVersion": <semver>, "createdAt": <iso>, "schemaVersion": 1 }`.
+6. `.vibeops.env.example` contains `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` lines.
+7. `vibeops init --help` shows the options and a behavioural summary.
 
 ## Files to Inspect First
 
-- `src/cli.ts` (TASK-001에서 만든 commander 부트스트랩)
-- `src/commands/*.ts` 스텁(특히 init 스텁)
-- `docs/project/01-architecture.md` § Bootstrap 절
+- `src/cli.ts` (the commander bootstrap from TASK-001).
+- `src/commands/*.ts` stubs (especially the init stub).
+- `docs/project/01-architecture.md` § Bootstrap section.
 
 ## Expected Files to Change
 
-- 신규: `src/commands/init.ts`, `src/bootstrap/installer.ts`, `src/bootstrap/manifest.ts`, `src/config/projectConfig.ts`
-- 신규: `templates/**` (스켈레톤만 — 실제 콘텐츠는 TASK-003에서 채움)
-- 신규: `tests/init.test.ts` (tmpdir에서 init 동작 검증)
-- 갱신: `package.json` (필요 시 `cross-env` 등 의존성 추가)
-- 갱신: `docs/project/03-current-state.md`, 본 TASK의 Result/Test Result, `docs/logs/YYYY-MM-DD.md`
+- new: `src/commands/init.ts`, `src/bootstrap/installer.ts`, `src/bootstrap/manifest.ts`, `src/config/projectConfig.ts`.
+- new: `templates/**` (skeleton only — real content lands in TASK-003).
+- new: `tests/init.test.ts` (verify init behaviour in a tmpdir).
+- update: `package.json` (add deps such as `cross-env` if needed).
+- update: `docs/project/03-current-state.md`, this TASK's Result / Test Result, `docs/logs/YYYY-MM-DD.md`.
 
 ## Risks
 
-- Windows 경로 / 권한 — MVP에서는 macOS/Linux 위주. Windows 미지원을 README/문서에 명시할 수도 있다.
-- 사용자가 실수로 `--force`를 켜고 docs를 날리는 경우 → `--force` 사용 시 한 번 더 “덮어쓸 파일 N개” 안내를 출력하는 것을 고려.
+- Windows paths / permissions — MVP targets macOS / Linux. Lack of Windows support can be stated in the README / docs.
+- A user could accidentally pass `--force` and wipe their docs → consider printing "would overwrite N files" once more when `--force` is set.
 
 ## Test Plan
 
-- vitest로 임시 디렉터리에서 `init` 실행 → 기대 파일들이 만들어지는지 검사.
-- 두 번째 실행 시 “skipped” 카운트가 기대 값과 일치하는지 검사.
-- `--dry-run` 시 디렉터리에 아무 파일도 생기지 않는지 검사.
-- `--force` 시 placeholder 콘텐츠가 갱신되는지 검사.
-- 수동 스모크: 빈 폴더에서 `vibeops init` → `tree -a -L 3` 확인.
+- Use vitest to run `init` in a temp directory → assert the expected files appear.
+- On the second run, assert the "skipped" count matches expectation.
+- With `--dry-run`, assert no files are created.
+- With `--force`, assert placeholder content is updated.
+- Manual smoke: in an empty folder, `vibeops init` → verify with `tree -a -L 3`.
 
 ## Rollback Plan
 
-- 작업 브랜치 폐기로 코드 변경은 되돌릴 수 있다.
-- 사용자 측 부작용(잘못 설치된 파일)은 `vibeops init`이 idempotent이므로 디렉터리 삭제로 충분.
+- Discarding the working branch reverts the code changes.
+- User-side side effects (mis-installed files) can be cleaned by deleting the directory because `vibeops init` is idempotent.
 
 ## Implementation Plan
 
-1. `templates/` 디렉터리 구조 잡기(파일은 placeholder 1줄짜리도 OK).
-2. `src/bootstrap/manifest.ts`에 “복사할 경로 → 목적지 경로” 리스트를 데이터로 정의.
-3. `src/bootstrap/installer.ts`에 idempotent 복사기 작성(`exists ? skip : write`). `--force`일 때 덮어씀. `--dry-run`일 때는 실제 쓰지 않고 “would create/overwrite”만 출력.
-4. `src/config/projectConfig.ts`로 `.vibeops.json` 생성.
-5. `src/commands/init.ts`에 commander 명령 등록 + 옵션 4종 처리.
-6. `tests/init.test.ts` 작성.
-7. 문서 갱신.
+1. Lay out the `templates/` directory structure (one-line placeholders are fine).
+2. Define "source → target" entries as data in `src/bootstrap/manifest.ts`.
+3. Build an idempotent copier in `src/bootstrap/installer.ts` (`exists ? skip : write`). `--force` overwrites. `--dry-run` only prints "would create/overwrite" without writing.
+4. Generate `.vibeops.json` via `src/config/projectConfig.ts`.
+5. Register the commander command + 4 options in `src/commands/init.ts`.
+6. Write `tests/init.test.ts`.
+7. Update docs.
 
 ## Result
 
-2026-05-11 완료. `vibeops init`이 현재 디렉터리(또는 `--cwd <path>`)에 VibeOps 운영 구조를 설치한다.
+Completed 2026-05-11. `vibeops init` installs the VibeOps operating structure into the current directory (or `--cwd <path>`).
 
-- **명령 구현**: `src/commands/init.ts` — `--dry-run` / `--force` / `--cwd` / `--name` 옵션 처리. 프로젝트 이름은 `--name` 우선, 없으면 `basename(cwd)`로 결정.
-- **복사 엔진**: `src/bootstrap/manifest.ts`(템플릿 디렉터리 walk + 정렬), `src/bootstrap/installer.ts`(idempotent 복사, dry-run/force 처리), `src/bootstrap/substitute.ts`(`{{PROJECT_NAME}}`, `{{VIBEOPS_VERSION}}`, `{{CREATED_AT}}` 치환).
-- **설정 파일**: `src/lib/config.ts`에 `readConfig` / `buildConfig` / `writeConfig` / `readNotionEnvSnapshot`. `.vibeops.json`은 `{ name, vibeopsVersion, schemaVersion: 1, createdAt }` 스키마.
-- **`.vibeops.env.example`**: `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` 라인 포함.
-- **`.gitignore`**: `.vibeops.env`가 없으면 한 줄 추가. 이미 있으면 손대지 않음.
-- **idempotent**: 두 번째 실행 시 기존 파일은 “skipped (already exists)” 카운트로 표시. `--force` 시에만 덮어쓴다.
-- 본 TASK는 명령 로직과 복사기까지로 한정되어 있었고, **템플릿 콘텐츠는 같은 라운드의 TASK-003에서 함께 채웠다**.
-- **연기**: vitest 스모크 테스트(`tests/init.test.ts`)는 본 라운드 사용자 스코프에서 제외 — 후속 보강 TASK로 남김. 검증은 sandbox(`/tmp/vibeops-sandbox`) 수동 실행으로 대체.
+- **Command implementation**: `src/commands/init.ts` — handles `--dry-run` / `--force` / `--cwd` / `--name`. The project name is taken from `--name` first, otherwise from `basename(cwd)`.
+- **Copy engine**: `src/bootstrap/manifest.ts` (walk + sort templates directory), `src/bootstrap/installer.ts` (idempotent copy, dry-run / force handling), `src/bootstrap/substitute.ts` (replaces `{{PROJECT_NAME}}`, `{{VIBEOPS_VERSION}}`, `{{CREATED_AT}}`).
+- **Config file**: `src/lib/config.ts` exposes `readConfig` / `buildConfig` / `writeConfig` / `readNotionEnvSnapshot`. `.vibeops.json` schema is `{ name, vibeopsVersion, schemaVersion: 1, createdAt }`.
+- **`.vibeops.env.example`**: includes `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` lines.
+- **`.gitignore`**: adds a single `.vibeops.env` line if missing; untouched otherwise.
+- **idempotent**: a second run reports "skipped (already exists)"; `--force` is needed to overwrite.
+- This TASK was scoped to the command logic and copier; **template content was filled together in TASK-003 in the same round**.
+- **Deferred**: vitest smoke (`tests/init.test.ts`) was excluded from this round per user scope — kept as a follow-up reinforcement TASK. Verification used a manual sandbox (`/tmp/vibeops-sandbox`) instead.
 
-### 변경 파일
+### Changed files
 
-| 파일 | 종류 |
+| File | Kind |
 | --- | --- |
-| `src/commands/init.ts` | 갱신 (stub → 실제 구현) |
-| `src/bootstrap/manifest.ts` | 신규 |
-| `src/bootstrap/installer.ts` | 신규 |
-| `src/bootstrap/substitute.ts` | 신규 |
-| `src/lib/config.ts` | 신규 |
-| `src/lib/filesystem.ts` | 신규 |
-| `src/lib/paths.ts` | 신규 |
-| `src/lib/logger.ts` | 신규 |
-| `src/types/config.ts` | 신규 |
-| `src/cli.ts` | 갱신 (옵션 wiring) |
-| `package.json` | 갱신 (`gray-matter` 의존성, `files`에 `templates` 추가) |
-| `pnpm-lock.yaml` | 갱신 |
+| `src/commands/init.ts` | update (stub → real implementation) |
+| `src/bootstrap/manifest.ts` | new |
+| `src/bootstrap/installer.ts` | new |
+| `src/bootstrap/substitute.ts` | new |
+| `src/lib/config.ts` | new |
+| `src/lib/filesystem.ts` | new |
+| `src/lib/paths.ts` | new |
+| `src/lib/logger.ts` | new |
+| `src/types/config.ts` | new |
+| `src/cli.ts` | update (option wiring) |
+| `package.json` | update (added `gray-matter`, `templates` added to `files`) |
+| `pnpm-lock.yaml` | update |
 
 ## Test Result
 
-- `pnpm typecheck` → exit 0, 에러 0건.
-- `pnpm build` → exit 0, `dist/` 생성.
-- `pnpm dev init --dry-run` (vibeops repo) → 37개 “would create”, 1개 “skipped (already exists: docs/project/00-overview.md)”, exit 0. 가상 변경 검사만 수행하고 실제 파일 변경 0건 확인.
-- sandbox 실제 설치: `rm -rf /tmp/vibeops-sandbox && mkdir -p /tmp/vibeops-sandbox && git -C /tmp/vibeops-sandbox init -q && pnpm dev init --cwd /tmp/vibeops-sandbox --name byobrowser` → **39 created** (templates 36 + `.vibeops.json` + `.vibeops.env.example` + `.gitignore`), 0 overwritten, 0 skipped, exit 0.
-- 두 번째 실행(idempotent): `pnpm dev init --cwd /tmp/vibeops-sandbox` → 0 created, 0 overwritten, 모든 파일 skipped. AC#2 통과.
-- 생성된 `.vibeops.json` 확인: `{ "name": "byobrowser", "vibeopsVersion": "0.1.0", "schemaVersion": 1, "createdAt": "2026-05-11T00:14:42.101Z" }` — AC#5 통과.
-- 생성된 `.vibeops.env.example` 확인: `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` 라인 모두 존재 — AC#6 통과.
-- `pnpm dev init --help` → 4개 옵션(`--dry-run`, `--force`, `--cwd`, `--name`) 모두 표시 — AC#7 통과.
+- `pnpm typecheck` → exit 0, zero errors.
+- `pnpm build` → exit 0, `dist/` produced.
+- `pnpm dev init --dry-run` (vibeops repo) → 37 "would create", 1 "skipped (already exists: docs/project/00-overview.md)", exit 0. Verified zero actual file changes.
+- Sandbox real install: `rm -rf /tmp/vibeops-sandbox && mkdir -p /tmp/vibeops-sandbox && git -C /tmp/vibeops-sandbox init -q && pnpm dev init --cwd /tmp/vibeops-sandbox --name byobrowser` → **39 created** (36 templates + `.vibeops.json` + `.vibeops.env.example` + `.gitignore`), 0 overwritten, 0 skipped, exit 0.
+- Second run (idempotency): `pnpm dev init --cwd /tmp/vibeops-sandbox` → 0 created, 0 overwritten, all files skipped. AC#2 passes.
+- Inspected the generated `.vibeops.json`: `{ "name": "byobrowser", "vibeopsVersion": "0.1.0", "schemaVersion": 1, "createdAt": "2026-05-11T00:14:42.101Z" }` — AC#5 passes.
+- Inspected the generated `.vibeops.env.example`: `NOTION_API_KEY=`, `NOTION_PROJECT_DB=`, `NOTION_TASK_DB=` all present — AC#6 passes.
+- `pnpm dev init --help` → all 4 options (`--dry-run`, `--force`, `--cwd`, `--name`) shown — AC#7 passes.
 - ReadLints (`src/`) → 0 issues.
-- Acceptance Criteria 1~7 모두 통과.
+- Acceptance Criteria 1–7 all pass.

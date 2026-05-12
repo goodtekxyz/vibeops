@@ -1,13 +1,13 @@
 # 01 — Architecture
 
-## 큰 그림
+## Big picture
 
 ```
                        ┌──────────────────────────────┐
-                       │            사용자             │
-                       │   (Cursor 안 + 터미널 안)     │
+                       │             User             │
+                       │   (inside Cursor + terminal) │
                        └───────────────┬──────────────┘
-                                       │ 자연어 / CLI
+                                       │ natural language / CLI
               ┌────────────────────────┼────────────────────────┐
               │                        │                        │
               ▼                        ▼                        ▼
@@ -18,22 +18,22 @@
              │ writes code            │ reads/writes
              ▼                        ▼
         ┌────────────────────────────────────────┐
-        │            프로젝트 저장소              │
+        │           Project repository           │
         │  AGENTS.md  .cursor/rules/  docs/      │
         │  .vibeops/  .vibeops.json  src/ ...    │
         │  (Git source of truth)                 │
         └────────────────────────────────────────┘
 ```
 
-- **VibeOps**는 저장소 안의 파일들을 읽고/쓰는 **로컬 CLI**다. LLM을 직접 호출하지 않는다.
-- **Cursor**는 `AGENTS.md` + `.cursor/rules/` + `docs/tasks/TASK-*.md`를 읽고 코드를 만든다.
-- **Notion**은 사람이 보는 대시보드일 뿐, 실행 기준이 아니다.
+- **VibeOps** is a **local CLI** that reads/writes files in the repository. It does not call LLMs.
+- **Cursor** reads `AGENTS.md` + `.cursor/rules/` + `docs/tasks/TASK-*.md` and writes the code.
+- **Notion** is only the human dashboard; it is not the execution baseline.
 
-## VibeOps가 프로젝트 안에 설치하는 구조
+## Structure VibeOps installs inside a project
 
 ```
 <project-root>/
-├─ AGENTS.md                       # 모든 에이전트의 운영 지침 진입점
+├─ AGENTS.md                       # entry point of operating guidance for all agents
 ├─ .cursor/
 │  └─ rules/
 │     ├─ 00-vibeops-governance.mdc
@@ -64,136 +64,137 @@
 │  └─ workflows/
 │     ├─ task-lifecycle.md
 │     └─ notion-sync.md
-├─ .vibeops.json                   # VibeOps 자체 설정(버전, notion db id 등)
-└─ .vibeops.env.example            # NOTION_API_KEY 자리 등
+├─ .vibeops.json                   # VibeOps's own config (version, notion db ids, ...)
+└─ .vibeops.env.example            # slot for NOTION_TOKEN, etc.
 ```
 
-`.vibeops/` 안의 파일들은 **VibeOps의 행동을 정의**하고, `docs/`와 `AGENTS.md`·`.cursor/rules/`는 **Cursor의 행동을 정의**한다. 둘이 분리되어 있어야 “설치된 도구” vs “프로젝트 콘텐츠” 경계가 흐려지지 않는다.
+Files under `.vibeops/` **define VibeOps's behaviour**; `docs/`, `AGENTS.md`, and `.cursor/rules/` **define Cursor's behaviour**. Keeping the two separate preserves the boundary between "the installed tool" and "the project content".
 
-## 데이터 흐름
+## Data flow
 
 ### Bootstrap (`vibeops init`)
 
 ```
-사용자 ── vibeops init ──▶ VibeOps CLI
+user ── vibeops init ──▶ VibeOps CLI
                               │
-                              ├─ 템플릿(.vibeops/templates/**)을 프로젝트 루트로 복사
-                              ├─ .vibeops.json 생성(프로젝트 이름·버전 등)
-                              ├─ .vibeops.env.example 생성
-                              └─ 이미 존재하는 파일은 건너뛰거나 --force 시 덮어씀
+                              ├─ copy templates (.vibeops/templates/**) to project root
+                              ├─ create .vibeops.json (project name, version, ...)
+                              ├─ create .vibeops.env.example
+                              └─ skip existing files unless --force overwrites them
 ```
 
 ### Plan (`vibeops plan`, `vibeops task generate`)
 
-`vibeops plan`은 **자유 텍스트 한 덩어리를 받지 않는다.** 20개 짧은 질문(input · select · checkbox · confirm) 흐름으로 답을 모으고, 결과를 **`ProjectBrief`(정규화된 JSON)** 으로 만든 뒤, 그 brief를 바탕으로 **Cursor 붙여넣기 프롬프트**를 출력한다. 코드 생성은 여전히 Cursor가 한다.
+`vibeops plan` **does not accept one free-form blob.** It collects answers through 20 short questions (input · select · checkbox · confirm), turns them into a **`ProjectBrief` (normalised JSON)**, and emits a **Cursor paste prompt** based on that brief. Code generation is still done by Cursor.
 
 ```
-프로젝트 아이디어 ─▶ vibeops plan (interactive Q&A · 20문항)
-                       │
-                       ├─ input        : 프로젝트명, one-line idea, core problem, success criteria 등
-                       ├─ select       : project type, frontend, backend, DB, ORM, package manager, agent level
-                       ├─ checkbox     : target users, MVP must-have, out-of-scope, deploy, auth, integrations, risks
-                       ├─ confirm      : Notion dashboard 동기화?, Git task branch 사용?
-                       └─ "Other" 선택 시 follow-up input → "Custom: <text>" 라벨로 저장
-                       │
-                       ▼
+project idea ─▶ vibeops plan (interactive Q&A · 20 questions)
+                   │
+                   ├─ input        : project name, one-line idea, core problem, success criteria, ...
+                   ├─ select       : project type, frontend, backend, DB, ORM, package manager, agent level
+                   ├─ checkbox     : target users, MVP must-have, out-of-scope, deploy, auth, integrations, risks
+                   ├─ confirm      : sync to Notion dashboard?, use Git task branches?
+                   └─ on "Other": follow-up input → stored as "Custom: <text>" label
+                   │
+                   ▼
               .vibeops/plan/brief.json   (ProjectBrief, schemaVersion=1)
-                       │
-                       ├─ stdout / --out : Cursor 붙여넣기 프롬프트 (8개 docs/project/* 채우기용)
-                       │   채울 파일: 00-overview, 01-requirements, 02-mvp-scope, 04-tech-stack,
-                       │              06-decisions, 07-backlog, 08-env, 09-deployment
-                       │   채우지 않음: 03-architecture (architect 에이전트), 05-current-state (자동)
-                       │
-                       └─ --apply <Cursor 응답> : docs/project/* 8개에 분배 (*.bak 백업 후 덮어쓰기)
-                                                  --dry-run 시 변경 미리보기만, 실제 변경 0건
+                   │
+                   ├─ stdout / --out : Cursor paste prompt (used to fill the 8 docs/project/* files)
+                   │   files filled: 00-overview, 01-requirements, 02-mvp-scope, 04-tech-stack,
+                   │                 06-decisions, 07-backlog, 08-env, 09-deployment
+                   │   not filled:   03-architecture (architect agent), 05-current-state (automatic)
+                   │
+                   └─ --apply <Cursor response> : distribute into the 8 docs/project/* files
+                                                  (write *.bak backup, then overwrite;
+                                                  --dry-run shows the diff with zero actual changes)
 
-다른 진입점:
-- vibeops plan --brief <path>    : 대화형 건너뛰고 외부 brief 재사용
-- vibeops plan --resume          : .vibeops/plan/draft.json 이어서
+Other entry points:
+- vibeops plan --brief <path>    : skip the interactive Q&A and reuse an external brief
+- vibeops plan --resume          : continue from .vibeops/plan/draft.json
 
-non-TTY (파이프·CI)에서는 한 줄 안내 후 exit 1 — interactive 또는 --brief를 요구한다.
+In non-TTY (pipes / CI) it prints a single-line hint and exits 1 — requires interactive or --brief.
 
-백로그 결정 ───▶ vibeops task generate
-                       │
-                       ├─ docs/tasks/TASK-NNN-*.md 파일 생성 또는
-                       └─ TASK 생성용 프롬프트 출력
+backlog decisions ───▶ vibeops task generate
+                          │
+                          ├─ create docs/tasks/TASK-NNN-*.md files, or
+                          └─ print the TASK-generation prompt
 ```
 
-ProjectBrief 스키마(요약): `projectName`, `oneLineIdea`, `projectType`, `targetUsers[]`, `coreProblem`, `mvpMustHave[]`, `outOfScope[]`, `techStack{frontend, backend, database, ormLayer, packageManager}`, `deploymentTargets[]`, `authRequirements[]`, `externalIntegrations[]`, `workflow{useNotionDashboard, useGitTaskBranch, agentWorkflowLevel}`, `riskAreas[]`, `successCriteria`, `meta{vibeopsVersion, createdAt, schemaVersion}`. 상세는 `docs/tasks/TASK-006-plan-command.md` 참조.
+ProjectBrief schema (summary): `projectName`, `oneLineIdea`, `projectType`, `targetUsers[]`, `coreProblem`, `mvpMustHave[]`, `outOfScope[]`, `techStack{frontend, backend, database, ormLayer, packageManager}`, `deploymentTargets[]`, `authRequirements[]`, `externalIntegrations[]`, `workflow{useNotionDashboard, useGitTaskBranch, agentWorkflowLevel}`, `riskAreas[]`, `successCriteria`, `meta{vibeopsVersion, createdAt, schemaVersion}`. Full details: `docs/tasks/TASK-006-plan-command.md`.
 
-### Task Lifecycle (`task start / prompt / check / done / rollback`)
+### Task lifecycle (`task start / prompt / check / done / rollback`)
 
 ```
 vibeops task start TASK-NNN
-   ├─ base branch / base commit 기록 (.vibeops/state/tasks/TASK-NNN.json)
-   ├─ task branch 생성 (예: task/TASK-NNN-slug)
-   └─ TASK 파일의 Status를 'in_progress'로
+   ├─ record base branch / base commit (.vibeops/state/tasks/TASK-NNN.json)
+   ├─ create task branch (e.g. task/TASK-NNN-slug)
+   └─ flip TASK file Status to 'in_progress'
 
 vibeops task prompt TASK-NNN --agent builder
-   └─ .vibeops/agents/builder.md + TASK 파일 + docs 컨텍스트로
-      Cursor에 붙여넣을 단일 프롬프트를 stdout으로 출력
+   └─ stitch .vibeops/agents/builder.md + the TASK file + docs context
+      into a single paste-ready prompt printed to stdout
 
 vibeops task check TASK-NNN
-   └─ Acceptance Criteria / Test Plan 체크리스트와
-      현재 Git 상태(브랜치, 변경 파일, 커밋 수)를 비교해 보고
+   └─ compare Acceptance Criteria / Test Plan checklist with the current
+      Git state (branch, changed files, commit count) and report
 
 vibeops task done TASK-NNN
-   ├─ TASK 파일의 Status='done', Result/Test Result 비어있는지 확인
-   └─ 안내(병합 가이드)만 출력. 자동 머지는 하지 않는다
+   ├─ check that the TASK file Status='done' and Result/Test Result are non-empty
+   └─ print merge guidance only. Never auto-merges.
 
 vibeops task rollback TASK-NNN
-   ├─ 기본: 어떤 브랜치/커밋을 어떻게 되돌릴 수 있는지 안내만 출력
-   └─ --confirm 시에만: task branch 삭제 / base commit으로 되돌리기 등 파괴적 작업
+   ├─ default: print guidance — which branch / commit could be rolled back, how
+   └─ --confirm only: destructive operations (delete task branch, reset to base commit, ...)
 ```
 
-### Notion Sync (`notion init / test / sync`, `task pull`)
+### Notion sync (`notion init / test / sync`, `task pull`)
 
 ```
-vibeops notion init   .vibeops.env 에 NOTION_API_KEY, NOTION_PROJECT_DB, NOTION_TASK_DB 항목 안내
-vibeops notion test   Notion API 접근/DB 스키마 검증
-vibeops notion sync   docs/tasks/*.md, docs/project/03-current-state.md → Notion (요약·상태·우선순위·브랜치·docs path·결과 요약만)
-vibeops task pull     Notion → docs/tasks/*.md 메타데이터 정합 (id, status, priority 등 메타만 동기화)
+vibeops notion init   Configure NOTION_TOKEN + projects/tasks data source ids in .vibeops.env / .vibeops.json
+vibeops notion test   Verify Notion API access + DB schema
+vibeops notion sync   docs/tasks/*.md, docs/project/03-current-state.md → Notion (summary, status, priority, branch, docs path, result summary only)
+vibeops task pull     Notion → docs/tasks/*.md metadata reconciliation (id, status, priority — metadata only)
 ```
 
-Notion에는 **상세 본문**(Scope, Acceptance Criteria 등 긴 본문)을 동기화하지 않는다. 상세는 `docs/tasks/*.md`에만 둔다.
+VibeOps does **not** push the detailed body (Scope, Acceptance Criteria, long prose) to Notion. The detailed body lives only in `docs/tasks/*.md`.
 
-## 컴포넌트 (소스 코드 관점)
+## Components (source-code perspective)
 
-> 구체 구현은 TASK-001 이후에서 정의한다. 이 문서는 의도만 고정한다.
+> Concrete implementation is defined from TASK-001 onward. This document fixes intent only.
 
-| 컴포넌트       | 책임                                                                                  |
-| -------------- | ------------------------------------------------------------------------------------- |
-| `cli/`         | CLI 진입점, 명령어 등록(`init`, `status`, `plan`, `task ...`, `agent ...`, `notion ...`) |
-| `bootstrap/`   | 템플릿 복사, idempotent 설치, `--dry-run`, `--force` 처리                              |
-| `templates/`   | 설치될 실제 파일 원본(Cursor Rules, AGENTS.md, docs/project, docs/tasks 템플릿, agents, prompts, workflows) |
-| `planner/`     | `plan`·`task generate`에서 사용할 프롬프트 빌더와 docs 골격 작성기                     |
-| `lifecycle/`   | TASK 상태 파일(.vibeops/state/tasks/*.json), Git 헬퍼(branch, base commit 기록·검증), check·done 로직 |
-| `rollback/`    | rollback 안내 출력기와 `--confirm` 시의 파괴적 작업 게이트                              |
-| `notion/`      | Notion API 클라이언트, DB 스키마 검증, sync/pull 매퍼                                  |
-| `config/`      | `.vibeops.json`, `.vibeops.env` 읽기/쓰기                                              |
-| `agent/`       | `.vibeops/agents/*.md` 로딩, `agent list/show/prompt` 명령에서 사용                     |
+| Component       | Responsibility                                                                          |
+| --------------- | --------------------------------------------------------------------------------------- |
+| `cli/`          | CLI entry point and command registration (`init`, `status`, `plan`, `task ...`, `agent ...`, `notion ...`) |
+| `bootstrap/`    | template copy, idempotent install, `--dry-run`, `--force` handling                      |
+| `templates/`    | actual file originals to install (Cursor rules, AGENTS.md, docs/project, docs/tasks templates, agents, prompts, workflows) |
+| `planner/`      | prompt builder for `plan` / `task generate` and writer of docs skeletons                |
+| `lifecycle/`    | TASK state files (`.vibeops/state/tasks/*.json`), Git helpers (branch, base commit record/verify), check/done logic |
+| `rollback/`     | rollback guidance printer and the destructive-op gate behind `--confirm`                |
+| `notion/`       | Notion API client, DB schema verification, sync/pull mappers                            |
+| `config/`       | read/write `.vibeops.json` and `.vibeops.env`                                            |
+| `agent/`        | load `.vibeops/agents/*.md`, used by `agent list/show/prompt`                            |
 
-## 명령 ↔ MVP ↔ 컴포넌트 매핑
+## Command ↔ MVP ↔ component mapping
 
-| 명령                          | MVP | 컴포넌트                          |
-| ----------------------------- | --- | --------------------------------- |
-| `vibeops init`                | 1   | bootstrap, templates, config      |
-| `vibeops status`              | 1   | config, lifecycle, notion(read)   |
-| `vibeops agent list/show/prompt` | 1 | agent                             |
-| `vibeops plan`                | 2   | planner, templates                |
-| `vibeops task generate`       | 2   | planner, templates                |
-| `vibeops task start`          | 3   | lifecycle (Git)                   |
-| `vibeops task prompt`         | 3   | agent + lifecycle                 |
-| `vibeops task check`          | 3   | lifecycle                         |
-| `vibeops task done`           | 3   | lifecycle                         |
-| `vibeops task rollback`       | 3   | rollback                          |
-| `vibeops notion init/test`    | 4   | notion, config                    |
-| `vibeops notion sync`         | 4   | notion                            |
-| `vibeops task pull`           | 4   | notion + lifecycle                |
+| Command                          | MVP | Component                          |
+| -------------------------------- | --- | ---------------------------------- |
+| `vibeops init`                   | 1   | bootstrap, templates, config       |
+| `vibeops status`                 | 1   | config, lifecycle, notion (read)   |
+| `vibeops agent list/show/prompt` | 1   | agent                              |
+| `vibeops plan`                   | 2   | planner, templates                 |
+| `vibeops task generate`          | 2   | planner, templates                 |
+| `vibeops task start`             | 3   | lifecycle (Git)                    |
+| `vibeops task prompt`            | 3   | agent + lifecycle                  |
+| `vibeops task check`             | 3   | lifecycle                          |
+| `vibeops task done`              | 3   | lifecycle                          |
+| `vibeops task rollback`          | 3   | rollback                           |
+| `vibeops notion init/test`       | 4   | notion, config                     |
+| `vibeops notion sync`            | 4   | notion                             |
+| `vibeops task pull`              | 4   | notion + lifecycle                 |
 
-## 부작용 안전장치
+## Side-effect safeguards
 
-- **모든 변경 명령**은 가능한 한 `--dry-run`을 지원한다. 기본은 안내·계획 출력, 실제 변경은 명시적 옵션 또는 `--apply`/`--confirm` 시에만.
-- `init`은 기본적으로 기존 파일을 **덮어쓰지 않고** 건너뛰며, `--force`가 있을 때만 덮어쓴다.
-- `task rollback`은 기본 안내만, `--confirm` 시에만 파괴적 Git 작업을 수행한다.
-- Notion 동기화는 **상세 본문이 아니라 메타 필드**만 푸시한다.
+- **Every mutating command** supports `--dry-run` where possible. The default is to print guidance / plan only; real changes happen only with explicit options or `--apply` / `--confirm`.
+- `init` by default **skips existing files** instead of overwriting them; only `--force` overwrites.
+- `task rollback` prints guidance by default; destructive Git operations run only with `--confirm`.
+- Notion sync only pushes **metadata fields**, never the detailed body.

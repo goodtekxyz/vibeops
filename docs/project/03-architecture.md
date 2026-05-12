@@ -1,34 +1,34 @@
 # 03 — Architecture
 
-> `architect` 에이전트가 채운다.
+> Filled in by the `architect` agent.
 
-## 큰 그림
-
-<!--
-아스키 다이어그램으로 “시스템 안 / 밖” 경계를 그린다.
-사용자 → 프론트 → 백엔드 → DB / 외부 서비스 같은 흐름.
--->
-
-## 컴포넌트
+## Big picture
 
 <!--
-| 이름        | 책임                     | 들어오는 입력 | 나가는 출력 |
-| ----------- | ------------------------ | ------------- | ------------ |
-| component-a | ...                      | ...           | ...          |
+Draw an ASCII diagram of the "inside / outside system" boundary.
+e.g. user → frontend → backend → DB / external service.
 -->
 
-## 데이터 모델
+## Components
 
-<!-- 핵심 엔티티 3~7개와 그 관계. 필드 상세는 별도 TASK에서. -->
+<!--
+| Name        | Responsibility           | Incoming inputs | Outgoing outputs |
+| ----------- | ------------------------ | --------------- | ---------------- |
+| component-a | ...                      | ...             | ...              |
+-->
 
-## 데이터 흐름
+## Data model
 
-<!-- 사용자가 가장 자주 하는 시나리오 1~2개의 호출 순서. -->
+<!-- 3–7 core entities and their relationships. Field-level detail in a separate TASK. -->
 
-## 외부 경계
+## Data flow
 
-<!-- 어떤 외부 서비스/API와 통신하는가. 인증 방식, 폐쇄/공개. -->
+<!-- Call order for the 1–2 most frequent user scenarios. -->
 
-## 비결정적·실패 경로
+## External boundary
 
-<!-- 네트워크 장애·동시성·데이터 손실 시 어떻게 행동하는지(고수준). -->
+<!-- Which external services / APIs are called. Auth method, closed/open. -->
+
+## Non-deterministic / failure paths
+
+<!-- High-level behaviour under network failure, concurrency, data loss. -->

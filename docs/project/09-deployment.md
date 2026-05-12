@@ -1,28 +1,28 @@
 # 09 — Deployment
 
-이 프로젝트를 어떻게 배포·실행하는가.
+How this project is built, packaged, and shipped.
 
-## 로컬 실행
+## Local run
 
-<!-- 한 명령으로 dev 서버가 뜨는 흐름. `pnpm dev` 같은. -->
+<!-- The flow that brings up a dev server with one command, e.g. `pnpm dev`. -->
 
-## 빌드
+## Build
 
-<!-- 산출물의 위치와 빌드 명령. -->
+<!-- Build command and where the artifact lands. -->
 
-## 패키지/배포
+## Packaging / distribution
 
 <!--
-대상 환경별 단계.
+Steps per target environment.
 - npm publish?
 - Docker image?
 - Cloud (Vercel / Fly / AWS / GCP / ...) ?
 -->
 
-## 환경 분리
+## Environment separation
 
-<!-- dev / staging / prod 의 차이가 무엇인지. 같은 코드 다른 env? 같은 image? -->
+<!-- What is different between dev / staging / prod. Same code with different env? Same image? -->
 
-## 롤백
+## Rollback
 
-<!-- 배포 후 문제가 생겼을 때의 표준 되돌리기 흐름. -->
+<!-- The standard rollback flow when a deploy has problems. -->

@@ -5,26 +5,26 @@ alwaysApply: true
 
 # Git Safety
 
-## 브랜치 정책
+## Branch policy
 
-- TASK마다 별도 브랜치: `task/<task-id>-<slug>` 예) `task/002-init-command`
-- TASK 시작 시 base branch / base commit / task branch를 `.vibeops/state/tasks/TASK-NNN.json`에 기록(자동).
-- 머지 후 task branch는 기본적으로 삭제(`git branch -d`). 미머지 폐기는 별도 흐름(rollback).
+- Separate branch per TASK: `task/<task-id>-<slug>`, for example `task/002-init-command`.
+- When a TASK starts, record base branch / base commit / task branch in `.vibeops/state/tasks/TASK-NNN.json` automatically.
+- After merge, delete the task branch by default (`git branch -d`). Discarding unmerged work is a separate rollback flow.
 
-## 커밋 메시지
+## Commit messages
 
-- TASK ID를 포함한다. 예) `feat(TASK-002): vibeops init`, `docs(TASK-006): plan command spec`.
-- 한 커밋이 한 TASK 범위만 다룬다.
+- Include the TASK ID, for example `feat(TASK-002): vibeops init` or `docs(TASK-006): plan command spec`.
+- Each commit covers the scope of one TASK only.
 
-## 안전장치
+## Safeguards
 
-- `vibeops task rollback`은 **기본 안내만**. 파괴적 Git 작업은 `--confirm`이 있을 때만.
-- **force-push 금지** (특히 공유 브랜치).
-- 자동 머지·자동 푸시 금지. 사람이 명시적으로 한다.
-- dirty 작업 폴더에서 `task start`는 거부(`--allow-dirty`로 우회 가능).
+- `vibeops task rollback` gives **guidance only** by default. Destructive Git work runs only with `--confirm`.
+- **No force-push**, especially on shared branches.
+- No automatic merge or automatic push. A human does those explicitly.
+- `task start` refuses a dirty working tree; `--allow-dirty` is the explicit override.
 
-## 금지사항
+## Forbidden
 
-- 여러 TASK를 한 브랜치에서 처리하기
-- 커밋 메시지에서 TASK ID 누락하기
-- main / master 같은 공유 브랜치에 직접 커밋하기(TASK 브랜치를 거친다)
+- Handling multiple TASKs on one branch.
+- Omitting the TASK ID from commit messages.
+- Committing directly to shared branches such as main / master; go through a TASK branch.

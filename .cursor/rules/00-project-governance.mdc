@@ -5,24 +5,24 @@ alwaysApply: true
 
 # Project Governance
 
-## 진실 공급원
+## Source of truth
 
-- **`docs/project/`**, **`docs/tasks/`**가 우선이다. 채팅은 신뢰하지 않는다.
-- 문서와 채팅이 다르면 **문서를 먼저** 맞춘 뒤 구현한다.
-- 사람용 운영판(Notion)은 **요약·상태·우선순위·브랜치·docs path·결과 요약**만 동기화한다. 상세 본문은 `docs/tasks/*.md`에만 둔다.
+- **`docs/project/`** and **`docs/tasks/`** come first. Chat is not trusted.
+- If docs and chat disagree, **fix the docs first**, then implement.
+- The human operations board (Notion) syncs only **summary, status, priority, branch, docs path, and result summary**. Detailed body content lives only in `docs/tasks/*.md`.
 
-## 한 번에 한 TASK
+## One TASK at a time
 
-- 구현은 **단일 TASK**에만 해당해야 한다.
-- TASK의 **Scope / Acceptance Criteria** 밖은 하지 않는다.
-- TASK ID(`TASK-NNN`)는 모든 커밋 메시지·브랜치 이름·로그 항목에서 일관되게 사용한다.
+- Implementation must belong to **a single TASK**.
+- Do not work outside the TASK **Scope / Acceptance Criteria**.
+- Use the TASK ID (`TASK-NNN`) consistently in every commit message, branch name, and log entry.
 
-## MVP 범위 보호
+## Protect the MVP scope
 
-- `docs/project/02-mvp-scope.md`에 명시되지 않은 기능은 **추가하지 않는다**.
-- 호스팅·실시간 동기화·Webhook·자동 LLM 호출 등 “편의” 항목은 별도 TASK에서만 도입한다.
+- Do **not add** features that are not listed in `docs/project/02-mvp-scope.md`.
+- Convenience items such as hosting, realtime sync, webhooks, and automatic LLM calls are introduced only through separate TASKs.
 
-## 리팩터링·연동
+## Refactors and integrations
 
-- 대규모 리팩터링은 **별도 TASK**에 있을 때만.
-- 외부 연동(Git host API, Notion, 메신저 등)은 **TASK에 명시된 경우에만**.
+- Large refactors are allowed only when covered by **a separate TASK**.
+- External integrations (Git host API, Notion, messengers, and similar systems) are allowed **only when the TASK explicitly says so**.

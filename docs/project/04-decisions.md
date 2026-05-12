@@ -1,84 +1,84 @@
 # 04 — Decisions
 
-이미 내려진 결정. 충돌하는 새 제안은 별도 TASK로 재논의한 뒤에만 바뀐다.
+Decisions already made. A conflicting new proposal can only change them after being raised as a separate TASK.
 
-## D-001 · VibeOps는 “바이브 코딩 부트스트래퍼 + 워크플로 레일”이다
+## D-001 · VibeOps is a "vibe-coding bootstrapper + workflow rail"
 
-- VibeOps는 새 프로젝트에 **Cursor 기반 바이브 코딩**을 체계적으로 수행할 운영 구조를 설치·생성하는 **로컬 CLI**다.
-- VibeOps 자체는 코드를 만들지 않는다. 코드는 Cursor가 `docs/tasks/TASK-*.md` 기준으로 짠다.
-- 결과: 웹 UI, 호스팅 대시보드, 자체 LLM 호출은 MVP 밖이다.
+- VibeOps is a **local CLI** that installs/generates an operating structure for **Cursor-based vibe coding** in a new project.
+- VibeOps itself does not write code. Cursor writes the code from `docs/tasks/TASK-*.md`.
+- Consequence: web UI, hosted dashboard, and self-hosted LLM calls are out of MVP.
 
-## D-002 · Source of Truth는 Git, Notion은 대시보드
+## D-002 · Git is the source of truth; Notion is the dashboard
 
-- AI 실행 기준: `docs/tasks/*.md`
-- 프로젝트 설계/현재 상태 기준: `docs/project/*.md`
-- 변경 이력·롤백 기준: Git commits / branches
-- 사람이 보는 운영판: Notion
-- 기준이 **아님**: 채팅(Cursor 히스토리, Slack)
-- Notion에는 **상세 본문이 아니라 요약·상태·우선순위·브랜치·docs path·결과 요약 메타**만 둔다.
+- AI execution baseline: `docs/tasks/*.md`.
+- Project design / current state baseline: `docs/project/*.md`.
+- Change history / rollback baseline: Git commits / branches.
+- Human dashboard: Notion.
+- **Not** a baseline: chat (Cursor history, Slack).
+- Notion stores **metadata only** (summary, status, priority, branch, docs path, result summary) — never the detailed body.
 
-## D-003 · 한 번에 하나의 TASK
+## D-003 · One TASK at a time
 
-- Cursor는 한 세션에서 한 TASK만 진행한다.
-- TASK의 Scope / Acceptance Criteria 밖은 하지 않는다.
-- 대규모 리팩터링은 별도 TASK가 있을 때만 한다.
+- Cursor runs only one TASK per session.
+- Stay within the TASK's Scope / Acceptance Criteria.
+- Large refactors require their own TASK.
 
-## D-004 · 기술 스택: Node.js 20+ / TypeScript / pnpm
+## D-004 · Tech stack: Node.js 20+ / TypeScript / pnpm
 
-- 사용자 머신에 흔하고 macOS/Linux/WSL에서 동일 동작.
-- 자체 DB·서버 도입 X. 상태는 평문 파일(`.vibeops.json`, `.vibeops/state/**.json`).
-- 설정 포맷: **JSON**. TOML/YAML은 도입하지 않는다(편집·검증 단순화).
+- Common on user machines; identical behaviour on macOS / Linux / WSL.
+- No bundled DB or server. State lives in plain files (`.vibeops.json`, `.vibeops/state/**.json`).
+- Config format: **JSON**. TOML / YAML are not introduced (simpler editing / validation).
 
-## D-005 · 단일 CLI 진입점 `vibeops`
+## D-005 · Single CLI entry point `vibeops`
 
-- sub-command 구조: `vibeops <group> <action> [args]` (예: `vibeops task start TASK-001`).
-- 모든 변경 명령은 `--dry-run`을 우선 제공한다(또는 동등 옵션).
+- Sub-command structure: `vibeops <group> <action> [args]` (e.g. `vibeops task start TASK-001`).
+- Every mutating command offers `--dry-run` first (or an equivalent option).
 
-## D-006 · `init`은 idempotent, 기본은 “덮어쓰지 않음”
+## D-006 · `init` is idempotent; default is "do not overwrite"
 
-- 이미 있는 파일은 건너뛴다. `--force` 시에만 덮어쓴다.
-- `--dry-run`은 어떤 파일이 만들어질지 표시한다.
+- Existing files are skipped. Only `--force` overwrites.
+- `--dry-run` prints which files would be created.
 
-## D-007 · Rollback은 안내가 기본, 파괴적 작업은 `--confirm` 필요
+## D-007 · Rollback guides by default; destructive operations require `--confirm`
 
-- `vibeops task rollback TASK-NNN`은 어떤 브랜치/커밋을 어떻게 되돌릴 수 있는지 **출력만** 한다.
-- 실제 `git branch -D` / `git reset` / `git revert`는 `--confirm`이 있을 때만 수행한다.
+- `vibeops task rollback TASK-NNN` **only prints** which branch / commit could be rolled back, how.
+- Real `git branch -D` / `git reset` / `git revert` only runs with `--confirm`.
 
-## D-008 · TASK Lifecycle은 `start → prompt → check → done`(+ `rollback`)
+## D-008 · TASK lifecycle is `start → prompt → check → done` (+ `rollback`)
 
-- `start`: base branch / base commit / task branch를 `.vibeops/state/tasks/TASK-NNN.json`에 기록.
-- `prompt`: 에이전트 + TASK + docs 컨텍스트로 Cursor 붙여넣기 프롬프트를 출력.
-- `check`: Acceptance Criteria·Test Plan과 Git 상태 비교 보고.
-- `done`: TASK 파일의 Status=`done`, Result/Test Result 채워졌는지 검증. 자동 머지는 하지 않는다.
+- `start`: record base branch / base commit / task branch in `.vibeops/state/tasks/TASK-NNN.json`.
+- `prompt`: print a Cursor paste-prompt built from agent + TASK + docs context.
+- `check`: compare Acceptance Criteria / Test Plan against the current Git state and report.
+- `done`: verify TASK file Status = `done` and Result / Test Result are non-empty. Never auto-merges.
 
-## D-009 · 에이전트는 파일로 정의한다
+## D-009 · Agents are defined as files
 
-- 에이전트는 `.vibeops/agents/<name>.md`에 역할·프롬프트가 정의된 마크다운 파일이다.
-- `vibeops agent list/show/prompt` 명령으로 노출한다.
-- MVP에서 제공하는 기본 에이전트: `planner`, `builder`, `reviewer`, `releaser`. (수는 늘릴 수 있으나 MVP에서는 이 4개로 시작.)
+- An agent is a markdown file at `.vibeops/agents/<name>.md` describing role + prompt.
+- Exposed via `vibeops agent list/show/prompt`.
+- Default agents shipped in the MVP: `planner`, `builder`, `reviewer`, `releaser`. (More can be added later; the MVP starts with these four.)
 
-## D-010 · Notion은 사람이 본다, 양방향 실시간 동기화 아님
+## D-010 · Notion is for humans; no realtime two-way sync
 
-- `vibeops notion sync`: Git docs → Notion (메타 푸시)
-- `vibeops task pull`: Notion → docs/tasks 메타 정합(예: 우선순위·상태 정도)
-- Webhook·실시간·자동 polling은 MVP 밖.
+- `vibeops notion sync`: Git docs → Notion (metadata push).
+- `vibeops task pull`: Notion → `docs/tasks` metadata reconciliation (e.g. priority / status only).
+- Webhooks / realtime / automatic polling are out of MVP.
 
-## D-011 · VibeOps 자신을 만들 때도 같은 규칙을 적용한다
+## D-011 · VibeOps itself follows the same rules
 
-- VibeOps 저장소 자체에 `AGENTS.md`·`.cursor/rules/`·`docs/`가 있다.
-- 자기 자신의 TASK도 `docs/tasks/TASK-*.md`로 만들고, 한 TASK씩 처리한다.
+- The VibeOps repository has its own `AGENTS.md` / `.cursor/rules/` / `docs/`.
+- Its own TASKs live in `docs/tasks/TASK-*.md` and are handled one at a time.
 
-## D-012 · 문서 갱신은 구현과 동시에 한다
+## D-012 · Doc updates happen alongside implementation
 
-- 구현 완료 시 **반드시** 함께 갱신: `docs/project/03-current-state.md`, 해당 TASK 파일의 Result/Test Result, `docs/logs/YYYY-MM-DD.md`.
-- 세 가지를 갱신하지 않으면 TASK는 완료로 치지 않는다.
+- When implementation completes, **all three** must be updated together: `docs/project/03-current-state.md`, the TASK file's Result / Test Result, and `docs/logs/YYYY-MM-DD.md`.
+- Without those three updates, the TASK is not considered done.
 
-## D-013 · `vibeops plan`은 대화형 Q&A를 1순위로 한다
+## D-013 · `vibeops plan` prefers interactive Q&A
 
-- `vibeops plan`은 자유 텍스트 한 덩어리만 받지 않는다. **20개 짧은 질문**을 `input` · `select` · `checkbox` · `confirm`을 섞어서 받는다.
-- 키 입력 규약: select·checkbox 둘 다 방향키, checkbox는 스페이스 토글 + 엔터 확정, confirm은 엔터로 default 사용. checkbox는 다중 default 허용.
-- `select` / `checkbox`에서 `Other`를 고르면 곧바로 follow-up `input` 질문을 띄우고, 결과는 표준 옵션 라벨 ∪ `Custom: <text>` 형식으로 정규화한다.
-- 결과는 **정규화된 `ProjectBrief`(JSON, `schemaVersion=1`)** 로 `.vibeops/plan/brief.json`에 저장한다. Cursor 프롬프트는 항상 이 brief를 입력으로 빌드한다.
-- 인터랙티브 흐름이 막힐 환경(non-TTY, CI, 파이프)에서는 진입을 거부하고 `--brief <path>`를 요구한다. CI에서 미리 만든 brief.json을 재사용할 수 있게 한다.
-- `vibeops plan`은 `docs/project/` 10개 중 8개(00, 01, 02, 04, 06, 07, 08, 09)만 채운다. `03-architecture`는 `architect` 에이전트가, `05-current-state`는 init·TASK lifecycle이 책임진다.
-- VibeOps는 여전히 LLM을 직접 호출하지 않는다. brief를 가지고 채우는 작업은 Cursor가 한다. 이 결정은 D-001과 D-002에 정합한다.
+- `vibeops plan` does not accept a single free-form blob. It asks **20 short questions** mixing `input` · `select` · `checkbox` · `confirm`.
+- Key conventions: select / checkbox use arrow keys, checkbox toggles with Space and confirms with Enter, confirm accepts default with Enter. Checkboxes allow multiple defaults.
+- On `Other` in `select` / `checkbox`, a follow-up `input` is presented immediately, and the result is normalised as the standard option label ∪ `Custom: <text>`.
+- The result is stored at `.vibeops/plan/brief.json` as a **normalised `ProjectBrief` (JSON, `schemaVersion=1`)**. The Cursor prompt is always built from this brief.
+- In non-TTY / CI / pipe environments, interactive entry is refused; `--brief <path>` is required. CI can reuse a pre-built `brief.json`.
+- `vibeops plan` fills 8 of 10 `docs/project/` files (00, 01, 02, 04, 06, 07, 08, 09). `03-architecture` is owned by the `architect` agent; `05-current-state` is owned by `init` and TASK lifecycle.
+- VibeOps still does not call LLMs directly. Cursor fills the docs from the brief. This decision is consistent with D-001 and D-002.

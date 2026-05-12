@@ -1,20 +1,20 @@
 # 06 — Decisions
 
-이미 내려진 결정. 충돌하는 새 제안은 별도 TASK로 재논의한 뒤에만 바뀐다.
+Decisions already made. A conflicting new proposal can only change them after being raised as a separate TASK.
 
-## D-001 · Source of truth는 Git의 docs/
+## D-001 · The source of truth is `docs/` in Git
 
-채팅은 신뢰하지 않는다. 어긋나면 문서를 먼저 맞추고 구현한다.
+Chat is not trusted. When they conflict, fix the docs first, then implement.
 
-## D-002 · 한 번에 한 TASK
+## D-002 · One TASK at a time
 
-대규모 리팩터링은 별도 TASK 없이는 하지 않는다.
+Large refactors are not done without their own TASK.
 
-## D-003 · Notion은 사람용 대시보드 (메타만)
+## D-003 · Notion is a human dashboard (metadata only)
 
-본문 동기화 X. 실시간 X.
+No body sync. No realtime.
 
 <!--
-이후 결정은 `D-NNN · 한 줄 요약` 형태로 추가한다.
-각 항목은 짧게 — “왜”와 “결과”만 한 단락.
+Add subsequent decisions in the `D-NNN · one-line summary` form.
+Keep each entry short — one paragraph of "why" and "consequence" only.
 -->

@@ -6,38 +6,38 @@ Review
 
 ## MVP Phase
 
-후속 (post-MVP 4)
+Follow-on (post-MVP 4)
 
 ## Goal
 
-`vibeops init` 단계에서 Git 초기화와 초기 커밋까지 선택적으로 처리할 수 있게 한다. 또한 최초 커밋 전 Git 상태를 `vibeops status` 에서 detached 로 오해하지 않도록 unborn branch 로 정확히 표시한다.
+Let `vibeops init` optionally handle Git initialisation and the first commit. Also make `vibeops status` represent the pre-first-commit Git state as an unborn branch instead of mistaking it for "detached".
 
 ## Background
 
-새 프로젝트에서 사용자는 현재 `vibeops init` 후 `git init`, `git branch -M main`, `git add .`, `git commit ...` 을 직접 수행해야 한다. 최초 커밋 전에는 `HEAD` 가 없어서 기존 `vibeops status` 가 branch 를 `(detached?)` 처럼 표시해 혼란을 준다.
+On a new project, users currently have to run `git init`, `git branch -M main`, `git add .`, `git commit ...` themselves after `vibeops init`. Before the first commit, `HEAD` does not exist and the previous `vibeops status` displayed the branch as `(detached?)`, which is confusing.
 
 ## Scope
 
-- `vibeops init` interactive Git setup 추가:
-  - Initialize Git repository? 기본 Yes.
-  - Use `main` as default branch? 기본 Yes.
-  - Create initial commit? 기본 Yes.
-  - Initial commit message 기본 `chore: initialize vibeops project`.
-- `vibeops init` 옵션 추가:
+- Add interactive Git setup to `vibeops init`:
+  - Initialize Git repository? (default Yes).
+  - Use `main` as default branch? (default Yes).
+  - Create initial commit? (default Yes).
+  - Initial commit message (default `chore: initialize vibeops project`).
+- Add `vibeops init` options:
   - `--git`
   - `--no-git`
   - `--initial-commit`
   - `--no-initial-commit`
-  - `--default-branch <name>` (기본 `main`)
-  - `--commit-message <message>` (기본 `chore: initialize vibeops project`)
-- Git 안전 규칙:
-  - 이미 Git repo 면 `git init` skip.
-  - 이미 커밋이 있으면 initial commit skip/warn.
-  - initial commit 전 포함 파일 수를 보여준다.
-  - `--dry-run` 에서는 Git 명령 0건.
-  - 자동 push 0건.
-  - 기존 remote 변경 0건.
-- `src/lib/git.ts` helper 확장:
+  - `--default-branch <name>` (default `main`).
+  - `--commit-message <message>` (default `chore: initialize vibeops project`).
+- Git safety rules:
+  - Skip `git init` when already a Git repo.
+  - Skip / warn the initial commit when commits already exist.
+  - Show the file count to be included before the initial commit.
+  - Zero Git commands under `--dry-run`.
+  - Zero auto-push.
+  - Zero changes to existing remotes.
+- Extend `src/lib/git.ts` helpers:
   - `isGitRepository(cwd)`
   - `hasAnyCommit(cwd)`
   - `currentBranchOrUnborn(cwd)`
@@ -45,28 +45,28 @@ Review
   - `gitSetDefaultBranch(cwd, branch)`
   - `gitAddAll(cwd)`
   - `gitCommit(cwd, message)`
-- `vibeops status` Git 표시 개선:
-  - `git symbolic-ref --short HEAD` 로 branch 가 읽히면 branch 이름 표시.
-  - `git rev-parse --verify HEAD` 실패 시 `unborn` 으로 판단.
-  - detached 와 unborn 구분.
+- Improve `vibeops status` Git display:
+  - When `git symbolic-ref --short HEAD` reads a branch, show the branch name.
+  - When `git rev-parse --verify HEAD` fails, classify as `unborn`.
+  - Distinguish detached from unborn.
 
 ## Out of Scope
 
-- 원격 remote 생성/수정/push.
-- GitHub 연동 변경 (`vibeops github` 는 TASK-013 범위).
-- Git commit author 설정.
-- 기존 repo history rewrite.
-- Git hooks 우회 옵션 추가.
+- Creating / modifying / pushing remotes.
+- GitHub integration changes (`vibeops github` is TASK-013's scope).
+- Git commit author configuration.
+- Rewriting existing repo history.
+- Options to bypass Git hooks.
 
 ## Acceptance Criteria
 
-1. `vibeops init --git --initial-commit` 이 새 폴더에서 Git repo 를 만들고 `main` 브랜치에 초기 커밋을 만든다.
-2. `vibeops init --git --no-initial-commit` 후 `vibeops status` 가 `main (unborn, no commits yet)` / `dirty` / first commit hint 를 출력한다.
-3. `vibeops init --dry-run` 은 Git 명령을 실행하지 않고 계획만 출력한다.
-4. interactive Yes/No 는 `yesNoSelect` helper 를 사용한다. `confirm` prompt / `y/n` 강제 없음.
-5. 기존 Git repo 에서 `--git` 은 안전하게 skip 하고 remote 를 건드리지 않는다.
-6. 기존 커밋이 있으면 initial commit 은 skip/warn 한다.
-7. `status` JSON 에서 unborn/detached 를 구분할 수 있다.
+1. `vibeops init --git --initial-commit` creates a Git repo on a fresh folder and makes an initial commit on the `main` branch.
+2. After `vibeops init --git --no-initial-commit`, `vibeops status` prints `main (unborn, no commits yet)` / `dirty` / a first-commit hint.
+3. `vibeops init --dry-run` prints the plan only and does not run Git commands.
+4. Interactive Yes/No uses the `yesNoSelect` helper. No `confirm` prompts / no forced `y/n` typing.
+5. In an existing Git repo, `--git` skips safely and does not touch remotes.
+6. When commits already exist, the initial commit is skipped/warned.
+7. The `status` JSON distinguishes unborn from detached.
 
 ## Files to Inspect First
 
@@ -89,81 +89,80 @@ Review
 - `src/cli.ts`
 - `README.md`
 - `docs/project/03-current-state.md`
-- `docs/logs/2026-05-11.md`
 - `docs/tasks/TASK-014-init-git-bootstrap-ux.md`
 
 ## Risks
 
-- `git commit` 은 사용자 머신의 Git author 설정이 없으면 실패할 수 있다. 실패 시 명확한 메시지를 출력하고 사용자가 수동 commit 할 수 있어야 한다.
-- 새 프로젝트에 기존 파일이 많으면 initial commit 이 예상보다 클 수 있다. commit 전 파일 수를 표시해 인지시킨다.
-- `git branch -M main` 은 기존 repo 에서 불필요한 branch rename 을 만들 수 있으므로 새 repo 또는 unborn/no-commit 상태에서만 수행한다.
+- `git commit` can fail when the user's machine has no Git author set. On failure, print a clear message and let the user commit manually.
+- A new project with many existing files can produce an oversized initial commit. Show the file count to be included before committing.
+- `git branch -M main` can rename a branch unnecessarily in an existing repo — perform it only on a new repo or an unborn/no-commit state.
 
 ## Test Plan
 
 - `pnpm typecheck`
 - `pnpm build`
 - `node dist/cli.js init --dry-run`
-- 새 임시 폴더:
-  - `node dist/cli.js init --git --initial-commit`
-  - `git branch --show-current` → `main`
-  - `git status --short` → empty
-  - `node dist/cli.js status` → branch `main`, status `clean`
-- 새 임시 폴더:
-  - `node dist/cli.js init --git --no-initial-commit`
-  - `node dist/cli.js status` → `main (unborn, no commits yet)`, `dirty`, hint 출력
-- 기존 Git repo:
-  - `node dist/cli.js init --git --initial-commit`
-  - 기존 커밋이 있으면 initial commit skip 또는 안전 안내
+- New temp folder:
+  - `node dist/cli.js init --git --initial-commit`.
+  - `git branch --show-current` → `main`.
+  - `git status --short` → empty.
+  - `node dist/cli.js status` → branch `main`, status `clean`.
+- New temp folder:
+  - `node dist/cli.js init --git --no-initial-commit`.
+  - `node dist/cli.js status` → `main (unborn, no commits yet)`, `dirty`, hint shown.
+- Existing Git repo:
+  - `node dist/cli.js init --git --initial-commit`.
+  - When commits exist, initial commit is skipped or safely guided.
 
 ## Rollback Plan
 
-- 코드 변경은 branch discard 또는 revert.
-- 테스트 중 만든 임시 폴더는 삭제.
-- 실수로 초기 커밋을 만든 로컬 테스트 repo 는 해당 임시 repo 삭제로 복구.
+- Code reverted by discarding the branch or `git revert`.
+- Delete temp folders made during testing.
+- An accidental initial commit on a local test repo can be undone by removing the temp repo.
 
 ## Git Context
 
-(작업 중 채워진다)
+(populated during the run)
 
 ## Notion Page
 
-(없음)
+(none)
 
 ## Implementation Plan
 
-1. Git helper 확장.
-2. `init` 옵션/interactive flow 추가.
-3. `status` Git 표시와 JSON 개선.
-4. README / current-state / log / TASK 결과 갱신.
-5. typecheck/build/임시 폴더 smoke 검증.
+1. Extend Git helpers.
+2. Add `init` options / interactive flow.
+3. Improve `status` Git display and JSON.
+4. Update README / current-state / log / TASK result.
+5. typecheck/build/smoke on a temp folder.
 
 ## Result
 
-TASK-014 범위 내에서 `vibeops init` 에 선택적 Git bootstrap UX 를 추가했다. 새 프로젝트는 interactive 질문 또는 non-interactive flags 로 `git init`, default branch 설정, initial commit 생성까지 한 번에 처리할 수 있다. 또한 최초 커밋 전 `vibeops status` 가 unborn branch 를 detached 로 오해하지 않도록 Git 상태 모델을 확장했다.
+Within the TASK-014 scope, an optional Git bootstrap UX was added to `vibeops init`. A new project can now go through `git init`, default-branch setup, and the initial commit in one go via interactive questions or non-interactive flags. The Git-state model was also extended so that, before the first commit, `vibeops status` no longer mistakes an unborn branch for "detached".
 
-### 변경 요약
+### Summary of changes
 
 - `src/lib/git.ts`
-  - `GitInfo.state: "none" | "normal" | "unborn" | "detached"` 추가.
-  - `GitInfo.hasCommits` 추가.
-  - `isGitRepository`, `hasAnyCommit`, `currentBranchOrUnborn`, `gitInit`, `gitSetDefaultBranch`, `gitAddAll`, `gitCommit` 추가.
-  - `readGitInfo` 가 `git symbolic-ref --short HEAD` 와 `git rev-parse --verify HEAD` 를 조합해 normal / unborn / detached 를 구분.
+  - Added `GitInfo.state: "none" | "normal" | "unborn" | "detached"`.
+  - Added `GitInfo.hasCommits`.
+  - Added `isGitRepository`, `hasAnyCommit`, `currentBranchOrUnborn`, `gitInit`, `gitSetDefaultBranch`, `gitAddAll`, `gitCommit`.
+  - `readGitInfo` combines `git symbolic-ref --short HEAD` and `git rev-parse --verify HEAD` to distinguish normal / unborn / detached.
 - `src/commands/init.ts`
-  - interactive Git setup 추가:
+  - Adds interactive Git setup:
     - Initialize Git repository?
     - Use `main` as default branch?
     - Create initial commit?
-    - Initial commit message
-  - Yes/No 는 `askYesNo` → `yesNoSelect` 경로만 사용. `confirm` prompt 추가 없음.
-  - `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch <name>`, `--commit-message <message>` 지원.
-  - `--git` 기본 동작은 Git init + initial commit. commit 생략은 `--no-initial-commit`.
-  - 이미 Git repo 면 `git init` skip.
-  - 이미 커밋이 있으면 default branch 변경과 initial commit skip/warn.
-  - initial commit 전에 `git status --porcelain` 기준 포함 파일 수 출력.
-  - `--dry-run` 에서는 Git 명령 실행 0건, 계획만 출력.
-  - 자동 push / remote 변경 0건.
+    - Initial commit message.
+  - Yes/No uses only the `askYesNo` → `yesNoSelect` path. No new `confirm` prompts.
+  - Supports `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch <name>`, `--commit-message <message>`.
+  - `--git` defaults to Git init + initial commit. To skip the commit, use `--no-initial-commit`.
+  - Skips `git init` in an existing Git repo.
+  - Skips / warns the default-branch change and initial commit when commits already exist.
+  - Before the initial commit, prints the file count from `git status --porcelain`.
+  - Zero Git command executions under `--dry-run`; plan only.
+  - Zero auto-push / remote changes.
 - `src/status/format.ts`
-  - unborn branch 출력:
+  - Unborn-branch output:
 
     ```text
     Git
@@ -172,19 +171,19 @@ TASK-014 범위 내에서 `vibeops init` 에 선택적 Git bootstrap UX 를 추�
       hint    create the first commit or run `vibeops init --git --initial-commit`
     ```
 
-  - detached HEAD 와 unborn branch 를 분리 표시.
+  - Displays detached HEAD and unborn branch separately.
 - `src/cli.ts`
-  - `init` 옵션 추가: `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch <name>`, `--commit-message <message>`.
+  - Adds `init` options: `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch <name>`, `--commit-message <message>`.
 - `scripts/smoke.mjs`
-  - `init --dry-run --git --initial-commit` smoke 추가.
+  - Adds the `init --dry-run --git --initial-commit` smoke case.
 - `README.md`
-  - Quick Start 에 interactive Git bootstrap / `vibeops init --git --initial-commit` 안내 추가.
-  - Full Command Flow 의 `init` 옵션 갱신.
-  - `Init Git Bootstrap` 섹션 추가.
-- `docs/project/03-current-state.md`, `docs/logs/2026-05-11.md`
-  - TASK-014 구현 상태/검증 결과 반영.
+  - Quick Start now documents interactive Git bootstrap / `vibeops init --git --initial-commit`.
+  - Updates the `init` options in Full Command Flow.
+  - Adds the `Init Git Bootstrap` section.
+- `docs/project/03-current-state.md`
+  - Reflects TASK-014's implementation status / verification.
 
-### 변경 파일
+### Changed files
 
 - `src/lib/git.ts`
 - `src/commands/init.ts`
@@ -193,27 +192,26 @@ TASK-014 범위 내에서 `vibeops init` 에 선택적 Git bootstrap UX 를 추�
 - `scripts/smoke.mjs`
 - `README.md`
 - `docs/project/03-current-state.md`
-- `docs/logs/2026-05-11.md`
 - `docs/tasks/TASK-014-init-git-bootstrap-ux.md`
 
 ## Test Result
 
-### 정적 / 빌드
+### Static / build
 
 - `pnpm typecheck` ✅ exit 0.
 - `pnpm build` ✅ exit 0.
-- `node dist/cli.js init --help` ✅ `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch`, `--commit-message` 노출.
+- `node dist/cli.js init --help` ✅ exposes `--git`, `--no-git`, `--initial-commit`, `--no-initial-commit`, `--default-branch`, `--commit-message`.
 
 ### CLI smoke
 
 - `node dist/cli.js init --dry-run` ✅
-  - Git 명령 실행 0건.
-  - `Git setup: skipped Git initialization` + `vibeops init --git --initial-commit` hint 출력.
-- `scripts/smoke.mjs` 에 `init --dry-run --git --initial-commit` 케이스 추가.
+  - 0 Git command executions.
+  - Prints `Git setup: skipped Git initialization` + the `vibeops init --git --initial-commit` hint.
+- Added the `init --dry-run --git --initial-commit` case to `scripts/smoke.mjs`.
 
-### 새 임시 폴더 — initial commit
+### New temp folder — initial commit
 
-명령:
+Commands:
 
 ```bash
 node dist/cli.js init --git --initial-commit --cwd <tmp>
@@ -222,49 +220,49 @@ git -C <tmp> status --short
 node dist/cli.js status --cwd <tmp>
 ```
 
-결과:
+Results:
 
 - `git branch --show-current` → `main` ✅
 - `git status --short` → empty ✅
 - `vibeops status` → `branch main`, `status clean` ✅
-- init 출력에 `initial commit files <n> files will be included` 표시 ✅
+- init output shows `initial commit files <n> files will be included` ✅
 
-### 새 임시 폴더 — no initial commit / unborn
+### New temp folder — no initial commit / unborn
 
-명령:
+Commands:
 
 ```bash
 node dist/cli.js init --git --no-initial-commit --cwd <tmp>
 node dist/cli.js status --cwd <tmp>
 ```
 
-결과:
+Results:
 
 - `branch  main (unborn, no commits yet)` ✅
 - `status  dirty` ✅
 - `hint    create the first commit or run \`vibeops init --git --initial-commit\`` ✅
 - `node dist/cli.js status --json --cwd <tmp>` → `git.state = "unborn"`, `git.hasCommits = false`, `git.branch = "main"` ✅
 
-### 기존 Git repo with commits
+### Existing Git repo with commits
 
-명령:
+Command:
 
 ```bash
 node dist/cli.js init --git --initial-commit --cwd <tmp-existing-repo>
 ```
 
-결과:
+Results:
 
 - `skipped git init (already a git repository)` ✅
 - `skipped default branch change (repository already has commits)` ✅
 - `skipped initial commit (repository already has commits)` ✅
 
-### 남은 위험 요소
+### Remaining risks
 
-- Git author (`user.name` / `user.email`) 미설정 환경에서는 `git commit` 이 실패할 수 있다. VibeOps 는 이 경우 에러와 수동 commit 힌트를 출력한다.
-- initial commit 포함 파일 수는 `.gitignore` 적용 후 `git status --porcelain` 기준이다.
-- TASK-014는 `Review` 상태다. 실제 사용자 머신에서 interactive prompt 4개를 한 번 수동 검증한 뒤 finalize 권장.
+- On environments without a Git author (`user.name` / `user.email`), `git commit` can fail. VibeOps prints the error and a manual-commit hint.
+- The initial-commit file count is `.gitignore`-applied via `git status --porcelain`.
+- TASK-014 is in `Review`. Recommend finalising after one manual pass through all four interactive prompts on a real user machine.
 
 ## Review Notes
 
-- Reviewer 는 `--dry-run` 에서 Git mutation 0건, 기존 repo 에서 remote 변경 0건, initial commit skip 조건을 확인한다.
+- The reviewer should confirm: 0 Git mutations under `--dry-run`, 0 remote changes on an existing repo, and the initial-commit skip conditions.
