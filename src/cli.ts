@@ -38,12 +38,25 @@ program
   .option("--force", "기존 파일을 덮어쓴다 (주의)")
   .option("--cwd <path>", "다른 디렉터리에 설치")
   .option("--name <projectName>", ".vibeops.json에 들어갈 프로젝트 이름")
+  .option("--git", "질문 없이 git init + 기본 Git bootstrap 수행")
+  .option("--no-git", "Git 초기화/커밋 작업을 하지 않음")
+  .option("--initial-commit", "git add . + initial commit 수행")
+  .option("--no-initial-commit", "initial commit 생성 안 함")
+  .option("--default-branch <name>", "Git 기본 브랜치 이름 (기본 main)")
+  .option(
+    "--commit-message <message>",
+    "initial commit 메시지 (기본 'chore: initialize vibeops project')",
+  )
   .action(
     async (options: {
       dryRun?: boolean;
       force?: boolean;
       cwd?: string;
       name?: string;
+      git?: boolean;
+      initialCommit?: boolean;
+      defaultBranch?: string;
+      commitMessage?: string;
     }) => {
       await initCommand(options);
     },

@@ -67,10 +67,23 @@ export function printHuman(report: StatusReport): void {
   if (!report.git.isRepo) {
     log.info(`  ${dim("not a git repository")}`);
   } else {
-    log.info(`  branch  ${report.git.branch ?? dim("(detached?)")}`);
+    if (report.git.state === "unborn") {
+      log.info(
+        `  branch  ${report.git.branch ?? "(unknown)"} ${dim("(unborn, no commits yet)")}`,
+      );
+    } else if (report.git.state === "detached") {
+      log.info(`  branch  ${dim("(detached)")}${report.git.branch ? ` ${report.git.branch}` : ""}`);
+    } else {
+      log.info(`  branch  ${report.git.branch ?? dim("(unknown)")}`);
+    }
     log.info(
       `  status  ${report.git.dirty ? yellow("dirty") : green("clean")}`,
     );
+    if (report.git.state === "unborn") {
+      log.info(
+        `  hint    create the first commit or run ${cyan("`vibeops init --git --initial-commit`")}`,
+      );
+    }
   }
   log.blank();
 

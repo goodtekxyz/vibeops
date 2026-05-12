@@ -13,6 +13,7 @@ if (!existsSync(cli)) {
 const cases = [
   ["--help"],
   ["init", "--dry-run"],
+  ["init", "--dry-run", "--git", "--initial-commit"],
   ["status"],
   ["task", "generate", "--dry-run"],
   ["notion", "init", "--dry-run"],

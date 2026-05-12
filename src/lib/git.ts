@@ -6,6 +6,8 @@ const exec = promisify(execFile);
 export interface GitInfo {
   isRepo: boolean;
   branch: string | null;
+  state: "none" | "normal" | "unborn" | "detached";
+  hasCommits: boolean | null;
   dirty: boolean | null;
   error?: string;
 }
@@ -29,16 +31,71 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
   return { stdout, stderr };
 }
 
-export async function readGitInfo(cwd: string): Promise<GitInfo> {
-  const repo = await tryGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
-  if (repo === null) {
-    return { isRepo: false, branch: null, dirty: null };
+export async function isGitRepository(cwd: string): Promise<boolean> {
+  return (await tryGit(cwd, ["rev-parse", "--is-inside-work-tree"])) !== null;
+}
+
+export async function hasAnyCommit(cwd: string): Promise<boolean> {
+  return (await tryGit(cwd, ["rev-parse", "--verify", "HEAD"])) !== null;
+}
+
+export async function currentBranchOrUnborn(cwd: string): Promise<{
+  branch: string | null;
+  state: "normal" | "unborn" | "detached";
+  hasCommits: boolean;
+}> {
+  const hasCommits = await hasAnyCommit(cwd);
+  const symbolic = await tryGit(cwd, ["symbolic-ref", "--short", "HEAD"]);
+  if (symbolic !== null) {
+    const branch = symbolic.stdout.trim();
+    return {
+      branch: branch.length > 0 ? branch : null,
+      state: hasCommits ? "normal" : "unborn",
+      hasCommits,
+    };
   }
-  const branchRes = await tryGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const detached = await tryGit(cwd, ["rev-parse", "--short", "HEAD"]);
+  return {
+    branch: detached !== null ? detached.stdout.trim() : null,
+    state: "detached",
+    hasCommits,
+  };
+}
+
+export async function readGitInfo(cwd: string): Promise<GitInfo> {
+  if (!(await isGitRepository(cwd))) {
+    return { isRepo: false, branch: null, state: "none", hasCommits: null, dirty: null };
+  }
+  const branch = await currentBranchOrUnborn(cwd);
   const statusRes = await tryGit(cwd, ["status", "--porcelain"]);
-  const branch = branchRes ? branchRes.stdout.trim() : null;
   const dirty = statusRes ? statusRes.stdout.trim().length > 0 : null;
-  return { isRepo: true, branch, dirty };
+  return {
+    isRepo: true,
+    branch: branch.branch,
+    state: branch.state,
+    hasCommits: branch.hasCommits,
+    dirty,
+  };
+}
+
+export async function gitInit(cwd: string): Promise<void> {
+  await runGit(cwd, ["init"]);
+}
+
+export async function gitSetDefaultBranch(cwd: string, branch: string): Promise<void> {
+  if (await hasAnyCommit(cwd)) {
+    await runGit(cwd, ["branch", "-M", branch]);
+    return;
+  }
+  await runGit(cwd, ["symbolic-ref", "HEAD", `refs/heads/${branch}`]);
+}
+
+export async function gitAddAll(cwd: string): Promise<void> {
+  await runGit(cwd, ["add", "."]);
+}
+
+export async function gitCommit(cwd: string, message: string): Promise<void> {
+  await runGit(cwd, ["commit", "-m", message]);
 }
 
 export async function gitHeadCommit(cwd: string, short = true): Promise<string | null> {

@@ -59,7 +59,11 @@ node dist/cli.js --help
 
 ```bash
 # 1. Install VibeOps workflow files into the current project.
+# Interactive mode can also initialize Git and create the first commit.
 vibeops init
+
+# Non-interactive Git bootstrap:
+vibeops init --git --initial-commit
 
 # 2. Answer 20 short planning questions and generate a Cursor planning prompt.
 vibeops plan
@@ -114,6 +118,8 @@ vibeops notion sync
 ```text
 vibeops
 ├─ init [--dry-run] [--force] [--cwd <path>] [--name <projectName>]
+│       [--git|--no-git] [--initial-commit|--no-initial-commit]
+│       [--default-branch <name>] [--commit-message <message>]
 ├─ status [--json] [--cwd <path>]
 ├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--cwd <path>]
 ├─ agent
@@ -263,6 +269,40 @@ GitHub integration is a post-MVP convenience that lives on top of the GitHub CLI
 - Writes the `github` section of `.vibeops.json`: `enabled`, `mode = "gh-cli"`, `owner`, `repo`, `remote`, `visibility`, `url`.
 
 VibeOps never runs `git push`. Push your branch manually with `git push -u <remote> <branch>`.
+
+## Init Git Bootstrap
+
+`vibeops init` can optionally do the first local Git setup while installing the workflow files. In interactive mode it asks:
+
+- Initialize Git repository?
+- Use `main` as default branch?
+- Create initial commit?
+- Initial commit message
+
+For non-interactive setup:
+
+```bash
+vibeops init --git --initial-commit
+vibeops init --git --no-initial-commit
+vibeops init --git --default-branch main --commit-message "chore: initialize vibeops project"
+```
+
+Safety rules:
+
+- Existing Git repositories skip `git init`.
+- Existing repositories with commits skip the initial commit path.
+- `--dry-run` runs no Git commands.
+- VibeOps never pushes and never changes remotes during `init`.
+- Before the initial commit, VibeOps prints how many files will be included.
+
+Before the first commit, `vibeops status` distinguishes an unborn branch from a detached HEAD:
+
+```text
+Git
+  branch  main (unborn, no commits yet)
+  status  dirty
+  hint    create the first commit or run `vibeops init --git --initial-commit`
+```
 
 ## Git Rollback Safety
 

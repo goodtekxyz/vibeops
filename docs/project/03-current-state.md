@@ -4,15 +4,16 @@
 
 ## 단계
 
-- **현재 단계**: MVP 1~4 구현 + 패키지 마무리 + GitHub 연동 **Review 대기**.
+- **현재 단계**: MVP 1~4 구현 + 패키지 마무리 + GitHub 연동 + Init Git bootstrap UX **Review 대기**.
   - MVP 1(Project Bootstrapper)은 TASK-002 / 003 / 004 / 005로 종료.
   - MVP 2 — **TASK-006 (`vibeops plan`)** 완료 + **TASK-007 (`vibeops task generate`) Review 대기**.
   - MVP 3 — **TASK-008 (`task start / prompt / check / done`)** + **TASK-009 (`task rollback`)** Review 대기.
   - MVP 4 — **TASK-010 (`notion init / notion test`) + TASK-011 (`notion sync` / `task pull`) Review 대기**.
   - Package polish — **TASK-012 (`README` / npm packaging / smoke / publish dry-run) Review 대기**.
   - GitHub 연동 — **TASK-013 (`vibeops github status / init`) Review 대기**.
+  - Init Git bootstrap UX — **TASK-014 (`vibeops init --git` / unborn status) Review 대기**.
 - Status 흐름 `Planned → In Progress → Review → Done`, Git 상태는 TASK markdown의 `## Git Context` 섹션에 inline 기록.
-- `vibeops init` / `status` / `agent {list, show, prompt}` / `plan` / `task {generate, start, prompt, check, done, rollback, pull}` / `notion {init, test, sync}` / `github {status, init}` 가 동작한다.
+- `vibeops init` / `status` / `agent {list, show, prompt}` / `plan` / `task {generate, start, prompt, check, done, rollback, pull}` / `notion {init, test, sync}` / `github {status, init}` 가 동작한다. `init` 은 선택적으로 Git 초기화 + 첫 커밋까지 수행할 수 있다.
 - 남은 stub: 없음. 남은 일은 사람/Reviewer Agent 검토 후 finalize.
 
 ## 갖춰진 것
@@ -21,13 +22,13 @@
 | ------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------- |
 | 제품 정의                      | `docs/project/00-overview.md` ~ `05-backlog.md` | 2026-05-11 업데이트                                                  |
 | 운영 지침                      | `AGENTS.md`, `.cursor/rules/*.mdc`              | VibeOps 저장소 자신의 규칙                                           |
-| TASK 목록                      | `docs/tasks/TASK-001 ~ TASK-013`                | TASK-001~006 done, **TASK-007~013 Review 대기**                       |
+| TASK 목록                      | `docs/tasks/TASK-001 ~ TASK-014`                | TASK-001~006 done, **TASK-007~014 Review 대기**                       |
 | 로그                           | `docs/logs/YYYY-MM-DD.md`                       | `2026-05-11.md` 항목 누적                                            |
 | **CLI 패키지 골격**            | `package.json`, `tsconfig.json`, `.gitignore`, `LICENSE`, `CHANGELOG.md`, `scripts/smoke.mjs` | Node 20+, ESM, bin=`dist/cli.js`, `packageManager=pnpm@9.15.9`, MIT. `files` 는 `dist`, `templates`, `README.md`, `LICENSE`, `CHANGELOG.md` 로 제한. scripts: `dev / build / typecheck / start / smoke / prepack / publish:dry`. `dist/` 는 gitignore, `prepack` 으로 생성해 npm package 에 포함. `pnpm pack` 및 `pnpm publish --dry-run --no-git-checks` 로 package contents 검증 완료. |
 | **CLI 진입점**                 | `src/cli.ts`, `src/version.ts`                  | commander v12 기반                                                   |
 | **공통 유틸**                  | `src/lib/{config,filesystem,git,logger,paths,task,task-prompt,brief,prompt-builder,inquirer-helpers}.ts`, `src/types/{config,task,brief}.ts` | `task.ts` · `git.ts`는 MVP 3에서 라이프사이클 헬퍼로 대폭 확장. `task-prompt.ts`는 agent + TASK + project 컨텍스트 합성. |
-| **Bootstrap 엔진**             | `src/bootstrap/{manifest,installer,substitute}.ts` | 템플릿 walk + idempotent 복사 + placeholder 치환                     |
-| **Status 수집·포맷**           | `src/status/{collector,format}.ts`              | 사람/JSON 양쪽. `review` 카운트 포함.                                  |
+| **Bootstrap 엔진**             | `src/bootstrap/{manifest,installer,substitute}.ts`, `src/commands/init.ts`, `src/lib/git.ts` | 템플릿 walk + idempotent 복사 + placeholder 치환. **TASK-014** 로 `vibeops init` 에 선택적 Git bootstrap 추가: interactive 에서 `Initialize Git repository?`, `Use main as default branch?`, `Create initial commit?`, `Initial commit message` 를 모두 `yesNoSelect`/input 으로 묻는다 (`confirm` 없음). flags: `--git / --no-git / --initial-commit / --no-initial-commit / --default-branch <name> / --commit-message <message>`. 새 repo 에서는 `git init` → unborn HEAD 를 `main` 으로 설정 → `git status --porcelain` 파일 수 표시 → `git add .` → `git commit -m ...`. 기존 Git repo 는 `git init` skip, 기존 커밋이 있으면 default branch 변경과 initial commit skip/warn. `--dry-run` Git mutation 0건. 자동 push / remote 변경 0건. |
+| **Status 수집·포맷**           | `src/status/{collector,format}.ts`, `src/lib/git.ts` | 사람/JSON 양쪽. `review` 카운트 포함. **TASK-014** 로 Git 상태가 `none / normal / unborn / detached` 를 구분한다. 최초 커밋 전에는 `branch main (unborn, no commits yet)`, `status dirty`, `hint create the first commit or run \`vibeops init --git --initial-commit\`` 를 표시한다. JSON 도 `git.state` / `git.hasCommits` 를 포함한다. |
 | **Agent 로더·프롬프트**        | `src/agent/{loader,prompt}.ts`                  | gray-matter 사용                                                     |
 | **Plan 엔진**                  | `src/lib/brief.ts`, `src/lib/prompt-builder.ts`, `src/lib/inquirer-helpers.ts`, `src/types/brief.ts` | 20문항 대화형 + brief markdown + Cursor planning prompt. UX 라운드(2026-05-11): 선택지 다이어트, 기본 스택 `Next.js / NestJS / PostgreSQL / Drizzle / pnpm`, projectType 스마트 디폴트, select·checkbox에 `loop: false` + `pageSize: 8` |
 | **Task Lifecycle 엔진**        | `src/commands/task-{start,check,done,rollback}.ts`, `src/lib/task.ts` (Git Context · Status 갱신 + `nextTaskNumber`/`highestTaskNumber`/`formatTaskId`), `src/lib/git.ts` (run/diff/log/branch/reset + porcelain 파서 + 6개 changed-files 헬퍼), `src/lib/task-prompt.ts` | TASK markdown의 `## Status` / `## Git Context` 섹션을 inline 갱신. Status 흐름 4단계(`Planned → In Progress → Review → Done`). 모든 명령에 `--dry-run` 또는 read-only. rollback은 2단계 confirm(`--confirm` 비파괴 / `--confirm-destructive` 파괴). `task check`는 working tree(unstaged+staged+untracked) ∪ committed를 Set-dedup으로 합산해 `working tree / committed / total` 3줄로 분해 표시(rename·untracked 인지). 자동 commit · 푸시 · Notion 호출 0건. |
@@ -56,7 +57,9 @@
 
 ```
 vibeops
-├─ init [--dry-run] [--force] [--cwd <path>] [--name <projectName>]   ✓ 구현
+├─ init [--dry-run] [--force] [--cwd <path>] [--name <projectName>]
+│        [--git | --no-git] [--initial-commit | --no-initial-commit]
+│        [--default-branch <name>] [--commit-message <message>]        ✓ 구현 (TASK-014)
 ├─ status [--json] [--cwd <path>]                                      ✓ 구현
 ├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--cwd <path>]   ✓ 구현
 ├─ agent
@@ -111,14 +114,14 @@ vibeops
 - vitest 통합 (TASK-001 ~ 011 AC 스모크는 임시 sandbox 수동 시퀀스로 대체. polish 라운드 통합 후보)
 - ESLint / Prettier 설정
 - `--copy` 옵션 (`agent prompt --copy`) — 후속 보강 TASK 후보
-- TASK-007 / 008 / 009 / 010 / 011 / 012 / 013 Result/Test Result 본 라운드에서 작성 → 사람 또는 Reviewer Agent 검토 후 `vibeops task done <id> --finalize`로 Done 처리 필요
+- TASK-007 / 008 / 009 / 010 / 011 / 012 / 013 / 014 Result/Test Result 본 라운드에서 작성 → 사람 또는 Reviewer Agent 검토 후 `vibeops task done <id> --finalize`로 Done 처리 필요
 - `task pull` 이 Notion `Status` 만 풀백하던 원 TASK-011 설계는 본 라운드에 변경 — 사용자 갱신 요구는 Notion → docs/tasks **skeleton 생성**(존재하지 않는 TASK 만, 본문 placeholder)으로 좁히고 frontmatter 갱신은 제외. Notion → frontmatter status/priority 양방향 정합은 polish 라운드 후보.
 - `vibeops github` REST API fallback (`GITHUB_TOKEN`) — 이번 라운드는 `gh` CLI 단일 경로. headless / CI 자동화는 polish 후보.
 - `vibeops github` 가 `git push` 까지 자동화하는 흐름 — 명시적으로 미구현. 사용자가 직접 push 한다.
 
 ## 다음 TASK
 
-사람/Reviewer Agent가 TASK-007~013 Review 결과를 확인한 뒤 필요한 TASK만 `vibeops task done <id> --finalize`로 Done 처리한다. 실제 npm publish 및 실제 GitHub repo 생성/연결은 별도 릴리스/사람 결정 후 수행한다.
+사람/Reviewer Agent가 TASK-007~014 Review 결과를 확인한 뒤 필요한 TASK만 `vibeops task done <id> --finalize`로 Done 처리한다. 실제 npm publish 및 실제 GitHub repo 생성/연결은 별도 릴리스/사람 결정 후 수행한다.
 
 ## 진행 규칙 (간단 요약)
 
