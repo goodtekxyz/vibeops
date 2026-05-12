@@ -6,7 +6,7 @@ All notable changes to VibeOps are documented here.
 
 ### Changed
 
-- `vibeops plan` (interactive default): verifies an LLM provider first — **OpenAI** via `OPENAI_API_KEY` (API key from https://platform.openai.com/api-keys ) or **Cursor Agent CLI** via `agent login` / `agent status` — then runs an adaptive JSON-protocol planning loop (arrow-key `select` / `checkbox` prompts plus free-text) until the model emits a full `ProjectBrief`. `--legacy-wizard` restores the fixed 20-question flow; `--non-interactive` and `--from` do not call an LLM.
+- `vibeops plan` (interactive default): verifies an LLM provider — **OpenAI** (`OPENAI_API_KEY`), **Codex (ChatGPT OAuth)** via `~/.codex/auth.json` from `codex login` (refresh at `https://auth.openai.com/oauth/token` with the same public `client_id` as Hermes / OpenClaw `openai-codex`; requests use `POST …/backend-api/codex/responses` with `store:false` and `stream:true`), or **Cursor Agent CLI** (`agent login`). Then runs the adaptive JSON-protocol planning loop until the model emits a full `ProjectBrief`. Env: `VIBEOPS_CODEX_MODEL`, `VIBEOPS_CODEX_BASE_URL`. `--provider openai|codex-oauth|cursor-agent` forces one path when available. `--legacy-wizard` restores the fixed 20-question flow; `--non-interactive` and `--from` do not call an LLM.
 
 - `vibeops task start`: if the working tree is dirty only under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, the command proceeds with a warning instead of exiting. Uncommitted changes outside those paths still require a clean tree or `--allow-dirty`. This avoids blocking the next TASK after `task done` / `--finalize` left TASK or project docs uncommitted on `main`.
 

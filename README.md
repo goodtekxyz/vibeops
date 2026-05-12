@@ -70,7 +70,7 @@ vibeops init
 # Non-interactive Git bootstrap:
 vibeops init --git --initial-commit
 
-# 2. LLM planning session (OpenAI API key or Cursor `agent` CLI) → brief + planning prompt.
+# 2. LLM planning session (OpenAI API key, Codex `codex login` / ~/.codex/auth.json, or Cursor `agent` CLI) → brief + planning prompt.
 #    Use `vibeops plan --legacy-wizard` for the original 20-question flow.
 vibeops plan
 
@@ -160,7 +160,7 @@ Run any command with `--help` for the option details.
 
 ### Interactive Planner
 
-`vibeops plan` runs an **LLM planning session** by default (OpenAI with `OPENAI_API_KEY`, or the **Cursor Agent CLI** with `agent login`). The model asks adaptive questions (arrow-key choices where it helps), then writes the same `ProjectBrief` + planning prompt as before. Use `--legacy-wizard` for the original 20-question flow. `--non-interactive` and `--from` never call an LLM.
+`vibeops plan` runs an **LLM planning session** by default: **OpenAI** (`OPENAI_API_KEY`), **Codex (ChatGPT OAuth)** via tokens from `codex login` (`~/.codex/auth.json`, same OAuth client as Hermes/OpenClaw `openai-codex`), or the **Cursor Agent CLI** (`agent login`). The model asks adaptive questions (arrow-key choices where it helps), then writes the same `ProjectBrief` + planning prompt as before. Use `--legacy-wizard` for the original 20-question flow. `--non-interactive` and `--from` never call an LLM.
 
 ### Task Generator
 

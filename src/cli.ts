@@ -74,7 +74,7 @@ program
 program
   .command("plan")
   .description(
-    "Interactive LLM planning (OpenAI or Cursor Agent CLI) → ProjectBrief + Cursor planning prompt; use --legacy-wizard for the fixed 20-question flow",
+    "Interactive LLM planning (OpenAI API key, Codex ChatGPT OAuth, or Cursor Agent CLI) → ProjectBrief + planning prompt; use --legacy-wizard for the fixed 20-question flow",
   )
   .option("--idea <text>", "One-line idea default (use `Name: idea` to extract the project name)")
   .option("--from <path>", "Read an existing brief markdown and regenerate the prompt")
@@ -92,7 +92,7 @@ program
   )
   .option(
     "--provider <id>",
-    "LLM provider when both are available: openai | cursor-agent",
+    "LLM provider when several are available: openai | codex-oauth | cursor-agent",
   )
   .option("--cwd <path>", "Run against a different directory")
   .action(
@@ -106,7 +106,9 @@ program
       cwd?: string;
     }) => {
       const provider =
-        options.provider === "openai" || options.provider === "cursor-agent"
+        options.provider === "openai" ||
+        options.provider === "codex-oauth" ||
+        options.provider === "cursor-agent"
           ? options.provider
           : undefined;
       await planCommand({

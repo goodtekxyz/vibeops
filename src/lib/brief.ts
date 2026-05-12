@@ -315,8 +315,14 @@ export function briefToMarkdown(brief: ProjectBrief, meta: BriefMeta): string {
   );
   lines.push("");
   lines.push(
-    meta.source === "llm-openai" || meta.source === "llm-cursor-agent"
-      ? "This brief was produced by an **LLM planning session** (`vibeops plan`). Review and edit it, then let the Planner Agent fill `docs/project/*`."
+    meta.source === "llm-openai" ||
+      meta.source === "llm-codex-oauth" ||
+      meta.source === "llm-cursor-agent"
+      ? meta.source === "llm-codex-oauth"
+        ? "This brief was produced by an **LLM planning session** using **Codex (ChatGPT OAuth)** (`codex login`, read from ~/.codex/auth.json). Review and edit it, then let the Planner Agent fill `docs/project/*`."
+        : meta.source === "llm-openai"
+          ? "This brief was produced by an **LLM planning session** using an **OpenAI platform API key**. Review and edit it, then let the Planner Agent fill `docs/project/*`."
+          : "This brief was produced by an **LLM planning session** using the **Cursor Agent CLI**. Review and edit it, then let the Planner Agent fill `docs/project/*`."
       : "This brief is the input for the Cursor **Planner Agent**. VibeOps collected these answers locally (or from `--from`) — the Planner Agent reads this brief, fills in `docs/project/*`, and creates the initial backlog.",
   );
   lines.push("");

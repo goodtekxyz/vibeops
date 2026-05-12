@@ -55,9 +55,16 @@ export function buildPlanPrompt(inputs: BuildPlanPromptInputs): string {
       ? meta.assumptions.map((a) => `- ${a}`).join("\n")
       : "- _(none recorded)_";
 
-  const viaLlm = meta.source === "llm-openai" || meta.source === "llm-cursor-agent";
+  const viaLlm =
+    meta.source === "llm-openai" ||
+    meta.source === "llm-codex-oauth" ||
+    meta.source === "llm-cursor-agent";
   const opener = viaLlm
-    ? "This file was produced by `vibeops plan` using an **LLM planning session** (OpenAI or Cursor Agent CLI). Open a new chat in **Cursor** and paste the full contents of this file. The Planner Agent receives this input and fills in `docs/project/*` plus the initial backlog."
+    ? meta.source === "llm-codex-oauth"
+      ? "This file was produced by `vibeops plan` using **Codex (ChatGPT OAuth)** tokens from your Codex CLI session (`~/.codex/auth.json`). Open a new chat in **Cursor** and paste the full contents of this file. The Planner Agent receives this input and fills in `docs/project/*` plus the initial backlog."
+      : meta.source === "llm-openai"
+        ? "This file was produced by `vibeops plan` using an **OpenAI platform API key**. Open a new chat in **Cursor** and paste the full contents of this file. The Planner Agent receives this input and fills in `docs/project/*` plus the initial backlog."
+        : "This file was produced by `vibeops plan` using the **Cursor Agent CLI**. Open a new chat in **Cursor** and paste the full contents of this file. The Planner Agent receives this input and fills in `docs/project/*` plus the initial backlog."
     : "This file was produced by `vibeops plan`. Open a new chat in **Cursor** and paste the full contents of this file. VibeOps does not call LLMs for this path — the Planner Agent receives this input and fills in `docs/project/*` plus the initial backlog.";
 
   return `# VibeOps Plan Prompt — Cursor Planner Agent

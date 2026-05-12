@@ -22,4 +22,4 @@ export interface PlanLlmDoneTurn {
   readonly plannerAssumptions?: readonly string[];
 }
 
-export type PlanLlmProviderId = "openai" | "cursor-agent";
+export type PlanLlmProviderId = "openai" | "codex-oauth" | "cursor-agent";

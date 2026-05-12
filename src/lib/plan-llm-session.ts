@@ -1,5 +1,7 @@
 import { basename } from "node:path";
 
+import { probeCodexOAuthFile } from "./plan-codex-auth.js";
+import { codexOAuthPlanCompletion } from "./plan-codex-responses.js";
 import type { BriefBundle, BriefMeta } from "../types/brief.js";
 import { PROJECT_BRIEF_SCHEMA_VERSION } from "../types/brief.js";
 import { askCheckbox, askInput, askSelect, OTHER_LABEL } from "./inquirer-helpers.js";
@@ -103,7 +105,7 @@ function buildUserPayload(params: {
   return lines.join("\n");
 }
 
-async function completeOneTurnOpenAi(messages: import("./plan-llm-openai.js").OpenAiChatMessage[]): Promise<string> {
+async function completeOneTurnOpenAi(messages: readonly OpenAiChatMessage[]): Promise<string> {
   const raw = await openAiChatCompletionJson({ messages });
   return extractJsonObject(raw);
 }
@@ -123,13 +125,20 @@ export function printPlanProviderSetupHelp(): void {
   log.blank();
   log.info(bold("No LLM provider is ready for `vibeops plan`."));
   log.blank();
-  log.info(bold("1) OpenAI (API key)"));
-  log.info("   ChatGPT web login / OAuth alone is not enough here — create an API key.");
+  log.info(bold("1) OpenAI (platform API key)"));
+  log.info("   Usage-based billing on the OpenAI API (not the same as ChatGPT-only login).");
   log.info(`  · Create a key: ${cyan("https://platform.openai.com/api-keys")}`);
   log.info(`  · ${dim("export OPENAI_API_KEY=\"sk-...\"")}`);
   log.info(`  · Optional model override: ${dim("export VIBEOPS_OPENAI_MODEL=gpt-4o")}`);
   log.blank();
-  log.info(bold("2) Cursor Agent CLI (same account as Cursor IDE)"));
+  log.info(bold("2) Codex (ChatGPT OAuth — same token flow as Hermes / OpenClaw openai-codex)"));
+  log.info(`  · Install the Codex CLI and run ${cyan("codex login")} (Sign in with ChatGPT).`);
+  log.info(
+    `  · Tokens are read from ${dim("~/.codex/auth.json")} (or ${dim("$CODEX_HOME/auth.json")}).`,
+  );
+  log.info(`  · Optional: ${dim("export VIBEOPS_CODEX_MODEL=gpt-5.1-codex")} ${dim("export VIBEOPS_CODEX_BASE_URL=https://chatgpt.com/backend-api/codex")}`);
+  log.blank();
+  log.info(bold("3) Cursor Agent CLI (same account as Cursor IDE)"));
   log.info(`  · Install: ${cyan("https://cursor.com/docs/cli")}`);
   log.info(`  · Run ${cyan("agent login")} then verify with ${cyan("agent status")}`);
   log.info(
@@ -138,47 +147,74 @@ export function printPlanProviderSetupHelp(): void {
   log.blank();
 }
 
+interface ProviderCandidate {
+  readonly id: PlanLlmProviderId;
+  readonly label: string;
+  readonly ok: boolean;
+}
+
 export async function pickPlanLlmProvider(
   cwd: string,
   preferred?: PlanLlmProviderId,
 ): Promise<PlanLlmProviderId | null> {
   const openai = await probeOpenAiApiKey();
+  const codex = await probeCodexOAuthFile();
   const cursor = await probeCursorAgentCli(cwd);
 
-  if (!openai.ok && !cursor.ok) {
+  const candidates: ProviderCandidate[] = [
+    { id: "openai", label: "OpenAI (platform API key)", ok: openai.ok },
+    { id: "codex-oauth", label: "Codex (ChatGPT OAuth — ~/.codex/auth.json)", ok: codex.ok },
+    { id: "cursor-agent", label: "Cursor Agent CLI", ok: cursor.ok },
+  ];
+
+  const okList = candidates.filter((c) => c.ok);
+
+  if (okList.length === 0) {
     printPlanProviderSetupHelp();
     if (openai.reason) log.info(dim(`OpenAI: ${openai.reason}`));
+    if (!codex.ok && codex.reason) log.info(dim(`Codex OAuth: ${codex.reason}`));
     if (cursor.reason) log.info(dim(`Cursor Agent: ${cursor.reason}`));
     process.exitCode = 1;
     return null;
   }
 
-  if (preferred === "openai" && openai.ok) return "openai";
-  if (preferred === "cursor-agent" && cursor.ok) return "cursor-agent";
-
-  if (preferred === "openai" && !openai.ok) {
-    log.warn(`--provider openai unavailable (${openai.reason ?? "unknown"})`);
-  }
-  if (preferred === "cursor-agent" && !cursor.ok) {
-    log.warn(`--provider cursor-agent unavailable (${cursor.reason ?? "unknown"})`);
+  if (preferred !== undefined) {
+    const hit = candidates.find((c) => c.id === preferred);
+    if (hit?.ok === true) return preferred;
+    if (hit !== undefined) {
+      log.warn(`--provider ${preferred} unavailable (${explainMiss(preferred, openai, codex, cursor)})`);
+    }
   }
 
-  if (openai.ok && !cursor.ok) {
-    log.ok("Using OpenAI (OPENAI_API_KEY verified).");
-    return "openai";
-  }
-  if (!openai.ok && cursor.ok) {
-    log.ok(`Using Cursor Agent CLI (${cursor.command}, authenticated).`);
-    return "cursor-agent";
+  if (okList.length === 1) {
+    const only = okList[0]!;
+    log.ok(`Using ${only.label}.`);
+    return only.id;
   }
 
   const choice = await askSelect({
     message: "Choose LLM provider for planning (↑/↓ · Enter)",
     nonInteractive: false,
-    choices: ["OpenAI (API key)", "Cursor Agent CLI"],
-    default: "OpenAI (API key)",
+    choices: okList.map((c) => c.label),
+    default: okList[0]!.label,
   });
-  return choice.startsWith("OpenAI") ? "openai" : "cursor-agent";
+  const picked = okList.find((c) => c.label === choice);
+  return picked?.id ?? okList[0]!.id;
+}
+
+function explainMiss(
+  id: PlanLlmProviderId,
+  openai: { reason?: string },
+  codex: { reason?: string },
+  cursor: { reason?: string },
+): string {
+  if (id === "openai") return openai.reason ?? "unknown";
+  if (id === "codex-oauth") return codex.reason ?? "unknown";
+  return cursor.reason ?? "unknown";
+}
+
+function usesChatMessageTranscript(provider: PlanLlmProviderId): boolean {
+  return provider === "openai" || provider === "codex-oauth";
 }
 
 export async function gatherBriefViaLlm(params: {
@@ -187,7 +223,11 @@ export async function gatherBriefViaLlm(params: {
   readonly provider: PlanLlmProviderId;
 }): Promise<BriefBundle> {
   const source: BriefMeta["source"] =
-    params.provider === "openai" ? "llm-openai" : "llm-cursor-agent";
+    params.provider === "openai"
+      ? "llm-openai"
+      : params.provider === "codex-oauth"
+        ? "llm-codex-oauth"
+        : "llm-cursor-agent";
 
   let transcript = `${buildUserPayload({ cwd: params.cwd, idea: params.idea })}\n`;
   const openAiMessages: OpenAiChatMessage[] = [
@@ -195,10 +235,14 @@ export async function gatherBriefViaLlm(params: {
     { role: "user", content: buildUserPayload({ cwd: params.cwd, idea: params.idea }) },
   ];
 
+  const chatMode = usesChatMessageTranscript(params.provider);
+
   for (let i = 0; i < MAX_LLM_TURNS; i++) {
     let jsonSlice: string;
     if (params.provider === "openai") {
       jsonSlice = await completeOneTurnOpenAi(openAiMessages);
+    } else if (params.provider === "codex-oauth") {
+      jsonSlice = await codexOAuthPlanCompletion(openAiMessages);
     } else {
       jsonSlice = await completeOneTurnCursor({
         cwd: params.cwd,
@@ -213,7 +257,7 @@ export async function gatherBriefViaLlm(params: {
     } catch (e) {
       const hint = e instanceof Error ? e.message : String(e);
       const repair = `Your previous reply was not valid for this protocol (${hint}). Output ONE JSON object only.`;
-      if (params.provider === "openai") {
+      if (chatMode) {
         openAiMessages.push({ role: "assistant", content: jsonSlice.slice(0, 4000) });
         openAiMessages.push({ role: "user", content: repair });
       } else {
@@ -243,7 +287,7 @@ export async function gatherBriefViaLlm(params: {
       lastAnswer: answer,
     });
 
-    if (params.provider === "openai") {
+    if (chatMode) {
       openAiMessages.push({ role: "assistant", content: jsonSlice });
       openAiMessages.push({ role: "user", content: followUp });
     } else {

@@ -5,6 +5,7 @@ export type BriefSource =
   | "non-interactive"
   | "from-file"
   | "llm-openai"
+  | "llm-codex-oauth"
   | "llm-cursor-agent"
   | "legacy-wizard";
 
