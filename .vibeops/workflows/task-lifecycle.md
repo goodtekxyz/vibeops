@@ -12,7 +12,7 @@ Run `vibeops status` to identify the next TASK. Typically run `in_progress` item
 vibeops task start TASK-NNN
 ```
 
-- A dirty working tree is refused (override with `--allow-dirty`, not recommended).
+- A dirty working tree is refused unless changes are limited to governance docs (`docs/tasks/`, `docs/project/`, `docs/logs/`, `.vibeops/state/`); then `task start` warns and continues. Use `--allow-dirty` only when non-doc paths are dirty intentionally.
 - Records base branch / base commit / task branch in `.vibeops/state/tasks/TASK-NNN.json`.
 - Creates and checks out the `task/NNN-<slug>` branch.
 - Sets the TASK file's Status to `in_progress`.
