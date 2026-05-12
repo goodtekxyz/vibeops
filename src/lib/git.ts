@@ -221,6 +221,55 @@ function parsePorcelain(lines: string[]): PorcelainEntry[] {
   return out;
 }
 
+/** Paths under these prefixes may stay uncommitted across `task done` / doc updates. */
+const GOVERNANCE_DOC_REL_PREFIXES = [
+  "docs/tasks/",
+  "docs/project/",
+  "docs/logs/",
+  ".vibeops/state/",
+] as const;
+
+function normalizeRepoRelPath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+export function isGovernanceDocumentationPath(repoRelativePath: string): boolean {
+  const n = normalizeRepoRelPath(repoRelativePath);
+  for (const prefix of GOVERNANCE_DOC_REL_PREFIXES) {
+    if (n.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+/**
+ * When the index/worktree is dirty, classify whether every changed path is
+ * limited to governance docs (TASK files, project docs, logs, task state JSON).
+ * Used by `vibeops task start` so `task done --finalize` on main does not
+ * block the next TASK unless application code is also dirty.
+ */
+export async function gitGovernanceOnlyDirty(cwd: string): Promise<{
+  readonly allPaths: readonly string[];
+  readonly nonGovernancePaths: readonly string[];
+  readonly onlyGovernance: boolean;
+}> {
+  const lines = await gitStatusPorcelain(cwd);
+  const entries = parsePorcelain(lines);
+  const all = new Set<string>();
+  for (const e of entries) {
+    all.add(e.path);
+    if (typeof e.origPath === "string" && e.origPath.length > 0) {
+      all.add(e.origPath);
+    }
+  }
+  const allPaths = [...all];
+  const nonGovernancePaths = allPaths.filter((p) => !isGovernanceDocumentationPath(p));
+  return {
+    allPaths,
+    nonGovernancePaths,
+    onlyGovernance: allPaths.length > 0 && nonGovernancePaths.length === 0,
+  };
+}
+
 export async function gitWorkingTreeChangedFiles(cwd: string): Promise<string[]> {
   const entries = parsePorcelain(await gitStatusPorcelain(cwd));
   return entries.filter((e) => e.unstaged).map((e) => e.path);

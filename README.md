@@ -167,7 +167,7 @@ Run any command with `--help` for the option details.
 
 ### Git Task Lifecycle
 
-`task start`, `task prompt`, `task check`, and `task done` keep one TASK moving through `Planned → In Progress → Review → Done`. `task done` defaults to `Review`; use `--finalize` only after human review.
+`task start`, `task prompt`, `task check`, and `task done` keep one TASK moving through `Planned → In Progress → Review → Done`. `task done` defaults to `Review`; use `--finalize` only after human review. `task start` still expects a clean tree for application code, but if the only uncommitted changes live under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, it warns and continues so a prior doc-only finalize does not block the next TASK.
 
 ### Rollback Safety
 

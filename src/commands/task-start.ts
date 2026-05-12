@@ -10,6 +10,7 @@ import {
   detectDefaultBranch,
   gitBranchExists,
   gitCheckoutNewBranch,
+  gitGovernanceOnlyDirty,
   gitHeadCommit,
   readGitInfo,
 } from "../lib/git.js";
@@ -52,11 +53,23 @@ export async function taskStartCommand(
     return;
   }
   if (git.dirty === true && options.allowDirty !== true) {
-    log.error(
-      "Git working tree is dirty. Commit or stash first, or rerun with --allow-dirty.",
+    const gov = await gitGovernanceOnlyDirty(cwd);
+    if (!gov.onlyGovernance) {
+      log.error(
+        "Git working tree is dirty. Commit or stash first, or rerun with --allow-dirty.",
+      );
+      if (gov.nonGovernancePaths.length > 0) {
+        log.info(dim("  Non-documentation changes:"));
+        for (const p of gov.nonGovernancePaths) log.info(`    · ${p}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    log.warn(
+      "Uncommitted governance docs only (tasks / project / logs / .vibeops/state). Proceeding — commit when convenient.",
     );
-    process.exitCode = 1;
-    return;
+    for (const p of gov.allPaths) log.info(`  ${dim("·")} ${p}`);
+    log.blank();
   }
 
   const baseBranch = git.branch ?? (await detectDefaultBranch(cwd)) ?? "main";

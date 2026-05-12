@@ -21,7 +21,7 @@ alwaysApply: true
 - `vibeops task rollback` produces **guidance by default**. Destructive Git actions run only with `--confirm`.
 - **No force-push** (especially on shared branches).
 - No automatic merge, no automatic push. A human does both explicitly.
-- `task start` refuses a dirty working tree (override with `--allow-dirty`).
+- `task start` refuses a dirty working tree unless every changed path is under governance docs (`docs/tasks/`, `docs/project/`, `docs/logs/`, `.vibeops/state/`); then it proceeds with a warning. `--allow-dirty` overrides for any dirty path.
 
 ## Forbidden
 

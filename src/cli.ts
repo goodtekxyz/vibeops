@@ -170,10 +170,13 @@ task
 task
   .command("start <taskId>")
   .description(
-    "Confirm a clean working tree, create the task branch, record Status/Git context, and print a Builder prompt",
+    "Confirm a clean working tree (or docs-only governance changes), create the task branch, record Status/Git context, and print a Builder prompt",
   )
   .option("--dry-run", "Print the plan without touching files or Git")
-  .option("--allow-dirty", "Proceed even if the Git working tree is dirty")
+  .option(
+    "--allow-dirty",
+    "Proceed even if the Git working tree is dirty (including non-doc changes)",
+  )
   .option("--agent <name>", "Agent to build the prompt with (default `builder`)")
   .option("--cwd <path>", "Run against a different directory")
   .action(

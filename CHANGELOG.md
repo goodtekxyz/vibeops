@@ -2,6 +2,12 @@
 
 All notable changes to VibeOps are documented here.
 
+## Unreleased
+
+### Changed
+
+- `vibeops task start`: if the working tree is dirty only under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, the command proceeds with a warning instead of exiting. Uncommitted changes outside those paths still require a clean tree or `--allow-dirty`. This avoids blocking the next TASK after `task done` / `--finalize` left TASK or project docs uncommitted on `main`.
+
 ## 0.2.0 - 2026-05-12
 
 Public release polish.
