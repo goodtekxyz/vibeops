@@ -2,7 +2,7 @@
 
 > Workflow rails for Cursor-based vibe coding projects.
 
-[![npm version](https://img.shields.io/npm/v/@goodtekxyz/vibeops.svg)](https://www.npmjs.com/package/@goodtekxyz/vibeops)
+[![npm version](https://img.shields.io/npm/v/@goodtek/vibeops.svg)](https://www.npmjs.com/package/@goodtek/vibeops)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 VibeOps is a local CLI that installs and operates the project structure needed to run Cursor-based vibe coding as reproducible TASKs: `AGENTS.md`, Cursor rules, project docs, TASK files, agents/prompts/workflows, Git lifecycle helpers, and optional Notion dashboard sync.
@@ -46,11 +46,11 @@ Vibe coding is fast, but chat history is a weak source of truth. Without a durab
 VibeOps requires Node.js 20+.
 
 ```bash
-npm install -g @goodtekxyz/vibeops
+npm install -g @goodtek/vibeops
 vibeops --help
 ```
 
-The published package is `@goodtekxyz/vibeops`. The installed CLI command is `vibeops`.
+The published package is `@goodtek/vibeops`. The installed CLI command is `vibeops`.
 
 For local development from this repository:
 
@@ -337,7 +337,7 @@ GitHub
   url         https://github.com/goodtekxyz/vibeops
 
 Package
-  name     @goodtekxyz/vibeops
+  name     @goodtek/vibeops
   version  0.2.0
   bin      vibeops
 ```

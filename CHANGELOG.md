@@ -6,9 +6,9 @@ All notable changes to VibeOps are documented here.
 
 Public release polish.
 
-- Rename the npm package to `@goodtekxyz/vibeops`. The CLI command is still `vibeops`.
+- Rename the npm package to `@goodtek/vibeops`. The CLI command is still `vibeops`.
 - Publish as a public scoped package (`publishConfig.access = "public"`).
-- Rewrite the README for public release: replace the internal walkthrough example with `Acme Automator`, remove internal phase labels, add a Support section (`support@goodtek.xyz`, `hello@goodtek.xyz`), and update the install command to `npm install -g @goodtekxyz/vibeops`.
+- Rewrite the README for public release: replace the internal walkthrough example with `Acme Automator`, remove internal phase labels, add a Support section (`support@goodtek.xyz`, `hello@goodtek.xyz`), and update the install command to `npm install -g @goodtek/vibeops`.
 - Normalize CLI help, command descriptions, and program log/error messages to English so the output is consistent for international users.
 - Replace the leftover internal example reference inside `src/types/config.ts` and the planner agent template with a generic project name.
 
