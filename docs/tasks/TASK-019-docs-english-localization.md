@@ -117,10 +117,11 @@ Not synced.
 - `pnpm typecheck` ✓ exit 0.
 - `pnpm build` ✓ exit 0.
 - `pnpm smoke` ✓ exit 0. 8 cases pass (`--help` / `init --dry-run` / `init --dry-run --git --initial-commit` / `status` / `task generate --dry-run` / `notion init --dry-run` / `github status` / `github init --dry-run --connect goodtek/vibeops`) without regression.
-- `pnpm publish --dry-run --access public --no-git-checks` ✓ exit 0. Output confirms `name: @goodtekxyz/vibeops`, `version: 0.2.0`, `total files: 93`, `package size: 122.9 kB`, `unpacked size: 476.4 kB`, `Publishing to https://registry.npmjs.org/ with tag latest and public access (dry-run)`. The tarball still contains only `dist/`, `templates/`, `README.md`, `LICENSE`, `CHANGELOG.md` — `docs/` is not shipped.
+- `pnpm publish --dry-run --access public --no-git-checks` ✓ exit 0. Output confirms `name: @goodtekxyz/vibeops`, `version: 0.2.0`, `total files: 93`, `package size: 123.0 kB`, `unpacked size: 476.5 kB`, `Publishing to https://registry.npmjs.org/ with tag latest and public access (dry-run)`. The tarball still contains only `dist/`, `templates/`, `README.md`, `LICENSE`, `CHANGELOG.md` — `docs/` is not shipped.
 - Hangul-character grep:
-  - `rg -P '\p{Hangul}' .` yields zero hits.
-  - `rg -P '\p{Hangul}' templates .vibeops` yields zero hits (no regression on TASK-017 / TASK-018).
+  - Cursor ripgrep search for `\p{Hangul}` over the repository yields zero hits.
+  - Cursor ripgrep search for `\p{Hangul}` over `templates/` and `.vibeops/` yields zero hits (no regression on TASK-017 / TASK-018).
+  - Shell fallback `python3` scan over `git ls-files --cached --others --exclude-standard` yields zero hits because this shell does not expose an `rg` binary.
 - `docs/logs/` now contains only `README.md`; the two daily-log files were removed as planned.
 
 ## Review Notes
