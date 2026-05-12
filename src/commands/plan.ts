@@ -9,6 +9,8 @@ import {
 } from "../lib/brief.js";
 import { pathExists, readText, writeText } from "../lib/filesystem.js";
 import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
+import { gatherBriefViaLlm, pickPlanLlmProvider } from "../lib/plan-llm-session.js";
+import type { PlanLlmProviderId } from "../lib/plan-llm-types.js";
 import { buildPlanPrompt } from "../lib/prompt-builder.js";
 import type { BriefBundle } from "../types/brief.js";
 
@@ -17,6 +19,8 @@ export interface PlanCommandOptions {
   from?: string;
   output?: string;
   nonInteractive?: boolean;
+  legacyWizard?: boolean;
+  provider?: PlanLlmProviderId;
   cwd?: string;
 }
 
@@ -63,17 +67,41 @@ export async function planCommand(options: PlanCommandOptions): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    log.step(
-      nonInteractive
-        ? "non-interactive: build the ProjectBrief from flag values + safe placeholders"
-        : "interactive: build the ProjectBrief from 20 questions (arrow keys · Space · Enter)",
-    );
-    log.blank();
-    bundle = await gatherBrief({
-      cwd,
-      idea: options.idea,
-      nonInteractive,
-    });
+    if (nonInteractive) {
+      log.step("non-interactive: build the ProjectBrief from flag values + safe placeholders");
+      log.blank();
+      bundle = await gatherBrief({
+        cwd,
+        idea: options.idea,
+        nonInteractive: true,
+      });
+    } else if (options.legacyWizard === true) {
+      log.step(
+        "legacy wizard: build the ProjectBrief from 20 fixed questions (arrow keys · Space · Enter)",
+      );
+      log.blank();
+      bundle = await gatherBrief({
+        cwd,
+        idea: options.idea,
+        nonInteractive: false,
+        legacyWizard: true,
+      });
+    } else {
+      log.step("LLM planning: verify provider, then interactive discovery + structured brief");
+      log.blank();
+      const provider = await pickPlanLlmProvider(cwd, options.provider);
+      if (provider === null) {
+        return;
+      }
+      try {
+        bundle = await gatherBriefViaLlm({ cwd, idea: options.idea, provider });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.error(`LLM planning failed: ${msg}`);
+        process.exitCode = 1;
+        return;
+      }
+    }
   }
 
   const briefMd = briefToMarkdown(bundle.brief, bundle.meta);

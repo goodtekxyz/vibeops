@@ -1,6 +1,12 @@
 export const PROJECT_BRIEF_SCHEMA_VERSION = 1 as const;
 
-export type BriefSource = "interactive" | "non-interactive" | "from-file";
+export type BriefSource =
+  | "interactive"
+  | "non-interactive"
+  | "from-file"
+  | "llm-openai"
+  | "llm-cursor-agent"
+  | "legacy-wizard";
 
 export interface ProjectBrief {
   projectName: string;

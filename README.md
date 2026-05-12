@@ -70,7 +70,8 @@ vibeops init
 # Non-interactive Git bootstrap:
 vibeops init --git --initial-commit
 
-# 2. Answer 20 short planning questions and generate a Cursor planning prompt.
+# 2. LLM planning session (OpenAI API key or Cursor `agent` CLI) → brief + planning prompt.
+#    Use `vibeops plan --legacy-wizard` for the original 20-question flow.
 vibeops plan
 
 # 3. Generate a TASK prompt or scaffold TASK markdown.
@@ -126,7 +127,7 @@ vibeops
 │       [--git|--no-git] [--initial-commit|--no-initial-commit]
 │       [--default-branch <name>] [--commit-message <message>]
 ├─ status [--json] [--cwd <path>]
-├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--cwd <path>]
+├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--legacy-wizard] [--provider <id>] [--cwd <path>]
 ├─ agent
 │  ├─ list [--json] [--cwd <path>]
 │  ├─ show <name> [--raw] [--cwd <path>]
@@ -159,7 +160,7 @@ Run any command with `--help` for the option details.
 
 ### Interactive Planner
 
-`vibeops plan` asks 20 short questions and produces a normalized brief plus a Cursor planning prompt. A non-interactive mode is available for safe placeholder output.
+`vibeops plan` runs an **LLM planning session** by default (OpenAI with `OPENAI_API_KEY`, or the **Cursor Agent CLI** with `agent login`). The model asks adaptive questions (arrow-key choices where it helps), then writes the same `ProjectBrief` + planning prompt as before. Use `--legacy-wizard` for the original 20-question flow. `--non-interactive` and `--from` never call an LLM.
 
 ### Task Generator
 

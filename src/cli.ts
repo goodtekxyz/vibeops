@@ -73,7 +73,9 @@ program
 
 program
   .command("plan")
-  .description("Run 20 interactive questions and produce a ProjectBrief + Cursor planning prompt")
+  .description(
+    "Interactive LLM planning (OpenAI or Cursor Agent CLI) → ProjectBrief + Cursor planning prompt; use --legacy-wizard for the fixed 20-question flow",
+  )
   .option("--idea <text>", "One-line idea default (use `Name: idea` to extract the project name)")
   .option("--from <path>", "Read an existing brief markdown and regenerate the prompt")
   .option(
@@ -82,7 +84,15 @@ program
   )
   .option(
     "--non-interactive",
-    "Skip prompts and use the supplied values plus safe placeholders",
+    "Skip prompts and use the supplied values plus safe placeholders (no LLM)",
+  )
+  .option(
+    "--legacy-wizard",
+    "Use the original 20-question wizard instead of an LLM planning session",
+  )
+  .option(
+    "--provider <id>",
+    "LLM provider when both are available: openai | cursor-agent",
   )
   .option("--cwd <path>", "Run against a different directory")
   .action(
@@ -91,9 +101,19 @@ program
       from?: string;
       output?: string;
       nonInteractive?: boolean;
+      legacyWizard?: boolean;
+      provider?: string;
       cwd?: string;
     }) => {
-      await planCommand(options);
+      const provider =
+        options.provider === "openai" || options.provider === "cursor-agent"
+          ? options.provider
+          : undefined;
+      await planCommand({
+        ...options,
+        legacyWizard: options.legacyWizard === true,
+        provider,
+      });
     },
   );
 

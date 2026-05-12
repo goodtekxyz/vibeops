@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 const cli = resolve("dist/cli.js");
 
@@ -10,31 +11,37 @@ if (!existsSync(cli)) {
   process.exit(1);
 }
 
-const cases = [
-  ["--help"],
-  ["init", "--dry-run"],
-  ["init", "--dry-run", "--git", "--initial-commit"],
-  ["status"],
-  ["task", "generate", "--dry-run"],
-  ["notion", "init", "--dry-run"],
-  ["github", "status"],
-  ["github", "init", "--dry-run", "--connect", "goodtek/vibeops"],
-];
+const tmpRoot = mkdtempSync(join(tmpdir(), "vibeops-smoke-"));
+try {
+  const cases = [
+    ["--help"],
+    ["init", "--dry-run"],
+    ["init", "--dry-run", "--git", "--initial-commit"],
+    ["status"],
+    ["task", "generate", "--dry-run"],
+    ["notion", "init", "--dry-run"],
+    ["github", "status"],
+    ["github", "init", "--dry-run", "--connect", "goodtek/vibeops"],
+    ["plan", "--non-interactive", "--idea", "Smoke: test app", "--cwd", tmpRoot],
+  ];
 
-for (const args of cases) {
-  const label = `node dist/cli.js ${args.join(" ")}`;
-  process.stdout.write(`[smoke] ${label}\n`);
-  const result = spawnSync(process.execPath, [cli, ...args], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    stdio: "pipe",
-  });
-  if (result.status !== 0) {
-    process.stderr.write(result.stdout);
-    process.stderr.write(result.stderr);
-    console.error(`[smoke] failed: ${label}`);
-    process.exit(result.status ?? 1);
+  for (const args of cases) {
+    const label = `node dist/cli.js ${args.join(" ")}`;
+    process.stdout.write(`[smoke] ${label}\n`);
+    const result = spawnSync(process.execPath, [cli, ...args], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+    if (result.status !== 0) {
+      process.stderr.write(result.stdout);
+      process.stderr.write(result.stderr);
+      console.error(`[smoke] failed: ${label}`);
+      process.exit(result.status ?? 1);
+    }
   }
-}
 
-process.stdout.write("[smoke] OK\n");
+  process.stdout.write("[smoke] OK\n");
+} finally {
+  rmSync(tmpRoot, { recursive: true, force: true });
+}

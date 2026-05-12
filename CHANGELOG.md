@@ -6,6 +6,8 @@ All notable changes to VibeOps are documented here.
 
 ### Changed
 
+- `vibeops plan` (interactive default): verifies an LLM provider first — **OpenAI** via `OPENAI_API_KEY` (API key from https://platform.openai.com/api-keys ) or **Cursor Agent CLI** via `agent login` / `agent status` — then runs an adaptive JSON-protocol planning loop (arrow-key `select` / `checkbox` prompts plus free-text) until the model emits a full `ProjectBrief`. `--legacy-wizard` restores the fixed 20-question flow; `--non-interactive` and `--from` do not call an LLM.
+
 - `vibeops task start`: if the working tree is dirty only under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, the command proceeds with a warning instead of exiting. Uncommitted changes outside those paths still require a clean tree or `--allow-dirty`. This avoids blocking the next TASK after `task done` / `--finalize` left TASK or project docs uncommitted on `main`.
 
 ## 0.2.0 - 2026-05-12
