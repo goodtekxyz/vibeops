@@ -10,18 +10,18 @@ Follow-on (post-MVP 4, public release)
 
 ## Goal
 
-Polish VibeOps into an open-source CLI that can actually be published to npm publicly. Change the npm package name to `@goodtekxyz/vibeops`, keep the brand name `VibeOps` and the CLI command `vibeops` as-is. Unify the README · CHANGELOG · in-program logs / help / error messages into a single English tone suitable for public release.
+Polish VibeOps into an open-source CLI that can actually be published to npm publicly. Change the npm package name to `@goodtek/vibeops`, keep the brand name `VibeOps` and the CLI command `vibeops` as-is. Unify the README · CHANGELOG · in-program logs / help / error messages into a single English tone suitable for public release.
 
 > ID collision note: TASK-016 · Notion env template cleanup on the same date is already in Review, so this work bumps to TASK-017. The user referenced "TASK-016 · Public release polish" in conversation, but per the ID-preservation policy (identical to 011 / 012 / 015 / 016 follow-up patterns), we move to the next number.
 
 ## Background
 
-TASK-012 completed the basic npm packaging skeleton, but at that point the package name was the unscoped `vibeops` and the README still embedded an internal fictional example (`BYOBrowser`) and MVP-phase labels. An actual public release needs (a) publishing under the goodtek organisation scope and (b) cleaning the internal-development scars so external readers can engage without friction. Program output is also a mix of Korean and English — not friendly to a global audience.
+TASK-012 completed the basic npm packaging skeleton, but at that point the package name was the unscoped `vibeops` and the README still embedded an internal fictional example (`BYOBrowser`) and MVP-phase labels. An actual public release needs (a) publishing on npm under the `@goodtek` scope as `@goodtek/vibeops` and (b) cleaning the internal-development scars so external readers can engage without friction. Program output is also a mix of Korean and English — not friendly to a global audience.
 
 ## Scope
 
 - `package.json`
-  - Rename `name` to `@goodtekxyz/vibeops`.
+  - Rename `name` to `@goodtek/vibeops`.
   - Keep / verify `bin`, `repository`, `homepage`, `bugs`, `author`, `license`.
   - Add `publishConfig: { access: "public" }` — avoids the scoped-package private-by-default trap.
 - `LICENSE` stays MIT (no change; verified).
@@ -35,7 +35,7 @@ TASK-012 completed the basic npm packaging skeleton, but at that point the packa
   - Clean Runner Modes wording like `not implemented in the MVP` / `future maybe`.
   - Clean `post-MVP`, `MVP boundaries`, `No planned MVP support for ...` from GitHub Setup, Roadmap, Documentation.
   - Remove internal numeric references like "TASK-007 through TASK-011" from Roadmap — meaningless to outsiders.
-  - Install instruction `npm install -g vibeops` → `npm install -g @goodtekxyz/vibeops`.
+  - Install instruction `npm install -g vibeops` → `npm install -g @goodtek/vibeops`.
   - Add a new "Support" section:
     - Bugs / setup issues / usage questions → support@goodtek.xyz.
     - Collaboration / feedback → hello@goodtek.xyz.
@@ -51,7 +51,7 @@ TASK-012 completed the basic npm packaging skeleton, but at that point the packa
   - Replace the one-line `BYOBrowser` example with a generic example.
 - Verification
   - `pnpm typecheck` / `pnpm build` / `pnpm smoke` pass.
-  - `pnpm publish --dry-run --access public --no-git-checks` passes under `@goodtekxyz/vibeops` and the package contents only include intended files.
+  - `pnpm publish --dry-run --access public --no-git-checks` passes under `@goodtek/vibeops` and the package contents only include intended files.
 - Doc updates
   - `docs/project/03-current-state.md` / this TASK file's Result / Test Result.
 
@@ -65,8 +65,8 @@ TASK-012 completed the basic npm packaging skeleton, but at that point the packa
 
 ## Acceptance Criteria
 
-- `package.json` has `name = "@goodtekxyz/vibeops"`, `bin.vibeops = "dist/cli.js"`, `publishConfig.access = "public"`.
-- `pnpm publish --dry-run --access public --no-git-checks` exits 0, with output confirming `name: @goodtekxyz/vibeops`.
+- `package.json` has `name = "@goodtek/vibeops"`, `bin.vibeops = "dist/cli.js"`, `publishConfig.access = "public"`.
+- `pnpm publish --dry-run --access public --no-git-checks` exits 0, with output confirming `name: @goodtek/vibeops`.
 - `pnpm typecheck` / `pnpm build` / `pnpm smoke` all exit 0.
 - `node dist/cli.js --help` output contains 0 Korean characters (`[\uac00-\ud7a3]`).
 - `node dist/cli.js init --help` / `task generate --help` / `notion test --help` / `github init --help` outputs contain 0 Korean characters.
@@ -111,7 +111,7 @@ TASK-012 completed the basic npm packaging skeleton, but at that point the packa
 - `pnpm smoke`
 - `node dist/cli.js --help` / `node dist/cli.js init --help` / `node dist/cli.js task generate --help` / `node dist/cli.js notion test --help` / `node dist/cli.js github init --help` — confirm 0 Korean characters in output via grep.
 - README · CHANGELOG · src/cli.ts grep for residue strings (`BYOBrowser`, `MVP 1`, …) returning 0.
-- `pnpm publish --dry-run --access public --no-git-checks` exits 0 + package name `@goodtekxyz/vibeops` confirmed.
+- `pnpm publish --dry-run --access public --no-git-checks` exits 0 + package name `@goodtek/vibeops` confirmed.
 
 ## Rollback Plan
 
@@ -128,7 +128,7 @@ Not connected.
 
 ## Implementation Plan
 
-1. `package.json` name → `@goodtekxyz/vibeops`, add `publishConfig.access`.
+1. `package.json` name → `@goodtek/vibeops`, add `publishConfig.access`.
 2. Tidy `CHANGELOG.md` 0.1.0 tone + add the new 0.2.0 entry.
 3. Full rewrite of `README.md`: BYOBrowser → Acme Automator example / remove MVP labels / add Support section / install command uses the scoped name.
 4. Unify `src/cli.ts` to English — description / option text + remove "(MVP 1)" / "(TASK-010)" / "(post-MVP 4)" labels.
@@ -141,9 +141,9 @@ Not connected.
 
 ## Result
 
-- `package.json`: `name = "@goodtekxyz/vibeops"`, `version = "0.2.0"`, `publishConfig.access = "public"`. `bin`, `repository`, `homepage`, `bugs`, `author = "VibeOps contributors"`, `license = "MIT"` retained / verified.
+- `package.json`: `name = "@goodtek/vibeops"`, `version = "0.2.0"`, `publishConfig.access = "public"`. `bin`, `repository`, `homepage`, `bugs`, `author = "VibeOps contributors"`, `license = "MIT"` retained / verified.
 - `CHANGELOG.md`: added new `0.2.0 - 2026-05-12` entry (Highlights / Added / Changed / Removed / Verification structure). Removed every `MVP 1 / 2 / 3 / 4` label from the existing `0.1.0` entry and rewrote it in feature bundles (Project bootstrap, Plan, Task generation, Git task lifecycle, Notion dashboard sync, Packaging).
-- `README.md`: full rewrite. Removed the BYOBrowser example / "MVP Features" / internal phase labels / "future maybe" / "post-MVP". Introduced "Quick Tutorial: Acme Automator". Install command `npm install -g @goodtekxyz/vibeops`. New "Support" section (support@goodtek.xyz / hello@goodtek.xyz / issue tracker). One line in the Notion section notes `MVP Phase` is a compatibility-name free-form select. The status-output example was also updated to `@goodtekxyz/vibeops 0.2.0`.
+- `README.md`: full rewrite. Removed the BYOBrowser example / "MVP Features" / internal phase labels / "future maybe" / "post-MVP". Introduced "Quick Tutorial: Acme Automator". Install command `npm install -g @goodtek/vibeops`. New "Support" section (support@goodtek.xyz / hello@goodtek.xyz / issue tracker). One line in the Notion section notes `MVP Phase` is a compatibility-name free-form select. The status-output example was also updated to `@goodtek/vibeops 0.2.0`.
 - In-program strings translated to English (user output only; code comments preserved):
   - `src/cli.ts`: `--description`, every command/subcommand `description` text translated. Removed internal labels `(MVP 1)` / `(TASK-010)` / `(post-MVP 4)`.
   - `src/commands/notion-init.ts`, `notion-test.ts`, `notion-sync.ts`, `github-init.ts`, `github-status.ts`, `plan.ts`, `task-pull.ts`, `task-done.ts`, `task-rollback.ts`, `task-generate.ts`: every `log.info` / `log.warn` / `log.error` / `log.ok` / `throw new Error(...)` / guidance message localised.
@@ -161,7 +161,7 @@ Not connected.
 - `pnpm typecheck` — exit 0.
 - `pnpm build` — exit 0. `dist/` regenerated normally.
 - `pnpm smoke` — exit 0. `node dist/cli.js --help` / `init --dry-run` / `init --dry-run --git --initial-commit` / `status` / `task generate --dry-run` / `notion init --dry-run` / `github status` / `github init --dry-run --connect goodtek/vibeops` 8 cases without regression.
-- `pnpm publish --dry-run --access public --no-git-checks` — exit 0. Output header confirms `name: @goodtekxyz/vibeops`, `version: 0.2.0`, `total files: 93`, `Publishing to https://registry.npmjs.org/ with tag latest and public access (dry-run)`. No actual npm publish.
+- `pnpm publish --dry-run --access public --no-git-checks` — exit 0. Output header confirms `name: @goodtek/vibeops`, `version: 0.2.0`, `total files: 93`, `Publishing to https://registry.npmjs.org/ with tag latest and public access (dry-run)`. No actual npm publish.
 - Regression grep:
   - `node dist/cli.js --help` output contains 0 Korean characters.
   - `README.md` contains 0 occurrences of `BYOBrowser` / `MVP 1` / `MVP 2` / `MVP 3` / `MVP 4`. `support@goodtek.xyz` appears 1×; `hello@goodtek.xyz` appears 1×.
