@@ -260,7 +260,7 @@ export function readSection(body: string, title: string): string {
 export function isPlaceholderContent(content: string): boolean {
   const trimmed = content.trim();
   if (trimmed.length === 0) return true;
-  if (/^\(.*미수행.*\)$/.test(trimmed)) return true;
+  if (/^\(.*미수행.*\)$/.test(trimmed)) return true; // legacy Korean placeholder
   if (/^_*\(none\)_*$/i.test(trimmed)) return true;
   return false;
 }
@@ -277,7 +277,7 @@ export function findExpectedFiles(body: string): string[] {
     const line = raw.trim();
     if (!line.startsWith("- ")) continue;
     let rest = line.slice(2).trim();
-    rest = rest.replace(/^(신규|갱신|new|update|update:|신규:|갱신:)\s*[:：-]?\s*/i, "");
+    rest = rest.replace(/^(신규|갱신|new|update|update:|신규:|갱신:)\s*[:：-]?\s*/i, ""); // matches both English and legacy Korean status prefixes
     const tickMatch = rest.match(/`([^`]+)`/);
     if (tickMatch) {
       out.push(tickMatch[1]!.trim());

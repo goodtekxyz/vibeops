@@ -57,9 +57,9 @@ export function buildPlanPrompt(inputs: BuildPlanPromptInputs): string {
 
   return `# VibeOps Plan Prompt — Cursor Planner Agent
 
-> 이 파일은 \`vibeops plan\`이 생성했다. **Cursor**에서 새 채팅을 열고 이 파일의 전체 내용을 그대로 붙여 넣어라. VibeOps는 LLM을 직접 호출하지 않는다 — Planner Agent가 이 입력을 받아 \`docs/project/*\`를 채우고 초기 백로그를 만든다.
+> This file was produced by \`vibeops plan\`. Open a new chat in **Cursor** and paste the full contents of this file. VibeOps does not call LLMs directly — the Planner Agent receives this input and fills in \`docs/project/*\` plus the initial backlog.
 
-- Brief 위치: \`${briefRelativePath}\`
+- Brief location: \`${briefRelativePath}\`
 - VibeOps version: ${meta.vibeopsVersion}
 - Generated: ${meta.generatedAt}
 - Source: ${meta.source} · schemaVersion: ${meta.schemaVersion}
@@ -68,34 +68,34 @@ export function buildPlanPrompt(inputs: BuildPlanPromptInputs): string {
 
 ## Role: Planner Agent
 
-\`.vibeops/agents/planner.md\`의 정의를 따른다. 너는 코드를 만들지 않는다. 너는 다음을 만든다.
+Follow the definition in \`.vibeops/agents/planner.md\`. You do not write application code. You produce:
 
-1. \`docs/project/*\` 갱신 — 비전 / 요구사항 / MVP 범위 / 아키텍처 초안 / 기술 스택 / 의사결정 / 백로그 / 환경변수 / 배포 메모.
-2. \`docs/tasks/TASK-NNN-*.md\` 초기 백로그(최소 3 ~ 6개). 각 TASK는 Status·MVP Phase·Goal·Scope·Out of Scope·Acceptance Criteria·Test Plan·Result·Test Result 섹션을 가진다.
+1. Updates to \`docs/project/*\` — vision / requirements / scope / architecture draft / tech stack / decisions / backlog / environment / deployment notes.
+2. An initial backlog of \`docs/tasks/TASK-NNN-*.md\` files (3-6 to start). Each TASK contains the sections Status · MVP Phase · Goal · Scope · Out of Scope · Acceptance Criteria · Test Plan · Result · Test Result.
 
-## Hard rules (지키지 않으면 작업 실패)
+## Hard rules (failure if violated)
 
-- 애플리케이션 코드를 작성하지 마라. 이번 단계의 결과물은 \`docs/**\`로 한정한다.
-- VibeOps 자체 설정(\`.vibeops/\`, \`.vibeops.json\`, \`templates/\`)은 건드리지 마라.
-- 진실 공급원 규칙: \`docs/tasks/*.md\` = AI 실행 기준, \`docs/project/*.md\` = 설계/현재 상태 기준, Git commits/branches = 변경 이력, Notion = 사람이 보는 대시보드(요약·상태·우선순위·docs path만), 채팅은 기준 아님.
-- 한 TASK는 한 가지에 집중하게 쪼개라. TASK 간 의존성은 본문에 명시하라.
-- 가정(Assumption)은 절대 숨기지 말고 docs/project 본문과 응답 끝의 "Assumptions" 섹션에 둘 다 기록하라.
-- Notion / Git workflow / agent workflow level은 아래 ProjectBrief 값을 그대로 따른다. 임의로 바꾸지 마라.
+- Do not produce application code. The deliverable for this round is limited to \`docs/**\`.
+- Do not touch VibeOps' own config (\`.vibeops/\`, \`.vibeops.json\`, \`templates/\`).
+- Source-of-truth rules: \`docs/tasks/*.md\` = AI execution baseline, \`docs/project/*.md\` = design / current-state baseline, Git commits/branches = change history, Notion = human dashboard (summary / status / priority / docs path only), chat is never a baseline.
+- One TASK, one focus. Surface inter-TASK dependencies in the body.
+- Never hide assumptions. Record them in both the docs/project bodies and the closing "Assumptions" section.
+- Notion / Git workflow / agent workflow level follow the ProjectBrief values below as-is. Do not change them on a whim.
 
-## ProjectBrief (사용자 답변 요약)
+## ProjectBrief (user answers)
 
 ${summary(brief)}
 
-### 기존 brief의 Assumptions
+### Assumptions inherited from the brief
 
 ${assumptions}
 
-## 산출물 형식
+## Output format
 
-응답은 다음 순서를 정확히 지킨다.
+Produce the response in this exact order:
 
-1. **Plan Summary** — 5 ~ 8 bullet. ProjectBrief에서 도출한 핵심 방향(타깃·MVP 범위·기술 선택·핵심 위험).
-2. **docs/project/\\*** — 다음 8개 파일을 fenced code block으로 각각 출력. 각 block 첫 줄은 \`<!-- file: docs/project/XX-name.md -->\`. 03-architecture와 05-current-state는 이 단계에서 다루지 않는다.
+1. **Plan Summary** — 5 to 8 bullets capturing the direction derived from the ProjectBrief (audience, scope, tech selections, key risks).
+2. **docs/project/\\*** — emit the 8 files below, each in its own fenced code block. The first line of each block is \`<!-- file: docs/project/XX-name.md -->\`. (\`03-architecture\` and \`05-current-state\` are not produced in this round.)
    - \`docs/project/00-overview.md\`
    - \`docs/project/01-requirements.md\`
    - \`docs/project/02-mvp-scope.md\`
@@ -104,35 +104,35 @@ ${assumptions}
    - \`docs/project/07-backlog.md\`
    - \`docs/project/08-env.md\`
    - \`docs/project/09-deployment.md\`
-3. **docs/tasks/TASK-NNN-\\*** — 초기 백로그 3 ~ 6개. 각각 \`<!-- file: docs/tasks/TASK-NNN-slug.md -->\`로 시작하는 fenced block.
-4. **Changed file list** — 위에서 만든 모든 파일 경로 목록.
-5. **Assumptions** — 사용자에게 다시 확인이 필요한 결정 목록(없으면 \`(none)\`).
+3. **docs/tasks/TASK-NNN-\\*** — 3 to 6 initial backlog items. Each in a fenced block beginning with \`<!-- file: docs/tasks/TASK-NNN-slug.md -->\`.
+4. **Changed file list** — the full list of files produced above.
+5. **Assumptions** — decisions the user must reconfirm (\`(none)\` if there are none).
 
-## 매핑 가이드 (브리프 필드 → docs 파일)
+## Field mapping (brief field → docs file)
 
 - \`00-overview.md\` ← projectName, oneLineIdea, projectType, targetUsers, coreProblem, successCriteria
 - \`01-requirements.md\` ← mvpFeatures, authRequirements, integrations, targetUsers
 - \`02-mvp-scope.md\` ← mvpFeatures (IN), outOfScope (OUT), successCriteria
 - \`04-tech-stack.md\` ← frontend, backend, database, dbLayer, packageManager
-- \`06-decisions.md\` ← useNotion, useGitWorkflow, agentWorkflowLevel, packageManager, 그 외 자동 도출 가능한 결정
-- \`07-backlog.md\` ← mvpFeatures를 TASK 단위로 분해(기능별 1 ~ 2개 + 셋업 1개). 우선순위·완료 정의 포함.
-- \`08-env.md\` ← integrations마다 필요한 env 변수(예: OpenAI → OPENAI_API_KEY) 목록과 의미
-- \`09-deployment.md\` ← deploymentTargets별 배포 절차 메모. Not sure만 있으면 그렇게 명시하고 결정 대기로 둔다.
+- \`06-decisions.md\` ← useNotion, useGitWorkflow, agentWorkflowLevel, packageManager, plus any auto-derived decisions.
+- \`07-backlog.md\` ← decompose mvpFeatures into TASKs (1-2 per feature + 1 setup). Include priority and definition of done.
+- \`08-env.md\` ← env variables per integration (e.g. OpenAI → OPENAI_API_KEY) and their purpose.
+- \`09-deployment.md\` ← deployment notes per deploymentTargets. If only "Not sure" is selected, state that explicitly and mark the decision as pending.
 
-## Notion / Git / Agent 워크플로 처리
+## Notion / Git / Agent workflow handling
 
-- Use Notion dashboard sync: ${renderBool(brief.useNotion)} → \`06-decisions.md\`에 명시. ${brief.useNotion ? "Notion DB 메타 동기화를 사용 결정." : "Notion 동기화는 사용하지 않음(추후 도입 시 별도 TASK)."}
-- Use Git task branch workflow: ${renderBool(brief.useGitWorkflow)} → ${brief.useGitWorkflow ? "TASK lifecycle은 task/TASK-NNN-slug 브랜치 모델을 가정." : "Git task branch 모델을 사용하지 않음을 명시(직선 작업)."}
-- Agent workflow level: \`${brief.agentWorkflowLevel}\` → \`06-decisions.md\`에 사용할 에이전트 조합을 박는다.
+- Use Notion dashboard sync: ${renderBool(brief.useNotion)} → record in \`06-decisions.md\`. ${brief.useNotion ? "Decision: VibeOps will sync Notion DB metadata." : "Decision: no Notion sync (revisit in a future TASK if needed)."}
+- Use Git task branch workflow: ${renderBool(brief.useGitWorkflow)} → ${brief.useGitWorkflow ? "TASK lifecycle assumes the task/TASK-NNN-slug branch model." : "Record that the Git task-branch model is not used (linear workflow)."}
+- Agent workflow level: \`${brief.agentWorkflowLevel}\` → fix the agent line-up in \`06-decisions.md\`.
 
-## Risk areas → docs 반영
+## Risk areas → docs
 
 ${renderTopList(brief.risks)}
 
-각 risk는 \`07-backlog.md\` 또는 해당 TASK의 Risks 섹션에 적어라. "Authentication/security"나 "Browser automation reliability"처럼 운영 위험이 있으면 별도 TASK 후보로 둔다.
+Record each risk in \`07-backlog.md\` or in the Risks section of the corresponding TASK. Operational risks such as "Authentication/security" or "Browser automation reliability" become candidates for their own TASK.
 
 ---
 
-이제 위 규칙을 모두 지켜 응답을 작성하라. 응답이 끝나면 사람이 \`git diff\`로 검토 후 커밋한다.
+Apply the rules above and produce the response. After you respond, a human reviews via \`git diff\` and commits.
 `;
 }

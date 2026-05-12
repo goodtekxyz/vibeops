@@ -108,7 +108,7 @@ export async function taskDoneCommand(
   log.blank();
 
   log.info(bold("Notion"));
-  log.info(`  ${dim("TODO (MVP 4 / TASK-011): \`vibeops notion sync\` will push this TASK metadata.")}`);
+  log.info(`  ${dim("TODO: run `vibeops notion sync` to push this TASK metadata.")}`);
   log.blank();
 
   const all = await scanTasks(paths.docsTasks);
@@ -127,7 +127,7 @@ export async function taskDoneCommand(
 
   if (target === "review") {
     log.info(
-      `Status는 ${cyan("Review")}로 두었다. 사람 또는 Reviewer Agent 검토 후 ${cyan(`vibeops task done ${meta.id} --finalize`)}로 Done 처리하라.`,
+      `Status moved to ${cyan("Review")}. After human or Reviewer Agent review, finalize with ${cyan(`vibeops task done ${meta.id} --finalize`)}.`,
     );
   } else {
     log.ok(`${meta.id} finalized → Done.`);

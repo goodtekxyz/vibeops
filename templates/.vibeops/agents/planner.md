@@ -17,7 +17,7 @@ description: 아이디어를 받아 비전·요구·MVP 범위·백로그를 만
 
 ## Inputs
 
-- 사용자의 아이디어 본문(예: “BYOBrowser라는 브라우저 자동화 SaaS”)
+- 사용자의 아이디어 본문(예: "Acme Automator라는 마케팅 자동화 SaaS")
 - 현재 `docs/project/*` 골격(이미 init된 상태)
 
 ## Output Format

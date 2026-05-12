@@ -30,9 +30,9 @@ import {
 } from "../types/brief.js";
 
 const PLACEHOLDER_PROJECT_NAME = "Unnamed Project";
-const PLACEHOLDER_IDEA = "(아이디어 미입력 — Planner Agent가 채워야 함)";
-const PLACEHOLDER_PROBLEM = "(핵심 문제 미입력 — Planner Agent가 채워야 함)";
-const PLACEHOLDER_SUCCESS = "(성공 기준 미입력 — Planner Agent가 채워야 함)";
+const PLACEHOLDER_IDEA = "(no idea provided — Planner Agent must fill this in)";
+const PLACEHOLDER_PROBLEM = "(no core problem provided — Planner Agent must fill this in)";
+const PLACEHOLDER_SUCCESS = "(no success criteria provided — Planner Agent must fill this in)";
 
 export interface IdeaParsed {
   projectName?: string;
@@ -85,7 +85,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   });
   const finalProjectName = projectName.length > 0 ? projectName : PLACEHOLDER_PROJECT_NAME;
   if (finalProjectName === PLACEHOLDER_PROJECT_NAME) {
-    assumptions.push('projectName: directory name도 비어 있어 "Unnamed Project" 사용');
+    assumptions.push('projectName: directory name was empty too — defaulted to "Unnamed Project"');
   }
 
   const oneLineIdea = await askInput({
@@ -97,7 +97,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   });
   const finalIdea = oneLineIdea.length > 0 ? oneLineIdea : PLACEHOLDER_IDEA;
   if (finalIdea === PLACEHOLDER_IDEA) {
-    assumptions.push("oneLineIdea: 미입력 → Planner Agent가 채울 자리 표시");
+    assumptions.push("oneLineIdea: not provided — placeholder for Planner Agent to fill");
   }
 
   const projectType = await askSelect({
@@ -108,7 +108,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   });
 
   const targetUsers = await askCheckbox({
-    message: "4/20 · Target users (Space로 선택, Enter로 확정)",
+    message: "4/20 · Target users (Space to toggle, Enter to confirm)",
     nonInteractive: inputs.nonInteractive,
     choices: TARGET_USER_CHOICES,
     default: seed.targetUsers,
@@ -122,7 +122,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   });
   const finalCoreProblem = coreProblem.length > 0 ? coreProblem : PLACEHOLDER_PROBLEM;
   if (finalCoreProblem === PLACEHOLDER_PROBLEM) {
-    assumptions.push("coreProblem: 미입력 → Planner Agent가 채울 자리 표시");
+    assumptions.push("coreProblem: not provided — placeholder for Planner Agent to fill");
   }
 
   const mvpFeatures = await askCheckbox({
@@ -231,7 +231,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   });
   const finalSuccess = successCriteria.length > 0 ? successCriteria : PLACEHOLDER_SUCCESS;
   if (finalSuccess === PLACEHOLDER_SUCCESS) {
-    assumptions.push("successCriteria: 미입력 → Planner Agent가 채울 자리 표시");
+    assumptions.push("successCriteria: not provided — placeholder for Planner Agent to fill");
   }
 
   const brief: ProjectBrief = {
@@ -313,10 +313,10 @@ export function briefToMarkdown(brief: ProjectBrief, meta: BriefMeta): string {
   );
   lines.push("");
   lines.push(
-    "이 브리프는 Cursor **Planner Agent**의 입력이다. VibeOps는 LLM을 직접 호출하지 않는다.",
+    "This brief is the input for the Cursor **Planner Agent**. VibeOps does not call LLMs directly.",
   );
   lines.push(
-    "Planner Agent는 이 브리프를 읽고 `docs/project/*`를 채우고 초기 백로그를 만든다.",
+    "The Planner Agent reads this brief, fills in `docs/project/*`, and creates the initial backlog.",
   );
   lines.push("");
 

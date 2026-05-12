@@ -8,7 +8,6 @@ import {
   type GithubConfig,
   type GithubVisibility,
   type NotionConfig,
-  type NotionEnvSnapshot,
   type VibeopsConfig,
   VIBEOPS_CONFIG_SCHEMA_VERSION,
 } from "../types/config.js";
@@ -150,16 +149,6 @@ export function notionProjectsTargetId(notion: NotionConfig): string {
 /** Preferred Tasks target id for API calls: data_source target first, legacy DB fallback. */
 export function notionTasksTargetId(notion: NotionConfig): string {
   return notion.tasksTargetId.length > 0 ? notion.tasksTargetId : notion.tasksDatabaseId;
-}
-
-export function readNotionEnvSnapshot(env: NodeJS.ProcessEnv = process.env): NotionEnvSnapshot {
-  const get = (k: string): boolean => typeof env[k] === "string" && env[k]!.length > 0;
-  return {
-    hasToken: get("NOTION_TOKEN"),
-    hasApiKey: get("NOTION_API_KEY"),
-    hasProjectDb: get("NOTION_PROJECT_DB"),
-    hasTaskDb: get("NOTION_TASK_DB"),
-  };
 }
 
 /**

@@ -39,11 +39,13 @@ export function parseDotenv(text: string): Record<string, string> {
   return out;
 }
 
+export type NotionTokenSource = ".vibeops.env" | "process.env" | "none";
+
 export interface NotionEnvInputs {
   /** raw NOTION_TOKEN value, NEVER log this directly */
   token: string | null;
   /** which file we read it from (for messaging) */
-  source: ".vibeops.env" | "process.env" | "none";
+  source: NotionTokenSource;
 }
 
 /**
@@ -68,6 +70,21 @@ export async function loadNotionEnv(cwd: string): Promise<NotionEnvInputs> {
     return { token: fromProcess, source: "process.env" };
   }
   return { token: null, source: "none" };
+}
+
+/**
+ * Token-source probe for `vibeops status` and similar read-only flows.
+ *
+ * Returns only whether a token is reachable and where it came from. The token
+ * VALUE never leaves this function — callers cannot accidentally leak it via
+ * logs.
+ */
+export async function getNotionTokenSource(cwd: string): Promise<{
+  hasToken: boolean;
+  source: NotionTokenSource;
+}> {
+  const env = await loadNotionEnv(cwd);
+  return { hasToken: env.token !== null, source: env.source };
 }
 
 /**

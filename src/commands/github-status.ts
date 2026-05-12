@@ -205,7 +205,7 @@ function printHuman(report: GithubStatusReport): void {
   } else if (report.remote === null) {
     log.info(`${dim("·")} No git remote yet. Run ${cyan("vibeops github init")} to create or connect one.`);
   } else if (!report.remote.info.isGithub) {
-    log.info(`${yellow("!")} ${report.remote.name} is not a GitHub URL. ${cyan("vibeops github init --connect <owner/repo>")} 로 다시 연결할 수 있다.`);
+    log.info(`${yellow("!")} ${report.remote.name} is not a GitHub URL. Reconnect with ${cyan("vibeops github init --connect <owner/repo>")}.`);
   } else if (report.config === null || !report.config.enabled) {
     log.info(`${dim("·")} Remote OK, but .vibeops.json has no github section. Run ${cyan("vibeops github init")} to record it.`);
   } else if (

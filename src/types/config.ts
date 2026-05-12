@@ -46,11 +46,57 @@ export interface VibeopsConfig {
   github?: GithubConfig;
 }
 
-export interface NotionEnvSnapshot {
+/**
+ * Snapshot of the local Notion configuration surface for `vibeops status`.
+ *
+ * Read from `.vibeops.env` / `process.env` + `.vibeops.json` only. Status
+ * MUST NOT touch the Notion API. Legacy env variables (`NOTION_API_KEY`,
+ * `NOTION_PROJECT_DB`, `NOTION_TASK_DB`) are intentionally not exposed here —
+ * VibeOps only uses `NOTION_TOKEN` as the secret.
+ */
+export interface NotionStatusSnapshot {
+  /** `.vibeops.json` `notion.enabled`. False when the section is missing. */
+  enabled: boolean;
+  /** True if a non-empty `NOTION_TOKEN` is reachable (file or process env). */
   hasToken: boolean;
-  hasApiKey: boolean;
-  hasProjectDb: boolean;
-  hasTaskDb: boolean;
+  /** Where the token came from, or `none` when nothing was found. */
+  tokenSource: NotionTokenSource;
+  /** True when `projectsTargetId` or legacy `projectsDatabaseId` is non-empty. */
+  hasProjectsTarget: boolean;
+  /** True when `tasksTargetId` or legacy `tasksDatabaseId` is non-empty. */
+  hasTasksTarget: boolean;
+}
+
+export type NotionTokenSource = ".vibeops.env" | "process.env" | "none";
+
+/**
+ * Snapshot of the local GitHub configuration surface for `vibeops status`.
+ *
+ * Read from `.vibeops.json` only — status NEVER spawns `gh`.
+ */
+export interface GithubStatusSnapshot {
+  enabled: boolean;
+  mode: "gh-cli" | "";
+  owner: string;
+  repo: string;
+  remote: string;
+  url: string;
+}
+
+/**
+ * Snapshot of the project's `package.json` for `vibeops status`.
+ *
+ * `exists` is false when no `package.json` lives at the project root (e.g.
+ * a scaffolded directory that has not adopted Node tooling yet). The other
+ * fields are empty strings in that case so renderers can branch on `exists`
+ * alone.
+ */
+export interface PackageStatusSnapshot {
+  exists: boolean;
+  name: string;
+  version: string;
+  /** First key of `bin` if it's an object, basename otherwise, or "". */
+  bin: string;
 }
 
 export const DEFAULT_NOTION_CONFIG: NotionConfig = {

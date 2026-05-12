@@ -119,14 +119,14 @@ export async function githubInitCommand(
       dryRun
         ? "dry-run (no gh / git / file mutation)"
         : interactive
-          ? "interactive (방향키 · Enter — y/n 타이핑 안 함)"
+          ? "interactive (arrow keys + Enter, no y/n typing)"
           : "non-interactive (flags only)"
     }`,
   );
   if (ctx.connectTarget !== null) {
     if (!ctx.connectTarget.isGithub) {
       log.error(
-        `--connect ${cyan(ctx.connectTarget.url)} 가 GitHub URL / owner/repo 슬러그가 아니다. 'https://github.com/<owner>/<repo>' 또는 'owner/repo' 형식이어야 한다.`,
+        `--connect ${cyan(ctx.connectTarget.url)} is not a GitHub URL or owner/repo slug. Expected 'https://github.com/<owner>/<repo>' or 'owner/repo'.`,
       );
       process.exitCode = 1;
       return;
@@ -137,7 +137,7 @@ export async function githubInitCommand(
 
   if (!(await pathExists(ctx.configPath))) {
     log.error(
-      `.vibeops.json 이 없다. 먼저 ${cyan("vibeops init")} 를 실행해 VibeOps 운영 구조를 설치하세요.`,
+      `.vibeops.json is missing. Run ${cyan("vibeops init")} first to install the VibeOps workflow files.`,
     );
     process.exitCode = 1;
     return;
@@ -146,7 +146,7 @@ export async function githubInitCommand(
   const baseConfig = await readConfig(cwd);
   if (baseConfig === null) {
     log.error(
-      `.vibeops.json 을 읽지 못했다(스키마 불일치 또는 JSON 파싱 실패). 파일을 확인하거나 ${cyan("vibeops init")} 로 다시 생성하세요.`,
+      `Failed to read .vibeops.json (schema mismatch or invalid JSON). Inspect the file, or re-run ${cyan("vibeops init")} to recreate it.`,
     );
     process.exitCode = 1;
     return;
@@ -175,11 +175,11 @@ export async function githubInitCommand(
   if (!plan.ghInstalled) {
     if (dryRun) {
       log.warn(
-        `gh CLI 가 설치돼 있지 않다. 실제 실행 전 ${cyan("brew install gh")} (macOS) 또는 https://cli.github.com/ 로 설치 필요. dry-run 은 그래도 계획을 계속 보여 준다.`,
+        `gh CLI is not installed. Install with ${cyan("brew install gh")} (macOS) or via https://cli.github.com/ before running for real. The dry-run continues so you can review the plan.`,
       );
     } else {
       log.error(
-        `gh CLI 가 설치돼 있지 않다. macOS: ${cyan("brew install gh")} (또는 https://cli.github.com/) 후 다시 실행하세요.`,
+        `gh CLI is not installed. Install with ${cyan("brew install gh")} (macOS) or via https://cli.github.com/ and retry.`,
       );
       process.exitCode = 1;
       return;
@@ -202,22 +202,22 @@ export async function githubInitCommand(
   if (!auth.authenticated) {
     if (dryRun) {
       log.warn(
-        `gh 가 인증되지 않았다. 실제 실행 전 ${cyan("gh auth login")} 필요. dry-run 은 계속 진행.`,
+        `gh is not authenticated. Run ${cyan("gh auth login")} before applying. The dry-run continues.`,
       );
     } else {
-      log.warn(`gh 가 인증되지 않았다. Run ${cyan("gh auth login")} first.`);
+      log.warn(`gh is not authenticated. Run ${cyan("gh auth login")} first.`);
       let runLogin = false;
       if (interactive) {
         runLogin = await askYesNo({
-          message: "Run gh auth login now?  (TTY 가 child process 로 넘어간다)",
+          message: "Run gh auth login now?  (TTY is handed off to the child process)",
           nonInteractive: false,
           defaultValue: true,
         });
       } else if (explicitYes) {
-        // --yes 만으로는 자동으로 TTY 점유를 강제하지 않는다.
+        // --yes alone does not auto-spawn gh auth login (TTY required).
         log.info(
           dim(
-            `  · --yes 만으로는 gh auth login 을 자동 실행하지 않는다. interactive 환경에서 다시 실행하라.`,
+            `  · --yes alone does not run gh auth login. Re-run interactively to authenticate.`,
           ),
         );
       }
@@ -225,7 +225,7 @@ export async function githubInitCommand(
         log.info(dim(`  · spawning: gh auth login`));
         const code = await ghAuthLoginInteractive();
         if (code !== 0) {
-          log.error(`gh auth login exited with code ${code}. 다시 시도해 주세요.`);
+          log.error(`gh auth login exited with code ${code}. Please retry.`);
           process.exitCode = code;
           return;
         }
@@ -233,14 +233,14 @@ export async function githubInitCommand(
         plan.ghAuthenticated = auth2.authenticated;
         if (!plan.ghAuthenticated) {
           log.error(
-            "gh auth login 후에도 인증 상태가 확인되지 않는다. 'gh auth status' 로 진단하라.",
+            "gh auth login finished but the status is still unauthenticated. Inspect with 'gh auth status'.",
           );
           process.exitCode = 1;
           return;
         }
         log.ok("gh authenticated");
       } else {
-        log.info(dim(`  · gh auth login 없이는 신규 repo 생성이 불가능하다. 종료.`));
+        log.info(dim(`  · Cannot create a new GitHub repo without gh auth login. Exiting.`));
         process.exitCode = 1;
         return;
       }
@@ -287,7 +287,7 @@ export async function githubInitCommand(
     // existing non-github remote — propose new repo by default.
     if (interactive) {
       const overwrite = await askYesNo({
-        message: `${ctx.remoteName} 이 GitHub URL 이 아니다. Create a new GitHub repo and overwrite ${ctx.remoteName}?`,
+        message: `${ctx.remoteName} is not a GitHub URL. Create a new GitHub repo and overwrite ${ctx.remoteName}?`,
         nonInteractive: false,
         defaultValue: false,
       });
@@ -299,7 +299,7 @@ export async function githubInitCommand(
     // no existing remote
     if (interactive) {
       const wantCreate = await askYesNo({
-        message: "Create a new GitHub repo?  (No → 기존 GitHub URL 을 입력해 연결)",
+        message: "Create a new GitHub repo?  (No → enter an existing GitHub URL to connect)",
         nonInteractive: false,
         defaultValue: true,
       });
@@ -347,7 +347,7 @@ export async function githubInitCommand(
             : "");
     if (owner.length === 0) {
       log.error(
-        `owner 를 결정하지 못했다. ${cyan("--owner <user>")} 를 명시하거나 ${cyan("gh auth login")} 후 다시 실행하세요.`,
+        `Could not determine owner. Pass ${cyan("--owner <user>")} explicitly, or run ${cyan("gh auth login")} first.`,
       );
       process.exitCode = 1;
       return;
@@ -367,7 +367,7 @@ export async function githubInitCommand(
         })
       : defaultRepo;
     if (repoName.length === 0) {
-      log.error("repo name 이 비어 있다.");
+      log.error("Repo name is empty.");
       process.exitCode = 1;
       return;
     }
@@ -420,11 +420,11 @@ export async function githubInitCommand(
         ans = `${ctx.ownerFlag}/${ctx.repoFlag}`;
       } else {
         log.error(
-          `non-interactive (dry-run / --yes / non-TTY) 인데 ${cyan("--connect <owner/repo or url>")} 또는 ${cyan("--owner <user> --repo <name>")} 가 없다.`,
+          `Non-interactive mode (dry-run / --yes / non-TTY) requires ${cyan("--connect <owner/repo or url>")} or ${cyan("--owner <user> --repo <name>")}.`,
         );
         log.info(
           dim(
-            `  예: vibeops github init --dry-run --connect goodtek/vibeops`,
+            `  example: vibeops github init --dry-run --connect goodtekxyz/vibeops`,
           ),
         );
         process.exitCode = 1;
@@ -434,7 +434,7 @@ export async function githubInitCommand(
     }
     if (target === null || !target.isGithub || target.owner === null || target.repo === null) {
       log.error(
-        `유효한 GitHub URL / owner/repo 슬러그가 아니다. 예: ${cyan("https://github.com/<owner>/<repo>")} 또는 ${cyan("<owner>/<repo>")}`,
+        `Not a valid GitHub URL or owner/repo slug. Examples: ${cyan("https://github.com/<owner>/<repo>")} or ${cyan("<owner>/<repo>")}`,
       );
       process.exitCode = 1;
       return;
@@ -448,14 +448,14 @@ export async function githubInitCommand(
       let allow = false;
       if (interactive) {
         allow = await askYesNo({
-          message: `${ctx.remoteName} 이미 존재 (${existingRemote.url}). 이 URL 로 set-url 할까?`,
+          message: `${ctx.remoteName} already exists (${existingRemote.url}). Update its URL to this one?`,
           nonInteractive: false,
           defaultValue: false,
         });
       }
       if (!allow) {
         log.info(
-          `${dim("·")} ${ctx.remoteName} 보존 — 새 URL 로 설정하지 않음.`,
+          `${dim("·")} Keeping existing ${ctx.remoteName} — not setting a new URL.`,
         );
         plan.remoteUrl = existingRemote.url;
       } else {
@@ -485,13 +485,13 @@ export async function githubInitCommand(
         const anyExisting = fields.some((f) => f.before.length > 0);
         if (anyExisting) {
           allow = await askYesNo({
-            message: `package.json 의 repository / homepage / bugs 를 덮어쓸까? (${fields.length} field${fields.length === 1 ? "" : "s"} change)`,
+            message: `Overwrite package.json repository / homepage / bugs? (${fields.length} field${fields.length === 1 ? "" : "s"} will change)`,
             nonInteractive: false,
             defaultValue: false,
           });
         } else {
           allow = await askYesNo({
-            message: `package.json 에 repository / homepage / bugs 필드를 채울까? (${fields.length} field${fields.length === 1 ? "" : "s"} new)`,
+            message: `Fill package.json repository / homepage / bugs? (${fields.length} new field${fields.length === 1 ? "" : "s"})`,
             nonInteractive: false,
             defaultValue: true,
           });
@@ -506,15 +506,15 @@ export async function githubInitCommand(
         plan.packageDiffs = fields;
       } else if (!allow && fields.length > 0) {
         if (interactive) {
-          log.info(`${dim("·")} package.json update 건너뜀 (사용자 선택).`);
+          log.info(`${dim("·")} Skipping package.json update (user choice).`);
         } else {
           log.info(
-            `${dim("·")} package.json update 건너뜀 (기존 값 보존 — 덮어쓰려면 ${cyan("--yes")} 또는 interactive 실행).`,
+            `${dim("·")} Skipping package.json update (preserving existing values — pass ${cyan("--yes")} or run interactively to overwrite).`,
           );
         }
       }
     } else if (!ctx.packageUpdate) {
-      log.info(`${dim("·")} --no-package-update — package.json 수정 0건.`);
+      log.info(`${dim("·")} --no-package-update — package.json will not be modified.`);
     }
   }
 
@@ -549,7 +549,7 @@ export async function githubInitCommand(
       description: plan.description.length > 0 ? plan.description : undefined,
     });
     if (!res.ok) {
-      log.error(`gh repo create 실패 (exit ${res.exitCode ?? "?"}).`);
+      log.error(`gh repo create failed (exit ${res.exitCode ?? "?"}).`);
       if (typeof res.stderr === "string" && res.stderr.length > 0) {
         log.info(dim(res.stderr.trim()));
       }
@@ -563,7 +563,7 @@ export async function githubInitCommand(
       await gitRemoteAdd(cwd, ctx.remoteName, plan.remoteUrl);
       log.ok(`added remote ${ctx.remoteName}`);
     } catch (err) {
-      log.error(`git remote add 실패: ${(err as Error).message}`);
+      log.error(`git remote add failed: ${(err as Error).message}`);
       process.exitCode = 1;
       return;
     }
@@ -573,7 +573,7 @@ export async function githubInitCommand(
       await gitRemoteSetUrl(cwd, ctx.remoteName, plan.remoteUrl);
       log.ok(`updated remote ${ctx.remoteName}`);
     } catch (err) {
-      log.error(`git remote set-url 실패: ${(err as Error).message}`);
+      log.error(`git remote set-url failed: ${(err as Error).message}`);
       process.exitCode = 1;
       return;
     }
@@ -606,7 +606,7 @@ export async function githubInitCommand(
       dryRun: false,
     });
     if (!res.ok) {
-      log.warn(`package.json 갱신 실패: ${res.reason ?? "unknown"}`);
+      log.warn(`package.json update failed: ${res.reason ?? "unknown"}`);
     } else if (res.written) {
       log.ok(`package.json updated  ${dim(`(${res.diffs.length} field${res.diffs.length === 1 ? "" : "s"})`)}`);
     } else {
@@ -620,10 +620,10 @@ export async function githubInitCommand(
     `  · git remote ${ctx.remoteName} → ${cyan(plan.remoteUrl ?? "(unset)")}`,
   );
   log.info(
-    `  · ${cyan("vibeops github status")} 로 결과 검증.`,
+    `  · Verify with ${cyan("vibeops github status")}.`,
   );
   log.info(
-    `  · push 는 자동으로 하지 않는다. 준비되면 ${cyan(`git push -u ${ctx.remoteName} <branch>`)} 를 직접 실행.`,
+    `  · VibeOps never auto-pushes. When ready, run ${cyan(`git push -u ${ctx.remoteName} <branch>`)} yourself.`,
   );
 }
 
@@ -652,7 +652,7 @@ function renderPlan(ctx: InitContext, plan: InitPlan): void {
     if (plan.description.length > 0) {
       log.info(`      ${dim("--description")} ${plan.description}`);
     }
-    log.info(`      ${dim("→")} 이 명령이 ${ctx.remoteName} remote 도 함께 등록한다.`);
+    log.info(`      ${dim("→")} This command also registers the ${ctx.remoteName} remote.`);
   }
   if (plan.remoteAdded && !plan.repoCreated && plan.remoteUrl !== null) {
     log.info(`  ${green("+")} git remote add ${cyan(ctx.remoteName)} ${plan.remoteUrl}`);

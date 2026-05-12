@@ -199,13 +199,13 @@ async function runPromptMode(inputs: RunPromptModeInputs): Promise<void> {
   log.blank();
 
   log.info(bold("Next steps"));
-  log.info(`  1) Cursor에서 새 채팅 → ${cyan(relDisplay(cwd, promptAbs))} 의 전체 내용을 그대로 붙여넣는다.`);
-  log.info(`  2) Planner Agent가 \`docs/tasks/TASK-NNN-*.md\` 파일들을 만들면 \`git diff\`로 검토 후 커밋한다.`);
-  log.info(`  3) 첫 번째 새 TASK부터 ${cyan(`vibeops task start ${nextId}`)}로 라이프사이클 시작.`);
+  log.info(`  1) Open a new Cursor chat and paste the full contents of ${cyan(relDisplay(cwd, promptAbs))}.`);
+  log.info(`  2) Review the Planner Agent's \`docs/tasks/TASK-NNN-*.md\` files with \`git diff\` and commit.`);
+  log.info(`  3) Start the first new TASK with ${cyan(`vibeops task start ${nextId}`)}.`);
   if (missing.length > 0) {
     log.blank();
     log.info(
-      `${yellow("!")} ${missing.length} input slot(s) are missing on disk. Planner Agent에게 \"missing\"으로 노출되며, 이 라운드에서 보강할지 결정해야 한다.`,
+      `${yellow("!")} ${missing.length} input slot(s) are missing on disk. The Planner Agent will see them as "missing"; decide whether to fill them this round.`,
     );
   }
 }
@@ -258,9 +258,9 @@ async function runScaffold(inputs: RunScaffoldInputs): Promise<void> {
   }
   log.blank();
   log.info(bold("Next steps"));
-  log.info(`  1) 만들어진 TASK 파일들의 비어 있는 섹션을 채운다 (Cursor에서 Planner 또는 Architect Agent로).`);
-  log.info(`  2) 채운 뒤 \`git add docs/tasks/ && git commit\`.`);
-  log.info(`  3) 첫 TASK부터 ${cyan(`vibeops task start ${plan.entries[0]?.id ?? "TASK-???"}`)} 로 진입.`);
+  log.info(`  1) Fill the empty sections of each scaffolded TASK file (in Cursor, via the Planner or Architect Agent).`);
+  log.info(`  2) After filling, run \`git add docs/tasks/ && git commit\`.`);
+  log.info(`  3) Start the first TASK with ${cyan(`vibeops task start ${plan.entries[0]?.id ?? "TASK-???"}`)}.`);
 }
 
 function fallbackPreviewEntry(start: number, phase?: string): ScaffoldEntry {
@@ -272,6 +272,6 @@ function fallbackPreviewEntry(start: number, phase?: string): ScaffoldEntry {
     title: "(scaffolded TASK — fill in)",
     fileName: `${id}-planned-task.md`,
     absPath: `${id}-planned-task.md`,
-    phase: phase ?? "(미정)",
+    phase: phase ?? "(unassigned)",
   };
 }

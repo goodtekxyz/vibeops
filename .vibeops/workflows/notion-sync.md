@@ -22,12 +22,16 @@ Notion은 **사람이 보는 운영판**이다. Source of truth가 아니다.
 
 ```bash
 vibeops notion init
-# .vibeops.env.example을 .vibeops.env로 복사하고 키 입력 안내
-# NOTION_API_KEY, NOTION_PROJECT_DB, NOTION_TASK_DB
+# NOTION_TOKEN 입력을 안내한다 (`.vibeops.env` 가 없으면 새로 만들지 묻고,
+# 있으면 NOTION_TOKEN 라인만 안전하게 교체한다).
+# Projects / Tasks DB 의 target ID 는 환경변수가 아니라
+# `.vibeops.json` 의 `notion.projectsTargetId` / `notion.tasksTargetId` 에 저장된다.
 
 vibeops notion test
 # API 접근 + DB 스키마 검증 (필수 속성: Name / TaskId / Status / Priority / Branch / DocsPath / ResultSummary)
 ```
+
+> Legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` 환경변수는 더 이상 사용하지 않는다. VibeOps 는 `NOTION_TOKEN` 만 읽는다.
 
 ## 사용
 

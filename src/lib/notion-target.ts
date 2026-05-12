@@ -186,9 +186,6 @@ const HINT_NO_DATA_SOURCE =
   "be connected to the parent page only — open the database as a full page " +
   "in Notion and add the VibeOps integration directly via its " +
   "'⋯ → Connections' menu. " +
-  "(KR: database 응답에 data_sources 가 없습니다. integration 이 부모 page 까지만 " +
-  "공유돼 있을 가능성이 큽니다. Notion 에서 해당 database 를 전체 페이지로 열어 " +
-  "'Connections → VibeOps' 로 직접 공유해 주세요.) " +
   HINT_DEBUG_SHAPE;
 
 const HINT_NO_PROPERTIES =
@@ -196,8 +193,6 @@ const HINT_NO_PROPERTIES =
   "This usually means the integration has access to the database shell " +
   "but not the underlying data_source. Open the data source and add the " +
   "VibeOps integration to it. " +
-  "(KR: data_source 까지 도달했지만 properties 가 비어 있다. integration 이 " +
-  "database 셸에만 접근하고 data_source 권한이 없을 가능성이 큽니다.) " +
   HINT_DEBUG_SHAPE;
 
 /**

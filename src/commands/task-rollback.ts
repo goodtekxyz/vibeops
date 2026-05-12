@@ -58,11 +58,11 @@ function strategyCommands(strategy: RollbackStrategy, ctx: GitContext): string[]
 function strategyRisk(strategy: RollbackStrategy): string {
   switch (strategy) {
     case "branch-delete":
-      return "task branch가 사라진다. 머지되지 않은 변경도 함께 사라진다.";
+      return "The task branch will be deleted along with any unmerged changes on it.";
     case "reset-base":
-      return "현재 브랜치를 base commit으로 hard reset. 커밋되지 않은 / 푸시되지 않은 변경 사라짐.";
+      return "Hard-reset the current branch to the base commit. Uncommitted and unpushed changes will be lost.";
     case "revert-merge":
-      return "이미 머지·푸시된 경우용. 새 revert 커밋이 쌓이고 원본 히스토리는 남는다. force-push는 하지 않는다.";
+      return "For already-merged-and-pushed work: adds new revert commits while keeping history. VibeOps never force-pushes.";
   }
 }
 
@@ -151,15 +151,15 @@ export async function taskRollbackCommand(
 
   if (strategy === "revert-merge") {
     log.info(
-      `${yellow("!")} ${bold("revert-merge")}는 자동 실행 대상이 아니다. 위 명령을 사람이 직접 실행하라. ` +
-        `(force-push는 어떤 옵션 조합으로도 발생하지 않는다.)`,
+      `${yellow("!")} ${bold("revert-merge")} is never executed automatically. Run the commands above manually. ` +
+        `(VibeOps never force-pushes, regardless of flag combination.)`,
     );
     return;
   }
 
   if (isDestructive(strategy) && options.confirmDestructive !== true) {
     log.error(
-      `${strategy}는 파괴적 작업이다. --confirm 만으로는 실행할 수 없다. --confirm-destructive 가 필요하다.`,
+      `${strategy} is a destructive operation. --confirm alone is not enough; pass --confirm-destructive to proceed.`,
     );
     process.exitCode = 1;
     return;

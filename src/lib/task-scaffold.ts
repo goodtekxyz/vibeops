@@ -35,7 +35,7 @@ export async function planScaffoldEntries(
   const startNumber = (await highestTaskNumber(inputs.tasksDir)) + 1;
   const baseSlug = slugify(inputs.slug ?? "planned-task", "planned-task");
   const baseTitle = inputs.title ?? "(scaffolded TASK — fill in)";
-  const phase = inputs.phase ?? "(미정)";
+  const phase = inputs.phase ?? "(unassigned)";
   const entries: ScaffoldEntry[] = [];
   let cursor = startNumber;
   for (let i = 0; i < inputs.count; i++) {
@@ -68,7 +68,7 @@ export async function planScaffoldEntries(
 export function renderScaffoldMarkdown(entry: ScaffoldEntry): string {
   return `# ${entry.id} · ${entry.title}
 
-> 이 파일은 \`vibeops task generate --scaffold\` 가 만든 골격이다. 모든 섹션의 본문을 채우기 전까지 \`vibeops task done\`은 거부된다.
+> This file is a skeleton produced by \`vibeops task generate --scaffold\`. \`vibeops task done\` will refuse to advance the task until every section is filled in.
 
 ## Status
 
@@ -80,25 +80,25 @@ ${entry.phase}
 
 ## Goal
 
-(scaffold — 이 TASK가 끝나면 무엇이 가능해지는지 2 ~ 4문장으로 채워라.)
+(scaffold — describe in 2-4 sentences what becomes possible when this TASK ships.)
 
 ## Background
 
-(scaffold — 왜 지금 이게 필요한지, 어떤 이전 TASK / 결정 위에 올라가는지.)
+(scaffold — why now, which earlier TASKs or decisions this builds on.)
 
 ## Scope
 
-- (scaffold — 다룰 항목 1)
-- (scaffold — 다룰 항목 2)
+- (scaffold — item 1)
+- (scaffold — item 2)
 
 ## Out of Scope
 
-- (scaffold — 명시적으로 빠지는 항목)
+- (scaffold — items intentionally excluded)
 
 ## Acceptance Criteria
 
-1. (scaffold — 검증 가능한 문장 1)
-2. (scaffold — 검증 가능한 문장 2)
+1. (scaffold — verifiable statement 1)
+2. (scaffold — verifiable statement 2)
 
 ## Files to Inspect First
 
@@ -106,8 +106,8 @@ ${entry.phase}
 
 ## Expected Files to Change
 
-- 신규: (scaffold)
-- 갱신: (scaffold)
+- new: (scaffold)
+- update: (scaffold)
 
 ## Risks
 
@@ -119,15 +119,15 @@ ${entry.phase}
 
 ## Rollback Plan
 
-- (scaffold — 브랜치 폐기 또는 별도 절차)
+- (scaffold — branch deletion or another recovery flow)
 
 ## Git Context
 
-(시작 시 \`vibeops task start ${entry.id}\`이 채움)
+(populated by \`vibeops task start ${entry.id}\`)
 
 ## Notion Page
 
-(MVP 4 / TASK-011 \`vibeops notion sync\`가 채움)
+(populated by \`vibeops notion sync\`)
 
 ## Implementation Plan
 
@@ -135,15 +135,15 @@ ${entry.phase}
 
 ## Result
 
-(미수행)
+(not yet)
 
 ## Test Result
 
-(미수행)
+(not yet)
 
 ## Review Notes
 
-(미수행)
+(not yet)
 `;
 }
 

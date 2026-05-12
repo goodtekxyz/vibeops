@@ -77,27 +77,27 @@ export const TASKS_STATUS_REQUIRED_OPTIONS: readonly string[] = [
 ];
 
 export const PROJECTS_DB_PROPERTIES: readonly PropertyRequirement[] = [
-  { name: "Name",          allowedTypes: ["title"],            description: "프로젝트 페이지 제목 (Notion 'Title' 컬럼)" },
-  { name: "Project ID",    allowedTypes: ["rich_text"],        description: ".vibeops.json 의 projectId 와 매칭" },
-  { name: "Status",        allowedTypes: ["status"],           description: "프로젝트 단계 (Notion 'Status' 타입; select 아님)", requiredOptions: PROJECTS_STATUS_REQUIRED_OPTIONS },
-  { name: "Local Path",    allowedTypes: ["rich_text"],        description: "로컬 저장소 경로" },
-  { name: "Git Repo",      allowedTypes: ["rich_text", "url"], description: "원격 저장소 URL (rich_text 또는 url 둘 다 허용)" },
-  { name: "Current Phase", allowedTypes: ["select"],           description: "현재 MVP phase" },
-  { name: "Docs Path",     allowedTypes: ["rich_text"],        description: "docs/project 경로" },
-  { name: "Summary",       allowedTypes: ["rich_text"],        description: "00-overview.md 요약" },
+  { name: "Name",          allowedTypes: ["title"],            description: "Project page title (Notion 'Title' column)" },
+  { name: "Project ID",    allowedTypes: ["rich_text"],        description: "Matches .vibeops.json projectId" },
+  { name: "Status",        allowedTypes: ["status"],           description: "Project status (Notion 'Status' type; not select)", requiredOptions: PROJECTS_STATUS_REQUIRED_OPTIONS },
+  { name: "Local Path",    allowedTypes: ["rich_text"],        description: "Local repository path" },
+  { name: "Git Repo",      allowedTypes: ["rich_text", "url"], description: "Remote repository URL (rich_text or url allowed)" },
+  { name: "Current Phase", allowedTypes: ["select"],           description: "Current phase label" },
+  { name: "Docs Path",     allowedTypes: ["rich_text"],        description: "docs/project path" },
+  { name: "Summary",       allowedTypes: ["rich_text"],        description: "Summary of 00-overview.md" },
 ];
 
 export const TASKS_DB_PROPERTIES: readonly PropertyRequirement[] = [
-  { name: "Name",            allowedTypes: ["title"],     description: "TASK 페이지 제목" },
+  { name: "Name",            allowedTypes: ["title"],     description: "TASK page title" },
   { name: "Task ID",         allowedTypes: ["rich_text"], description: "TASK-NNN" },
-  { name: "Project ID",      allowedTypes: ["rich_text"], description: "어떤 프로젝트의 TASK 인가" },
-  { name: "Status",          allowedTypes: ["status"],    description: "Planned / In Progress / Review / Done / Blocked (Notion 'Status' 타입)", requiredOptions: TASKS_STATUS_REQUIRED_OPTIONS },
-  { name: "Priority",        allowedTypes: ["select"],    description: "P0 / P1 / P2 등" },
-  { name: "MVP Phase",       allowedTypes: ["select"],    description: "MVP 1 / MVP 2 / …" },
+  { name: "Project ID",      allowedTypes: ["rich_text"], description: "Owning project id" },
+  { name: "Status",          allowedTypes: ["status"],    description: "Planned / In Progress / Review / Done / Blocked (Notion 'Status' type)", requiredOptions: TASKS_STATUS_REQUIRED_OPTIONS },
+  { name: "Priority",        allowedTypes: ["select"],    description: "P0 / P1 / P2 / …" },
+  { name: "MVP Phase",       allowedTypes: ["select"],    description: "Phase label (free-form select; compatibility name)" },
   { name: "Git Branch",      allowedTypes: ["rich_text"], description: "task/TASK-NNN-slug" },
   { name: "Docs Path",       allowedTypes: ["rich_text"], description: "docs/tasks/TASK-NNN-*.md" },
-  { name: "Summary",         allowedTypes: ["rich_text"], description: "TASK Goal 요약" },
-  { name: "Result Summary",  allowedTypes: ["rich_text"], description: "TASK Result 섹션 요약 (Review/Done 시)" },
+  { name: "Summary",         allowedTypes: ["rich_text"], description: "TASK Goal summary" },
+  { name: "Result Summary",  allowedTypes: ["rich_text"], description: "TASK Result summary (set on Review/Done)" },
 ];
 
 export interface NotionPropertyShape {
@@ -161,9 +161,7 @@ export const MISSING_PROPERTIES_HINT =
   "This may happen if the selected ID is not a database/data source ID, " +
   "or the integration does not have access to the database itself. " +
   "Open the database as a full page and share it with the VibeOps integration, " +
-  "then run `vibeops notion test`. " +
-  "(KR: Notion DB 속성을 읽을 수 없습니다. 선택한 ID가 database/data_source ID가 " +
-  "아니거나 integration 이 DB 자체에 접근 권한이 없을 수 있습니다.)";
+  "then run `vibeops notion test`.";
 
 /**
  * Best-effort extraction of a Notion `properties` map from a value that may be:

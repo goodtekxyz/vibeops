@@ -144,7 +144,7 @@ export async function taskPullCommand(
     const apiErr = notionApiError(err);
     report.errors.push({
       reason: "sdk-load",
-      message: `@notionhq/client 로드 실패 — ${apiErr.message}`,
+      message: `Failed to load @notionhq/client — ${apiErr.message}`,
       details: apiErr,
     });
     return finalize(report, wantJson, verbose);
@@ -166,7 +166,7 @@ export async function taskPullCommand(
   if (violations.length > 0) {
     report.errors.push({
       reason: "schema",
-      message: `Notion DB 스키마가 VibeOps 요구사항과 다르다 (${violations.length} 위반). \`vibeops notion test\` 로 자세히 확인.`,
+      message: `Notion DB schema does not match VibeOps requirements (${violations.length} violation${violations.length === 1 ? "" : "s"}). Inspect details with \`vibeops notion test\`.`,
       details: violations,
     });
     return finalize(report, wantJson, verbose);
@@ -254,18 +254,18 @@ function explainNotionError(err: NotionApiError): string {
   const tail = err.status ? ` (HTTP ${err.status})` : "";
   switch (err.code) {
     case "unauthorized":
-      return `NOTION_TOKEN 이 거부됐다. integration 만료/오타 확인.${tail}`;
+      return `NOTION_TOKEN was rejected. Verify the integration is not expired and the value is correct.${tail}`;
     case "restricted_resource":
-      return `Notion DB 가 integration 에 공유되지 않았다. Notion DB → Connections 에 integration 추가.${tail}`;
+      return `The Notion DB is not shared with the integration. Add it via Notion DB → Connections.${tail}`;
     case "object_not_found":
-      return `Notion 리소스를 찾지 못했다. database id / page id 확인.${tail}`;
+      return `Notion resource not found. Verify the database id / page id.${tail}`;
     case "validation_error":
-      return `요청 거부 (validation_error): ${err.message}${tail}`;
+      return `Request rejected (validation_error): ${err.message}${tail}`;
     case "rate_limited":
-      return `Notion API rate limit — 잠시 후 다시 시도.${tail}`;
+      return `Notion API rate limit — retry shortly.${tail}`;
     case "request_timeout":
     case "ETIMEDOUT":
-      return `Notion API 5s timeout. 네트워크 상태 확인.${tail}`;
+      return `Notion API 5s timeout. Check your network.${tail}`;
     default:
       return `${err.code}: ${err.message}${tail}`;
   }
@@ -350,21 +350,21 @@ function finalize(report: PullReport, wantJson: boolean, verbose: boolean): void
   }
 
   if (report.dryRun) {
-    log.info(yellow("  dry-run — 파일/Notion 변경은 없었다."));
+    log.info(yellow("  dry-run — no file or Notion mutation performed."));
   }
 
   if (report.ok && report.errors.length === 0) {
     log.ok(
       report.dryRun
-        ? "pull plan OK — 실제 적용은 --dry-run 없이 다시 실행."
-        : `task pull 완료 — ${report.entries.filter((e) => e.created).length} 파일 생성.`,
+        ? "Pull plan OK — re-run without --dry-run to apply."
+        : `task pull complete — ${report.entries.filter((e) => e.created).length} file(s) created.`,
     );
     process.exitCode = 0;
   } else if (report.ok) {
-    log.warn("일부 항목은 skip 됐다.");
+    log.warn("Some rows were skipped.");
     process.exitCode = 0;
   } else {
-    log.error("task pull 실패 — 위 에러 확인.");
+    log.error("task pull failed — see errors above.");
     process.exitCode = 1;
   }
 }

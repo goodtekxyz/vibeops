@@ -83,7 +83,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       dryRun
         ? "dry-run (no file writes)"
         : interactive
-          ? "interactive (방향키 · Enter — y/n 타이핑 안 함)"
+          ? "interactive (arrow keys + Enter, no y/n typing)"
           : "non-interactive (flags only)"
     }`,
   );
@@ -91,7 +91,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
 
   if (!(await pathExists(paths.config))) {
     log.error(
-      `.vibeops.json 이 없습니다. 먼저 ${cyan("vibeops init")} 를 실행해 VibeOps 운영 구조를 설치하세요.`,
+      `.vibeops.json is missing. Run ${cyan("vibeops init")} first to install the VibeOps workflow files.`,
     );
     log.info(dim(`  expected at: ${relDisplay(cwd, paths.config)}`));
     process.exitCode = 1;
@@ -101,7 +101,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
   const config = await readConfig(paths.root);
   if (config === null) {
     log.error(
-      `.vibeops.json 을 읽지 못했습니다(스키마 불일치 또는 JSON 파싱 실패). 파일을 확인하거나 ${cyan("vibeops init")} 로 다시 생성하세요.`,
+      `Failed to read .vibeops.json (schema mismatch or invalid JSON). Inspect the file, or re-run ${cyan("vibeops init")} to recreate it.`,
     );
     process.exitCode = 1;
     return;
@@ -146,7 +146,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
     if (options.enable !== true) {
       enabled = await askYesNo({
         message:
-          "Use Notion dashboard sync?  (Notion 을 human dashboard 로 쓰기 — Git docs/tasks 가 여전히 source of truth)",
+          "Use Notion dashboard sync?  (Notion as a human dashboard — Git docs/tasks remains the source of truth)",
         nonInteractive: false,
         defaultValue: currentNotion.enabled,
       });
@@ -160,7 +160,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       log.blank();
       log.info(
         dim(
-          "  NOTION_TOKEN 은 Notion integration secret 이다. VibeOps 는 token 값을 stdout 에 노출하지 않고, .vibeops.env (gitignored) 에만 저장한다.",
+          "  NOTION_TOKEN is a Notion integration secret. VibeOps never prints the token value and only writes it to .vibeops.env (gitignored).",
         ),
       );
       const envSnap = await inspectEnvFile(cwd);
@@ -169,8 +169,8 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
         envSnap.exists && envSnap.currentToken !== null && envSnap.currentToken.length > 0;
       const pasteNow = await askYesNo({
         message: envHadToken
-          ? "Paste NOTION_TOKEN now?  (.vibeops.env 에 이미 token 이 있다 — Yes 를 누르면 다음 질문에서 덮어쓸지 묻는다)"
-          : "Paste NOTION_TOKEN now?  (Yes → 입력값을 .vibeops.env 에 저장 · No → 나중에 직접 편집)",
+          ? "Paste NOTION_TOKEN now?  (.vibeops.env already has a token — Yes will ask whether to overwrite next)"
+          : "Paste NOTION_TOKEN now?  (Yes → save into .vibeops.env · No → edit the file manually later)",
         nonInteractive: false,
         defaultValue: false,
       });
@@ -179,7 +179,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
         if (envHadToken) {
           // ── Q3. Overwrite or update existing NOTION_TOKEN? ───────────────
           const overwrite = await askYesNo({
-            message: `Overwrite existing NOTION_TOKEN?  (현재 값: ${maskToken(
+            message: `Overwrite existing NOTION_TOKEN?  (current: ${maskToken(
               envSnap.currentToken!,
             )})`,
             nonInteractive: false,
@@ -191,11 +191,11 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
         if (go) {
           const entered = await password({
             message:
-              "NOTION_TOKEN 입력  (입력값은 화면에 표시되지 않음 · 'secret_…' 또는 'ntn_…' 으로 시작)",
+              "Enter NOTION_TOKEN  (input is hidden, starts with 'secret_…' or 'ntn_…')",
             mask: "*",
             validate: (v: string) =>
               v.trim().length === 0
-                ? "비어 있다. Notion → Settings → Integrations 에서 secret 을 복사하라."
+                ? "Empty. Copy the secret from Notion → Settings → Integrations."
                 : true,
           });
           tokenToWrite = entered.trim();
@@ -227,7 +227,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       if ((needProjects || needTasks) && effectiveToken !== null) {
         const wantSearch = await askYesNo({
           message:
-            "Search accessible Notion databases now?  (Yes → /v1/search 호출 후 select 로 고른다 · No → 32-char id 를 직접 입력)",
+            "Search accessible Notion databases now?  (Yes → call /v1/search and pick from the list · No → enter the 32-char id manually)",
           nonInteractive: false,
           defaultValue: true,
         });
@@ -259,7 +259,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       } else if ((needProjects || needTasks) && effectiveToken === null) {
         log.info(
           dim(
-            "  Notion token 이 없어 DB search 를 건너뛴다. 32-char id 를 직접 입력해라(빈 값으로 두면 나중에 채울 수 있다).",
+            "  No Notion token available — skipping DB search. Enter the 32-char id manually (or leave empty to fill in later).",
           ),
         );
       }
@@ -272,7 +272,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       ) {
         const ans = await askInput({
           message:
-            "Projects data source ID  (fallback: 직접 복사한 data_source id, 빈 값이면 나중에 설정)",
+            "Projects data source ID  (fallback: paste a data_source id, leave empty to fill later)",
           nonInteractive: false,
           default: projectsTarget.length > 0 ? projectsTarget : undefined,
         });
@@ -288,7 +288,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       ) {
         const ans = await askInput({
           message:
-            "Tasks data source ID  (fallback: 직접 복사한 data_source id, 빈 값이면 나중에 설정)",
+            "Tasks data source ID  (fallback: paste a data_source id, leave empty to fill later)",
           nonInteractive: false,
           default: tasksTarget.length > 0 ? tasksTarget : undefined,
         });
@@ -307,18 +307,18 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
       ) {
         const proceed = await askYesNo({
           message:
-            "Continue without database IDs?  (No → 명령을 취소하고 DB 만든 뒤 다시 실행. Yes → 일단 enabled=true 만 켜두고 ID 는 나중에 채움)",
+            "Continue without database IDs?  (No → cancel, create the DBs, and re-run. Yes → enable now and fill in the IDs later)",
           nonInteractive: false,
           defaultValue: false,
         });
         if (!proceed) {
           log.blank();
           log.info(
-            `${yellow("!")} 취소했다. Notion 에서 Projects/Tasks DB 를 만들고 32-char id 를 복사한 뒤 다시 ${cyan(
+            `${yellow("!")} Cancelled. Create the Projects/Tasks DBs in Notion, copy the 32-char ids, then re-run ${cyan(
               "vibeops notion init",
-            )} 또는 ${cyan(
+            )} or ${cyan(
               "vibeops notion init --projects-db <id> --tasks-db <id>",
-            )} 를 실행하라.`,
+            )}.`,
           );
           process.exitCode = 0;
           return;
@@ -327,7 +327,7 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
     } else {
       log.info(
         dim(
-          "  notion.enabled = false 로 결정 — DB id / NOTION_TOKEN 질문은 건너뛴다.",
+          "  notion.enabled = false — skipping DB id and NOTION_TOKEN prompts.",
         ),
       );
     }
@@ -362,19 +362,19 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
   if (interactive && tokenToWrite !== null) {
     log.info(bold("Plan: .vibeops.env  (local secret · NEVER COMMITTED)"));
     if (envHadToken && willOverwriteToken) {
-      log.info(`  ${green("~")} ${cyan("NOTION_TOKEN=")} 덮어쓰기 (${maskToken(tokenToWrite)})`);
+      log.info(`  ${green("~")} overwrite ${cyan("NOTION_TOKEN=")} (${maskToken(tokenToWrite)})`);
     } else if (envSnapshotKnown && (await pathExists(paths.envExample)) === false) {
       log.info(`  ${green("+")} create .vibeops.env with ${cyan("NOTION_TOKEN=")} (${maskToken(tokenToWrite)})`);
     } else {
-      log.info(`  ${green("+")} write ${cyan("NOTION_TOKEN=")} 라인 (${maskToken(tokenToWrite)})`);
+      log.info(`  ${green("+")} write ${cyan("NOTION_TOKEN=")} line (${maskToken(tokenToWrite)})`);
     }
     log.blank();
   }
 
-  log.info(bold("Required Notion DB schema (Notion 에서 사람이 직접 만든다)"));
+  log.info(bold("Required Notion DB schema (create manually in Notion)"));
   log.info(
     dim(
-      "  VibeOps 는 Notion DB 를 자동 생성하지 않는다. 아래 속성을 그대로 만든 뒤 integration 에 공유해야 한다.",
+      "  VibeOps never creates Notion databases. Create the properties below by hand, then share the DBs with the integration.",
     ),
   );
   log.blank();
@@ -383,19 +383,19 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
   renderRequiredProps("Tasks DB", TASKS_DB_PROPERTIES);
   log.blank();
 
-  log.info(bold("보안"));
-  log.info(`  ${dim("·")} ${cyan("NOTION_TOKEN")} 의 원본 값은 stdout 에 절대 노출하지 않는다 (interactive 입력은 password 마스킹).`);
-  log.info(`  ${dim("·")} ${cyan(".vibeops.env")} 는 ${cyan(".gitignore")} 대상 — 절대 커밋하지 마라.`);
-  log.info(`  ${dim("·")} interactive 흐름에서 ${cyan("Paste NOTION_TOKEN now? Yes")} 를 선택했을 때만 ${cyan(".vibeops.env")} 가 만들어진다.`);
+  log.info(bold("Security"));
+  log.info(`  ${dim("·")} The raw ${cyan("NOTION_TOKEN")} value is never printed to stdout (interactive input is password-masked).`);
+  log.info(`  ${dim("·")} ${cyan(".vibeops.env")} is gitignored — never commit it.`);
+  log.info(`  ${dim("·")} ${cyan(".vibeops.env")} is only created when you answer ${cyan("Paste NOTION_TOKEN now? Yes")} in the interactive flow.`);
   log.blank();
 
   if (dryRun) {
     log.info(dim("dry-run — no files were written."));
     log.blank();
     log.info(bold("Next steps"));
-    log.info(`  1) Notion 에서 Projects / Tasks DB 를 만들고 integration 에 공유한다.`);
-    log.info(`  2) ${cyan("vibeops notion init")} 를 다시 실행해 대화형으로 채우거나, ${cyan("--enable --projects-db <id> --tasks-db <id>")} 로 한 줄에 끝낸다.`);
-    log.info(`  3) ${cyan("vibeops notion test")} 로 검증.`);
+    log.info(`  1) Create the Projects / Tasks DBs in Notion and share them with the integration.`);
+    log.info(`  2) Re-run ${cyan("vibeops notion init")} interactively, or supply ${cyan("--enable --projects-db <id> --tasks-db <id>")} in one line.`);
+    log.info(`  3) Validate with ${cyan("vibeops notion test")}.`);
     return;
   }
 
@@ -422,23 +422,23 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
     } else {
       log.ok(`appended .vibeops.env  ${dim("(NOTION_TOKEN added · masked)")}`);
     }
-    log.info(dim("         token 값은 stdout 에 표시되지 않는다."));
+    log.info(dim("         The token value is never displayed on stdout."));
   }
 
   log.blank();
   log.info(bold("Next steps"));
-  log.info(`  1) Notion 에서 위 Projects / Tasks DB 속성을 만든다.`);
-  log.info(`  2) DB 페이지 우측 상단 ⋯ → ${cyan("Connections")} 로 integration 에 공유.`);
+  log.info(`  1) Create the Projects / Tasks DB properties listed above in Notion.`);
+  log.info(`  2) Share the DBs with the integration via the page ⋯ menu → ${cyan("Connections")}.`);
   if (!interactive || tokenToWrite === null) {
-    log.info(`  3) 로컬에 ${cyan(".vibeops.env")} 파일을 만들고 ${cyan("NOTION_TOKEN=secret_…")} 을 넣는다.`);
-    log.info(`     ${dim(".vibeops.env 는 .gitignore 대상 — 절대 커밋하지 마라.")}`);
+    log.info(`  3) Create a local ${cyan(".vibeops.env")} with ${cyan("NOTION_TOKEN=secret_…")}.`);
+    log.info(`     ${dim(".vibeops.env is gitignored — never commit it.")}`);
   } else {
-    log.info(`  3) ${dim(".vibeops.env 는 .gitignore 대상 — 절대 커밋하지 마라.")}`);
+    log.info(`  3) ${dim(".vibeops.env is gitignored — never commit it.")}`);
   }
   if (!merged.notion!.enabled) {
-    log.info(`  4) 준비되면 ${cyan("vibeops notion init --enable")} 로 켜고, ${cyan("vibeops notion test")} 로 검증.`);
+    log.info(`  4) When ready, enable with ${cyan("vibeops notion init --enable")} and validate with ${cyan("vibeops notion test")}.`);
   } else {
-    log.info(`  4) ${cyan("vibeops notion test")} 로 검증.`);
+    log.info(`  4) Validate with ${cyan("vibeops notion test")}.`);
   }
   if (
     merged.notion!.enabled &&
@@ -447,11 +447,11 @@ export async function notionInitCommand(options: NotionInitOptions = {}): Promis
   ) {
     log.blank();
     log.info(
-      `${yellow("!")} notion.enabled = true 이지만 ${
+      `${yellow("!")} notion.enabled = true but ${
         effectiveProjectsTarget(merged.notion!).length === 0 ? "projectsTargetId/projectsDatabaseId " : ""
       }${
         effectiveTasksTarget(merged.notion!).length === 0 ? "tasksTargetId/tasksDatabaseId " : ""
-      }가 비어 있다. ${cyan("vibeops notion init --projects-db <id> --tasks-db <id>")} 로 채우세요.`,
+      }is empty. Fill it in with ${cyan("vibeops notion init --projects-db <id> --tasks-db <id>")}.`,
     );
   }
 }
@@ -502,16 +502,16 @@ interface PickInputs {
 }
 
 async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> {
-  log.info(dim("  → Notion /v1/search 호출 (read-only, 5s timeout, page_size ≤ 50)…"));
+  log.info(dim("  → Calling Notion /v1/search (read-only, 5s timeout, page_size ≤ 50)…"));
   let client: NotionClient;
   try {
     client = await createNotionClient(inputs.token);
   } catch (err) {
     const apiErr = sanitiseApiError(err);
-    log.warn(`@notionhq/client 로드 실패 — ${apiErr.message}`);
+    log.warn(`Failed to load @notionhq/client — ${apiErr.message}`);
     log.info(
       dim(
-        "  search 를 건너뛴다. 32-char id 를 직접 입력해라 (또는 나중에 `vibeops notion init --projects-db <id> --tasks-db <id>` 로 채워라).",
+        "  Skipping search. Enter the 32-char id manually (or fill it in later with `vibeops notion init --projects-db <id> --tasks-db <id>`).",
       ),
     );
     return {
@@ -534,11 +534,11 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     pagesTruncated = combined.pagesTruncated;
     if (combined.dataSourceErrored) {
       log.warn(
-        "Notion 이 object filter \"data_source\" 를 거부했다 — 호환 모드로 진행한다.",
+        "Notion rejected the \"data_source\" object filter — continuing in compatibility mode.",
       );
       log.info(
         dim(
-          "  (Internal: current Notion API expects search filter \"data_source\"; SDK 버전이 오래됐을 수 있다.)",
+          "  (Internal: current Notion API expects search filter \"data_source\"; the @notionhq/client SDK may be outdated.)",
         ),
       );
     }
@@ -547,10 +547,10 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     }
   } catch (err) {
     const apiErr = sanitiseApiError(err);
-    log.warn(`Notion search 실패 — ${explainSearchError(apiErr)}`);
+    log.warn(`Notion search failed — ${explainSearchError(apiErr)}`);
     log.info(
       dim(
-        "  search 를 건너뛴다. 32-char id 를 직접 입력해라 (또는 나중에 다시 실행).",
+        "  Skipping search. Enter the 32-char id manually (or re-run later).",
       ),
     );
     return {
@@ -586,7 +586,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     if (pages.length === 0) {
       log.info(
         dim(
-          "  · 접근 가능한 page 도 없다 — 32-char id 직접 입력으로 진행.",
+          "  · No accessible pages either — falling back to manual 32-char id input.",
         ),
       );
       return {
@@ -598,7 +598,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     }
     log.info(
       dim(
-        `  · ${pages.length} page${pages.length === 1 ? "" : "s"} accessible — 부모 페이지를 골라 1-depth 블록을 스캔한다 (cap ${NOTION_PAGE_SCAN_MAX_BLOCKS} blocks)${
+        `  · ${pages.length} page${pages.length === 1 ? "" : "s"} accessible — pick a parent page to scan its 1-depth blocks (cap ${NOTION_PAGE_SCAN_MAX_BLOCKS} blocks)${
           pagesTruncated ? ` (capped at ${NOTION_DISCOVERY_MAX} pages — Notion has more)` : ""
         }`,
       ),
@@ -610,7 +610,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     if (inlineCandidates.length === 0) {
       log.info(
         dim(
-          "  · 선택한 page 에서 inline database 를 못 찾았다 — 32-char id 직접 입력으로 진행.",
+          "  · No inline databases found in the selected page — falling back to manual 32-char id input.",
         ),
       );
       return {
@@ -623,7 +623,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
     candidates = inlineCandidates;
     log.info(
       dim(
-        `  · ${inlineCandidates.length} inline database${inlineCandidates.length === 1 ? "" : "s"} 후보 발견.`,
+        `  · Found ${inlineCandidates.length} inline database candidate${inlineCandidates.length === 1 ? "" : "s"}.`,
       ),
     );
   }
@@ -646,7 +646,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
       if (pick.databaseId !== null) picks.projectsDatabase = pick.databaseId;
     }
   } else {
-    log.info(dim("  · Projects DB는 이미 설정돼 있어 선택을 건너뛴다."));
+    log.info(dim("  · Projects DB is already configured — skipping selection."));
   }
   if (inputs.needTasks) {
     const pick = await pickOneDatabase({
@@ -660,7 +660,7 @@ async function pickDatabasesViaSearch(inputs: PickInputs): Promise<SearchPicks> 
       if (pick.databaseId !== null) picks.tasksDatabase = pick.databaseId;
     }
   } else {
-    log.info(dim("  · Tasks DB는 이미 설정돼 있어 선택을 건너뛴다."));
+    log.info(dim("  · Tasks DB is already configured — skipping selection."));
   }
   return picks;
 }
@@ -687,7 +687,7 @@ async function pickPageAndScanForInlineDatabases(
     value: p.id,
   }));
   choices.push({
-    name: "Skip page scan — 32-char id 직접 입력으로 진행",
+    name: "Skip page scan — fall back to manual 32-char id input",
     value: SCAN_SKIP_VALUE,
   });
   const picked = await select<string>({
@@ -717,7 +717,7 @@ async function pickPageAndScanForInlineDatabases(
     return inline;
   } catch (err) {
     const apiErr = sanitiseApiError(err);
-    log.warn(`page scan 실패 — ${explainSearchError(apiErr)}`);
+    log.warn(`Page scan failed — ${explainSearchError(apiErr)}`);
     return [];
   }
 }
@@ -757,7 +757,7 @@ async function pickOneDatabase(inputs: PickOneInputs): Promise<PickedTarget | nu
       : recommendedIds[0] ?? ordered[0]?.id ?? MANUAL_VALUE;
 
   const picked = await select<string>({
-    message: `Select ${label}  (방향키 · Enter — 추천: ${recommendedIds.length} 개)`,
+    message: `Select ${label}  (arrow keys + Enter — recommended: ${recommendedIds.length})`,
     choices,
     default: defaultValue,
     loop: false,
@@ -765,7 +765,7 @@ async function pickOneDatabase(inputs: PickOneInputs): Promise<PickedTarget | nu
   });
 
   if (picked === SKIP_VALUE) {
-    log.info(dim(`  · ${label} 선택 skip — 기존 값 유지 (${inputs.current.length > 0 ? maskId(inputs.current) : "(empty)"})`));
+    log.info(dim(`  · ${label} skipped — keeping existing value (${inputs.current.length > 0 ? maskId(inputs.current) : "(empty)"})`));
     return null;
   }
   if (picked === MANUAL_VALUE) {
@@ -775,7 +775,7 @@ async function pickOneDatabase(inputs: PickOneInputs): Promise<PickedTarget | nu
       default: inputs.current.length > 0 ? inputs.current : undefined,
     });
     if (ans.length === 0) {
-      log.info(dim(`  · ${label} 비어 있는 입력 — 기존 값 유지`));
+      log.info(dim(`  · ${label} empty input — keeping existing value`));
       return null;
     }
     await softValidateSchema(inputs.client, ans, inputs.kind);
@@ -806,7 +806,7 @@ function renderImmediateSchemaCheck(
   if (score.total === 0) {
     log.info(
       dim(
-        `      · ${kind} schema 검사를 위한 properties 정보가 search 응답에 없다 — 'notion test' 로 다시 검증.`,
+        `      · No properties in the search response to verify ${kind} schema — re-validate with 'notion test'.`,
       ),
     );
     return;
@@ -830,7 +830,7 @@ function renderImmediateSchemaCheck(
     }
   }
   log.warn(
-    `${kind} schema 일부 누락 (${score.matched}/${score.total} matched, ${score.missing} missing, ${score.typeMismatch} mismatch) — 'notion test' 가 엄격하게 검증한다. 그래도 저장은 허용.`,
+    `${kind} schema partial (${score.matched}/${score.total} matched, ${score.missing} missing, ${score.typeMismatch} mismatch) — 'notion test' will validate strictly. Saving anyway.`,
   );
   if (missing.length > 0) {
     log.info(`      ${dim("missing:")} ${missing.map((s) => red(s)).join(", ")}`);
@@ -854,8 +854,8 @@ async function softValidateSchema(
 ): Promise<void> {
   const resolved = await resolveNotionDataSourceTarget(client, id, kind);
   if (!resolved.ok) {
-    log.warn(`${kind} DB 즉시 검증 실패 — ${resolved.message}`);
-    log.info(dim("      'notion test' 로 자세히 확인."));
+    log.warn(`${kind} DB inline validation failed — ${resolved.message}`);
+    log.info(dim("      Inspect with 'notion test'."));
     return;
   }
   if (resolved.source === "database-default-data-source") {
@@ -886,7 +886,7 @@ async function softValidateSchema(
     return;
   }
   log.warn(
-    `${kind} schema 일부 누락 (${matched}/${required.length} matched, ${missing.length} missing, ${mismatched.length} mismatch) — 'notion test' 로 정확히 검증.`,
+    `${kind} schema partial (${matched}/${required.length} matched, ${missing.length} missing, ${mismatched.length} mismatch) — validate precisely with 'notion test'.`,
   );
   if (missing.length > 0) {
     log.info(`      ${dim("missing:")} ${missing.map((s) => red(s)).join(", ")}`);
@@ -914,11 +914,11 @@ function explainSearchError(err: NotionApiError): string {
   const tail = err.status ? ` (HTTP ${err.status})` : "";
   switch (err.code) {
     case "unauthorized":
-      return `NOTION_TOKEN 이 거부됐다. integration secret 을 확인하라.${tail}`;
+      return `NOTION_TOKEN was rejected. Verify the integration secret.${tail}`;
     case "restricted_resource":
-      return `Notion DB 가 integration 에 공유되지 않았다 — DB → Connections 에 추가하라.${tail}`;
+      return `The Notion DB is not shared with the integration — add it via DB → Connections.${tail}`;
     case "object_not_found":
-      return `Notion 리소스를 찾지 못했다. 32-char id 가 올바른지 확인.${tail}`;
+      return `Notion resource not found. Verify the 32-char id.${tail}`;
     case "validation_error": {
       const msg = err.message ?? "";
       if (
@@ -926,20 +926,20 @@ function explainSearchError(err: NotionApiError): string {
         /data_source/i.test(msg)
       ) {
         return (
-          `요청 거부 (validation_error)${tail}. ` +
-          "현재 Notion API 에서는 search object filter 로 \"data_source\" 만 허용한다. " +
-          "VibeOps 가 이미 그렇게 호출하는데도 거부됐다면 @notionhq/client 가 오래됐을 수 있다. " +
-          "임시로 DB id 를 32-char hex 로 직접 입력하면 같은 동작을 얻을 수 있다."
+          `Request rejected (validation_error)${tail}. ` +
+          "The current Notion API only accepts \"data_source\" as the search object filter. " +
+          "If VibeOps already sends that filter and Notion still rejects it, the @notionhq/client SDK may be outdated. " +
+          "Workaround: enter the DB id (32-char hex) manually to get the same behavior."
         );
       }
-      return `요청 거부 (validation_error): ${msg}${tail}`;
+      return `Request rejected (validation_error): ${msg}${tail}`;
     }
     case "rate_limited":
-      return `Notion API rate limit — 잠시 후 다시 시도.${tail}`;
+      return `Notion API rate limit — retry shortly.${tail}`;
     case "request_timeout":
     case "notionhq_client_request_timeout":
     case "ETIMEDOUT":
-      return `Notion API 5s timeout. 네트워크 상태를 확인하라.${tail}`;
+      return `Notion API 5s timeout. Check your network.${tail}`;
     default:
       return `${err.code}: ${err.message}${tail}`;
   }

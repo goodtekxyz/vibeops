@@ -37,14 +37,24 @@ export interface InstallReport {
 }
 
 function envExampleContents(): string {
+  // Modern VibeOps reads exactly one Notion secret: NOTION_TOKEN.
+  // Notion Projects / Tasks target IDs live in `.vibeops.json` under
+  // `notion.projectsTargetId` / `notion.tasksTargetId` (configured by
+  // `vibeops notion init`), so they are NOT environment variables.
+  //
+  // We intentionally do NOT seed GITHUB_TOKEN / OPENAI_* here:
+  //   - GitHub integration uses `gh` CLI auth.
+  //   - VibeOps' default runner is prompt mode and does not call LLM APIs.
   return [
     "# VibeOps · environment example",
-    "# Copy this file to .vibeops.env and fill in the values.",
+    "# Copy this file to .vibeops.env and fill in the value.",
     "# Never commit .vibeops.env — it is added to .gitignore by `vibeops init`.",
+    "#",
+    "# NOTION_TOKEN is the only secret VibeOps reads. Get it from",
+    "# https://www.notion.so/profile/integrations after creating an internal",
+    "# integration and sharing the target databases with it.",
     "",
-    "NOTION_API_KEY=",
-    "NOTION_PROJECT_DB=",
-    "NOTION_TASK_DB=",
+    "NOTION_TOKEN=",
     "",
   ].join("\n");
 }

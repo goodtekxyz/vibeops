@@ -25,27 +25,27 @@ const program = new Command();
 program
   .name("vibeops")
   .description(
-    "VibeOps — Cursor 기반 바이브 코딩을 체계적으로 굴리는 로컬 CLI.\n" +
-      "  새 프로젝트에 문서 · Cursor Rules · AGENTS.md · 에이전트 · TASK 템플릿 · Git/Notion 워크플로를 설치하고,\n" +
-      "  TASK 단위로 작업을 굴린다.",
+    "VibeOps — a local CLI that keeps Cursor-based vibe coding on rails.\n" +
+      "  It installs docs, Cursor rules, AGENTS.md, agents, TASK templates,\n" +
+      "  and Git/Notion workflows into a project, then drives work one TASK at a time.",
   )
-  .version(VERSION, "-v, --version", "VibeOps 버전 출력");
+  .version(VERSION, "-v, --version", "Print the VibeOps version");
 
 program
   .command("init")
-  .description("현재 디렉터리에 VibeOps 운영 구조 설치 (MVP 1)")
-  .option("--dry-run", "실제 파일 변경 없이 무엇이 만들어질지만 표시")
-  .option("--force", "기존 파일을 덮어쓴다 (주의)")
-  .option("--cwd <path>", "다른 디렉터리에 설치")
-  .option("--name <projectName>", ".vibeops.json에 들어갈 프로젝트 이름")
-  .option("--git", "질문 없이 git init + 기본 Git bootstrap 수행")
-  .option("--no-git", "Git 초기화/커밋 작업을 하지 않음")
-  .option("--initial-commit", "git add . + initial commit 수행")
-  .option("--no-initial-commit", "initial commit 생성 안 함")
-  .option("--default-branch <name>", "Git 기본 브랜치 이름 (기본 main)")
+  .description("Install the VibeOps workflow files into the current directory")
+  .option("--dry-run", "Show what would be created without writing any files")
+  .option("--force", "Overwrite existing files (use with care)")
+  .option("--cwd <path>", "Run against a different directory")
+  .option("--name <projectName>", "Project name written into .vibeops.json")
+  .option("--git", "Initialize a Git repository without prompting")
+  .option("--no-git", "Skip Git initialization and commits")
+  .option("--initial-commit", "Run `git add .` and create an initial commit")
+  .option("--no-initial-commit", "Do not create an initial commit")
+  .option("--default-branch <name>", "Default Git branch name (default `main`)")
   .option(
     "--commit-message <message>",
-    "initial commit 메시지 (기본 'chore: initialize vibeops project')",
+    "Initial commit message (default 'chore: initialize vibeops project')",
   )
   .action(
     async (options: {
@@ -64,21 +64,27 @@ program
 
 program
   .command("status")
-  .description("VibeOps 설치 · TASK 현황 · Notion 연결 상태 표시 (MVP 1)")
-  .option("--json", "기계 가독 JSON으로 출력")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description("Show VibeOps installation, TASK counts, and integration state")
+  .option("--json", "Print machine-readable JSON")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(async (options: { json?: boolean; cwd?: string }) => {
     await statusCommand(options);
   });
 
 program
   .command("plan")
-  .description("20개 대화형 질문으로 ProjectBrief + Cursor Planner 프롬프트 생성 (MVP 2)")
-  .option("--idea <text>", "one-line idea의 기본값 (`Name: idea` 형식이면 name도 추출)")
-  .option("--from <path>", "기존 brief markdown을 읽어 prompt 재생성")
-  .option("--output <path>", "Cursor 계획 프롬프트 출력 경로 (기본 .vibeops/generated/plan-prompt.md)")
-  .option("--non-interactive", "질문 없이 주어진 값 + 안전한 placeholder로 생성")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .description("Run 20 interactive questions and produce a ProjectBrief + Cursor planning prompt")
+  .option("--idea <text>", "One-line idea default (use `Name: idea` to extract the project name)")
+  .option("--from <path>", "Read an existing brief markdown and regenerate the prompt")
+  .option(
+    "--output <path>",
+    "Output path for the Cursor planning prompt (default `.vibeops/generated/plan-prompt.md`)",
+  )
+  .option(
+    "--non-interactive",
+    "Skip prompts and use the supplied values plus safe placeholders",
+  )
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: {
       idea?: string;
@@ -93,31 +99,31 @@ program
 
 const agent = program
   .command("agent")
-  .description(".vibeops/agents/* 에이전트 정의 도구 (MVP 1)");
+  .description("Inspect the `.vibeops/agents/*` agent definitions");
 
 agent
   .command("list")
-  .description("에이전트 목록 출력")
-  .option("--json", "기계 가독 JSON으로 출력")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description("List available agents")
+  .option("--json", "Print machine-readable JSON")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(async (options: { json?: boolean; cwd?: string }) => {
     await agentListCommand(options);
   });
 
 agent
   .command("show <name>")
-  .description("에이전트 정의 본문 출력")
-  .option("--raw", "frontmatter 포함 원본 출력")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description("Print an agent definition body")
+  .option("--raw", "Include frontmatter in the output")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(async (name: string, options: { raw?: boolean; cwd?: string }) => {
     await agentShowCommand(name, options);
   });
 
 agent
   .command("prompt <name> <taskId>")
-  .description("에이전트 + TASK 컨텍스트로 Cursor 붙여넣기 프롬프트 출력")
-  .option("--context <path...>", "추가 컨텍스트 파일 경로")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description("Print a Cursor-ready prompt built from the agent + TASK context")
+  .option("--context <path...>", "Additional context file paths")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(
     async (
       name: string,
@@ -128,18 +134,25 @@ agent
     },
   );
 
-const task = program.command("task").description("TASK 라이프사이클 (MVP 2 ~ 4)");
+const task = program
+  .command("task")
+  .description("TASK lifecycle commands");
 
 task
   .command("generate")
-  .description("docs/project 컨텍스트로 Cursor TASK 생성 프롬프트를 만들거나 (--scaffold면) skeleton TASK 파일을 생성 (MVP 2)")
-  .option("--from <path>", "주 입력으로 쓸 backlog/brief markdown 경로")
-  .option("--output <path>", "생성된 프롬프트 저장 경로 (기본 .vibeops/generated/task-generate-prompt.md)")
-  .option("--count <number>", "Cursor에 권장할 TASK 개수 (기본 8, 20 초과면 경고)")
-  .option("--phase <name>", "특정 MVP phase 만 생성 (예: 'MVP 4')")
-  .option("--scaffold", "LLM 없이 VibeOps가 직접 skeleton TASK markdown 파일을 만든다")
-  .option("--dry-run", "파일 생성/수정 없이 계획만 출력")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .description(
+    "Build a Cursor prompt for generating TASK files, or with --scaffold write skeleton TASK markdown",
+  )
+  .option("--from <path>", "Primary backlog/brief markdown to feed into the prompt")
+  .option(
+    "--output <path>",
+    "Output path for the generated prompt (default `.vibeops/generated/task-generate-prompt.md`)",
+  )
+  .option("--count <number>", "Suggested TASK count for Cursor (default 8, warns above 20)")
+  .option("--phase <name>", "Generate TASKs for a specific phase label only (e.g. 'MVP 4')")
+  .option("--scaffold", "Write skeleton TASK markdown files directly, without an LLM")
+  .option("--dry-run", "Print the plan without writing or modifying files")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: {
       from?: string;
@@ -156,11 +169,13 @@ task
 
 task
   .command("start <taskId>")
-  .description("Git clean 확인 + task branch 생성 + Status/Git Context 기록 + Builder 프롬프트 출력 (MVP 3)")
-  .option("--dry-run", "파일·Git 변경 없이 계획만 출력")
-  .option("--allow-dirty", "Git working tree가 dirty여도 진행")
-  .option("--agent <name>", "프롬프트를 만들 에이전트 (기본 builder)")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .description(
+    "Confirm a clean working tree, create the task branch, record Status/Git context, and print a Builder prompt",
+  )
+  .option("--dry-run", "Print the plan without touching files or Git")
+  .option("--allow-dirty", "Proceed even if the Git working tree is dirty")
+  .option("--agent <name>", "Agent to build the prompt with (default `builder`)")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (
       taskId: string,
@@ -172,13 +187,13 @@ task
 
 task
   .command("prompt <taskId>")
-  .description("TASK + 에이전트 컨텍스트로 Cursor 붙여넣기 프롬프트 출력 (MVP 3)")
+  .description("Print a Cursor-ready prompt built from the TASK + agent context")
   .option(
     "--agent <name>",
-    "사용할 에이전트 이름 (orchestrator / planner / architect / builder / reviewer / tester / docs / recovery)",
+    "Agent name (orchestrator / planner / architect / builder / reviewer / tester / docs / recovery)",
   )
-  .option("--context <path...>", "추가 컨텍스트 파일 경로")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .option("--context <path...>", "Additional context file paths")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(
     async (
       taskId: string,
@@ -193,10 +208,12 @@ task
 
 task
   .command("check <taskId>")
-  .description("read-only · git diff/log + AC + 문서 갱신 + Result 확인 + Reviewer 프롬프트 (MVP 3)")
-  .option("--strict", "누락 항목이 있으면 exit code 1")
-  .option("--agent <name>", "프롬프트를 만들 에이전트 (기본 reviewer)")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description(
+    "Read-only check: git diff/log + acceptance criteria + doc updates + Result fields + a Reviewer prompt",
+  )
+  .option("--strict", "Exit with code 1 if any required item is missing")
+  .option("--agent <name>", "Agent to build the prompt with (default `reviewer`)")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(
     async (
       taskId: string,
@@ -208,10 +225,12 @@ task
 
 task
   .command("done <taskId>")
-  .description("Result/Test Result 검증 + Status → Review + 커밋 메시지 안내 (자동 commit 금지) (MVP 3)")
-  .option("--dry-run", "파일 변경 없이 계획만 출력")
-  .option("--finalize", "Review 대신 Done으로 마무리 (사람 검토 후 사용)")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .description(
+    "Validate Result/Test Result, move Status to Review, and print a commit message (no auto-commit)",
+  )
+  .option("--dry-run", "Print the plan without touching files")
+  .option("--finalize", "Move Status to Done instead of Review (use after human review)")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (
       taskId: string,
@@ -223,16 +242,18 @@ task
 
 task
   .command("rollback <taskId>")
-  .description("기본: 안내만. --confirm: 비파괴(branch-delete). --confirm-destructive: hard reset. (MVP 3)")
-  .option("--confirm", "비파괴 rollback 실행 허용 (branch-delete 등)")
-  .option("--confirm-destructive", "파괴적 rollback 실행 허용 (reset --hard 등)")
+  .description(
+    "Default: advisory only. --confirm: non-destructive rollback. --confirm-destructive: hard reset.",
+  )
+  .option("--confirm", "Allow non-destructive rollback execution (branch-delete etc.)")
+  .option("--confirm-destructive", "Allow destructive rollback execution (reset --hard etc.)")
   .option(
     "--strategy <name>",
-    "branch-delete | reset-base | revert-merge (기본 branch-delete)",
+    "branch-delete | reset-base | revert-merge (default branch-delete)",
   )
-  .option("--keep-branch", "branch-delete 시에도 task branch는 남긴다")
-  .option("--dry-run", "--confirm이 있어도 실제 git 명령은 실행하지 않고 출력만")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--keep-branch", "Keep the task branch even when using branch-delete")
+  .option("--dry-run", "Print the plan without running any git commands, even with --confirm")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (
       taskId: string,
@@ -252,19 +273,19 @@ task
 task
   .command("pull")
   .description(
-    "Notion Tasks DB → docs/tasks/*.md skeleton 생성 (기본 Status=Planned, MVP 4)",
+    "Generate `docs/tasks/*.md` skeletons from Notion Tasks DB rows (defaults to Status = Planned)",
   )
-  .option("--dry-run", "파일/Notion 변경 없이 계획만 출력")
-  .option("--json", "기계 가독 JSON 으로 출력")
+  .option("--dry-run", "Print the plan without touching files or Notion")
+  .option("--json", "Print machine-readable JSON")
   .option(
     "--status <name>",
-    "가져올 Notion Status (콤마 구분 가능: 'Planned,Ready'). 기본 Planned",
+    "Notion Status values to pull (comma-separated, e.g. 'Planned,Ready'). Default `Planned`",
   )
-  .option("--limit <number>", "Notion에서 가져올 최대 row 개수 (기본 20, 최대 100)")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--limit <number>", "Maximum rows to pull from Notion (default 20, max 100)")
+  .option("--cwd <path>", "Run against a different directory")
   .option(
     "--verbose",
-    "considered 행마다 결정 trace (taskId / pageId / docsPath / 선택 사유) 출력",
+    "Print a decision trace per considered row (taskId / pageId / docsPath / reason)",
   )
   .action(
     async (options: {
@@ -279,19 +300,24 @@ task
     },
   );
 
-const notion = program.command("notion").description("Notion 대시보드 동기화 (MVP 4)");
+const notion = program
+  .command("notion")
+  .description("Notion dashboard sync");
 
 notion
   .command("init")
   .description(
-    "대화형: 방향키 + Enter 로 Yes/No 선택 후 .vibeops.json notion 섹션 / .vibeops.env / .vibeops.env.example 정합 (TASK-010)",
+    "Interactive setup: use arrow keys + Enter to pick Yes/No, then write `.vibeops.json` `notion` section and `.vibeops.env(.example)`",
   )
-  .option("--dry-run", "파일 변경 없이 계획만 출력 (대화형 질문 없음)")
-  .option("--enable", "notion.enabled = true 로 설정 (대화형 첫 질문 건너뜀)")
-  .option("--projects-db <id>", "notion.projectsDatabaseId 설정 (대화형 입력 건너뜀)")
-  .option("--tasks-db <id>", "notion.tasksDatabaseId 설정 (대화형 입력 건너뜀)")
-  .option("--non-interactive", "TTY 환경에서도 대화형 질문 없이 flag 값 / 기본값만 사용 (CI 용)")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--dry-run", "Print the plan without changing files (no interactive prompts)")
+  .option("--enable", "Set `notion.enabled = true` and skip the first prompt")
+  .option("--projects-db <id>", "Set `notion.projectsDatabaseId` (skip the prompt)")
+  .option("--tasks-db <id>", "Set `notion.tasksDatabaseId` (skip the prompt)")
+  .option(
+    "--non-interactive",
+    "Force non-interactive mode in a TTY (use flag values + safe defaults only)",
+  )
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: {
       dryRun?: boolean;
@@ -307,13 +333,15 @@ notion
 
 notion
   .command("test")
-  .description("Notion API 인증 + Projects/Tasks DB 접근 + 필수 속성 스키마 검증 (read-only, TASK-010)")
-  .option("--json", "기계 가독 JSON 으로 출력")
+  .description(
+    "Read-only check: Notion API auth + access to Projects/Tasks DBs + required-property schema validation",
+  )
+  .option("--json", "Print machine-readable JSON")
   .option(
     "--debug-shape",
-    "Projects/Tasks DB retrieve 응답의 token-safe shape 진단(top-level keys / data_sources 등) 추가 출력",
+    "Also print a token-safe diagnostic of the Projects/Tasks retrieve responses (top-level keys, data_sources, etc.)",
   )
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: { json?: boolean; debugShape?: boolean; cwd?: string }) => {
       await notionTestCommand(options);
@@ -323,13 +351,13 @@ notion
 notion
   .command("sync")
   .description(
-    "docs/project · docs/tasks → Notion Projects/Tasks DB 메타 푸시 (read-only on local files, MVP 4)",
+    "Push `docs/project` + `docs/tasks` metadata into Notion Projects/Tasks DBs (read-only on local files)",
   )
-  .option("--dry-run", "Notion API mutation 없이 plan 만 출력 (query 만 수행)")
-  .option("--json", "기계 가독 JSON 으로 출력")
-  .option("--only-tasks", "Tasks DB 만 sync (Project row 건드리지 않음)")
-  .option("--only-project", "Project DB 만 sync (TASK row 건드리지 않음)")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--dry-run", "Print the plan without any Notion mutation (queries only)")
+  .option("--json", "Print machine-readable JSON")
+  .option("--only-tasks", "Sync the Tasks DB only (leave the Project row alone)")
+  .option("--only-project", "Sync the Project DB only (leave Task rows alone)")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: {
       dryRun?: boolean;
@@ -344,13 +372,15 @@ notion
 
 const github = program
   .command("github")
-  .description("GitHub repository 연동 (post-MVP 4, TASK-013)");
+  .description("GitHub repository integration");
 
 github
   .command("status")
-  .description("gh 설치/인증 + git remote + .vibeops.json/github + package.json repo 점검 (read-only)")
-  .option("--json", "기계 가독 JSON 으로 출력")
-  .option("--cwd <path>", "다른 디렉터리를 검사")
+  .description(
+    "Read-only check: gh install/auth + git remotes + `.vibeops.json` github section + `package.json` repo fields",
+  )
+  .option("--json", "Print machine-readable JSON")
+  .option("--cwd <path>", "Inspect a different directory")
   .action(async (options: { json?: boolean; cwd?: string }) => {
     await githubStatusCommand(options);
   });
@@ -358,21 +388,21 @@ github
 github
   .command("init")
   .description(
-    "interactive: gh 인증 확인 + git remote + (옵션) gh repo create + .vibeops.json/github + package.json repository 채움",
+    "Interactive setup: check gh auth, manage the git remote, optionally `gh repo create`, then update `.vibeops.json` and `package.json`",
   )
-  .option("--dry-run", "gh / git / 파일 변경 없이 계획만 출력")
-  .option("--yes", "interactive 질문 건너뛰고 가능한 기본값으로 진행")
+  .option("--dry-run", "Print the plan without running gh / git or writing files")
+  .option("--yes", "Skip interactive prompts and use safe defaults")
   .option("--owner <owner>", "GitHub owner (user or org)")
   .option("--repo <repo>", "GitHub repo name")
-  .option("--public", "visibility=public (질문 생략)")
-  .option("--private", "visibility=private (질문 생략)")
-  .option("--remote <name>", "git remote 이름 (기본 origin)")
+  .option("--public", "Force visibility = public (skip the prompt)")
+  .option("--private", "Force visibility = private (skip the prompt)")
+  .option("--remote <name>", "Git remote name (default `origin`)")
   .option(
     "--connect <ownerOrUrl>",
-    "새 repo 생성 없이 기존 repo 연결 (owner/repo 또는 https/ssh URL)",
+    "Connect to an existing repo instead of creating one (owner/repo or https/ssh URL)",
   )
-  .option("--no-package-update", "package.json repository/homepage/bugs 수정 안 함")
-  .option("--cwd <path>", "다른 디렉터리에서 실행")
+  .option("--no-package-update", "Do not modify `package.json` repository/homepage/bugs fields")
+  .option("--cwd <path>", "Run against a different directory")
   .action(
     async (options: {
       dryRun?: boolean;

@@ -122,7 +122,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
     return {
       ok: false,
       reason: "no-config",
-      message: ".vibeops.json을 찾을 수 없다. `vibeops init` 먼저 실행하라.",
+      message: ".vibeops.json not found. Run `vibeops init` first.",
     };
   }
   const notion = config.notion;
@@ -131,7 +131,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
       ok: false,
       reason: "notion-not-enabled",
       message:
-        "Notion 연동이 꺼져 있다. `vibeops notion init --enable` 으로 켜고 DB id를 설정하라.",
+        "Notion integration is disabled. Enable it with `vibeops notion init --enable` and set the DB ids.",
     };
   }
   if (notionProjectsTargetId(notion).length === 0) {
@@ -139,7 +139,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
       ok: false,
       reason: "no-projects-db",
       message:
-        "`.vibeops.json` 의 `notion.projectsTargetId` 또는 `notion.projectsDatabaseId` 가 비어 있다. `vibeops notion init` 으로 채우라.",
+        "`.vibeops.json` `notion.projectsTargetId` or `notion.projectsDatabaseId` is empty. Fill it in with `vibeops notion init`.",
     };
   }
   if (notionTasksTargetId(notion).length === 0) {
@@ -147,7 +147,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
       ok: false,
       reason: "no-tasks-db",
       message:
-        "`.vibeops.json` 의 `notion.tasksTargetId` 또는 `notion.tasksDatabaseId` 가 비어 있다. `vibeops notion init` 으로 채우라.",
+        "`.vibeops.json` `notion.tasksTargetId` or `notion.tasksDatabaseId` is empty. Fill it in with `vibeops notion init`.",
     };
   }
   const env = await loadNotionEnv(cwd);
@@ -156,7 +156,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
       ok: false,
       reason: "no-token",
       message:
-        "`NOTION_TOKEN` 을 찾지 못했다. `.vibeops.env` 또는 환경변수에 NOTION_TOKEN=secret_... 을 설정하라.",
+        "`NOTION_TOKEN` not found. Set it in `.vibeops.env` or as an environment variable (NOTION_TOKEN=secret_...).",
     };
   }
 
@@ -166,7 +166,7 @@ export async function loadSyncContext(cwd: string): Promise<SyncContextResult> {
   const overviewSummary = summarizeMarkdownLead(overviewRaw);
 
   // `docs/project/05-current-state.md` is the canonical name; the VibeOps
-  // repo itself still uses `03-current-state.md` from MVP 1. Honour both.
+  // repo itself still uses the legacy `03-current-state.md` filename. Honour both.
   let currentStateRaw =
     (await readTextOrNull(join(paths.docsProject, "05-current-state.md"))) ?? "";
   if (currentStateRaw.length === 0) {

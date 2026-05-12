@@ -101,16 +101,16 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
   const cfgCheck: CheckResult = config
     ? {
         id: "config.present",
-        label: ".vibeops.json 로드",
+        label: "Load .vibeops.json",
         ok: true,
         status: "ok",
       }
     : {
         id: "config.present",
-        label: ".vibeops.json 로드",
+        label: "Load .vibeops.json",
         ok: false,
         status: "fail",
-        detail: `${paths.config} 가 없습니다. 먼저 \`vibeops init\` 실행.`,
+        detail: `${paths.config} is missing. Run \`vibeops init\` first.`,
       };
   report.checks.push(cfgCheck);
   if (config === null) {
@@ -132,7 +132,7 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
         label: "notion.enabled = true",
         ok: false,
         status: "fail",
-        detail: `현재 false (또는 누락). \`vibeops notion init --enable\` 로 켜세요.`,
+        detail: `Currently false (or missing). Enable it with \`vibeops notion init --enable\`.`,
       };
   report.checks.push(enabledCheck);
 
@@ -143,7 +143,7 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
     notion && projectsInputId.length > 0
       ? {
           id: "config.notion.projectsTarget",
-          label: "notion.projectsTargetId/projectsDatabaseId 설정",
+          label: "notion.projectsTargetId/projectsDatabaseId configured",
           ok: true,
           status: "ok",
           detail:
@@ -153,11 +153,11 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
         }
       : {
           id: "config.notion.projectsTarget",
-          label: "notion.projectsTargetId/projectsDatabaseId 설정",
+          label: "notion.projectsTargetId/projectsDatabaseId configured",
           ok: false,
           status: "fail",
           detail:
-            "비어 있음. `vibeops notion init` 으로 data_source target 을 찾거나 `--projects-db <id>` 로 fallback 설정하세요.",
+            "Empty. Run `vibeops notion init` to discover a data_source target, or set the fallback via `--projects-db <id>`.",
         };
   report.checks.push(projDbCheck);
 
@@ -165,7 +165,7 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
     notion && tasksInputId.length > 0
       ? {
           id: "config.notion.tasksTarget",
-          label: "notion.tasksTargetId/tasksDatabaseId 설정",
+          label: "notion.tasksTargetId/tasksDatabaseId configured",
           ok: true,
           status: "ok",
           detail:
@@ -175,11 +175,11 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
         }
       : {
           id: "config.notion.tasksTarget",
-          label: "notion.tasksTargetId/tasksDatabaseId 설정",
+          label: "notion.tasksTargetId/tasksDatabaseId configured",
           ok: false,
           status: "fail",
           detail:
-            "비어 있음. `vibeops notion init` 으로 data_source target 을 찾거나 `--tasks-db <id>` 로 fallback 설정하세요.",
+            "Empty. Run `vibeops notion init` to discover a data_source target, or set the fallback via `--tasks-db <id>`.",
         };
   report.checks.push(tasksDbCheck);
 
@@ -191,18 +191,18 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
   const tokenCheck: CheckResult = envInputs.token
     ? {
         id: "env.notion.token",
-        label: `NOTION_TOKEN 로드 (source: ${envInputs.source})`,
+        label: `Load NOTION_TOKEN (source: ${envInputs.source})`,
         ok: true,
         status: "ok",
         detail: report.tokenMasked!,
       }
     : {
         id: "env.notion.token",
-        label: "NOTION_TOKEN 로드",
+        label: "Load NOTION_TOKEN",
         ok: false,
         status: "fail",
         detail:
-          "찾지 못함. .vibeops.env 에 `NOTION_TOKEN=secret_…` 을 추가하거나 환경변수로 설정.",
+          "Not found. Add `NOTION_TOKEN=secret_…` to .vibeops.env or export it via process.env.",
       };
   report.checks.push(tokenCheck);
 
@@ -215,7 +215,7 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
     envInputs.token !== null;
 
   if (!canCallApi) {
-    skipApi(report, "config / env 가 준비되지 않아 Notion API 호출 생략");
+    skipApi(report, "config / env not ready — skipping Notion API calls");
     return finalize(report, wantJson);
   }
 
@@ -226,26 +226,26 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
     const apiErr = notionApiError(err);
     report.checks.push({
       id: "notion.sdk.load",
-      label: "@notionhq/client 로드",
+      label: "Load @notionhq/client",
       ok: false,
       status: "fail",
       detail: apiErr.message,
       apiError: apiErr,
     });
-    skipApi(report, "@notionhq/client 로드 실패");
+    skipApi(report, "Failed to load @notionhq/client");
     return finalize(report, wantJson);
   }
 
   report.checks.push({
     id: "notion.sdk.load",
-    label: "@notionhq/client 로드",
+    label: "Load @notionhq/client",
     ok: true,
     status: "ok",
   });
 
   const usersMeOk = await runCheck({
     id: "notion.users.me",
-    label: "Notion API 인증 (users.me)",
+    label: "Notion API auth (users.me)",
     run: async () => {
       const me = await client.usersMe();
       return { detail: `${me.type ?? "bot"} · ${me.id}` };
@@ -253,7 +253,7 @@ export async function notionTestCommand(options: NotionTestOptions = {}): Promis
   });
   report.checks.push(usersMeOk);
   if (!usersMeOk.ok) {
-    skipApi(report, "users.me 실패로 인해 후속 검증 생략", [
+    skipApi(report, "users.me failed — skipping downstream checks", [
       "notion.projects.retrieve",
       "notion.projects.schema",
       "notion.tasks.retrieve",
@@ -379,7 +379,7 @@ async function runResolveAndSchema(
     const apiErr = notionApiError(err);
     report.checks.push({
       id: retrieveId,
-      label: `${labelDb} retrieve 접근`,
+      label: `${labelDb} retrieve`,
       ok: false,
       status: "fail",
       detail: explainNotionError(apiErr),
@@ -387,17 +387,17 @@ async function runResolveAndSchema(
     });
     report.checks.push({
       id: resolveId,
-      label: `${labelDb} target 해석 (database → data_source)`,
+      label: `${labelDb} resolve target (database → data_source)`,
       ok: false,
       status: "skip",
-      detail: "retrieve 실패로 인해 해석 생략",
+      detail: "Skipped because retrieve failed",
     });
     report.checks.push({
       id: schemaId,
-      label: `${labelDb} 필수 속성 검증`,
+      label: `${labelDb} required-property validation`,
       ok: false,
       status: "skip",
-      detail: "retrieve 실패로 인해 검증 생략",
+      detail: "Skipped because retrieve failed",
     });
     return;
   }
@@ -406,7 +406,7 @@ async function runResolveAndSchema(
   if (resolved.ok) {
     report.checks.push({
       id: retrieveId,
-      label: `${labelDb} retrieve 접근`,
+      label: `${labelDb} retrieve`,
       ok: true,
       status: "ok",
       detail: `input id=${inputId}  input object=${resolved.inputObject}`,
@@ -414,7 +414,7 @@ async function runResolveAndSchema(
   } else if (resolved.reason === "transport") {
     report.checks.push({
       id: retrieveId,
-      label: `${labelDb} retrieve 접근`,
+      label: `${labelDb} retrieve`,
       ok: false,
       status: "fail",
       detail: resolved.message,
@@ -422,24 +422,24 @@ async function runResolveAndSchema(
     });
     report.checks.push({
       id: resolveId,
-      label: `${labelDb} target 해석 (database → data_source)`,
+      label: `${labelDb} resolve target (database → data_source)`,
       ok: false,
       status: "skip",
-      detail: "retrieve 실패로 인해 해석 생략",
+      detail: "Skipped because retrieve failed",
     });
     report.checks.push({
       id: schemaId,
-      label: `${labelDb} 필수 속성 검증`,
+      label: `${labelDb} required-property validation`,
       ok: false,
       status: "skip",
-      detail: "retrieve 실패로 인해 검증 생략",
+      detail: "Skipped because retrieve failed",
     });
     return;
   } else {
     // resolver did the database retrieve OK but found no usable data_source.
     report.checks.push({
       id: retrieveId,
-      label: `${labelDb} retrieve 접근`,
+      label: `${labelDb} retrieve`,
       ok: true,
       status: "ok",
       detail: `input id=${inputId}  input object=${resolved.partial?.inputObject ?? "(unknown)"}`,
@@ -454,7 +454,7 @@ async function runResolveAndSchema(
       `source=${resolved.source}`;
     report.checks.push({
       id: resolveId,
-      label: `${labelDb} target 해석 (database → data_source)`,
+      label: `${labelDb} resolve target (database → data_source)`,
       ok: true,
       status: "ok",
       detail,
@@ -462,17 +462,17 @@ async function runResolveAndSchema(
   } else {
     report.checks.push({
       id: resolveId,
-      label: `${labelDb} target 해석 (database → data_source)`,
+      label: `${labelDb} resolve target (database → data_source)`,
       ok: false,
       status: "fail",
       detail: resolved.message,
     });
     report.checks.push({
       id: schemaId,
-      label: `${labelDb} 필수 속성 검증`,
+      label: `${labelDb} required-property validation`,
       ok: false,
       status: "skip",
-      detail: "target 해석 실패로 인해 검증 생략",
+      detail: "Skipped because target resolution failed",
     });
     return;
   }
@@ -485,12 +485,12 @@ async function runResolveAndSchema(
   });
   report.checks.push({
     id: schemaId,
-    label: `${labelDb} 필수 속성 검증`,
+    label: `${labelDb} required-property validation`,
     ok: violations.length === 0,
     status: violations.length === 0 ? "ok" : "fail",
     ...(violations.length === 0
-      ? { detail: `${required.length} 속성 모두 존재 및 타입 일치` }
-      : { detail: `${violations.length} 위반`, violations }),
+      ? { detail: `All ${required.length} properties exist with matching types` }
+      : { detail: `${violations.length} violation(s)`, violations }),
   });
 }
 
@@ -527,18 +527,18 @@ function explainNotionError(err: NotionApiError): string {
   const tail = err.status ? ` (HTTP ${err.status})` : "";
   switch (err.code) {
     case "unauthorized":
-      return `NOTION_TOKEN 이 거부됐다. integration 이 만료되었거나 잘못된 token 입니다.${tail}`;
+      return `NOTION_TOKEN was rejected. The integration may be expired or the token incorrect.${tail}`;
     case "restricted_resource":
-      return `Notion DB 가 integration 에 공유되지 않았습니다. DB 페이지 → ⋯ → Connections 에서 integration 을 추가하세요.${tail}`;
+      return `The Notion DB is not shared with the integration. Open the DB page → ⋯ → Connections and add the integration.${tail}`;
     case "object_not_found":
-      return `database id 를 찾지 못했다. .vibeops.json 의 projects/tasksDatabaseId 가 올바른지 확인.${tail}`;
+      return `Database id not found. Verify projectsDatabaseId / tasksDatabaseId in .vibeops.json.${tail}`;
     case "validation_error":
-      return `요청이 거부됐다 (validation_error): ${err.message}${tail}`;
+      return `Request rejected (validation_error): ${err.message}${tail}`;
     case "rate_limited":
-      return `Notion API rate limit. 잠시 후 다시 시도.${tail}`;
+      return `Notion API rate limit. Retry shortly.${tail}`;
     case "request_timeout":
     case "ETIMEDOUT":
-      return `Notion API 5s timeout. 네트워크 상태를 확인하세요.${tail}`;
+      return `Notion API 5s timeout. Check your network.${tail}`;
     default:
       return `${err.code}: ${err.message}${tail}`;
   }
@@ -566,12 +566,12 @@ function skipApi(report: TestReport, reason: string, ids: string[] = [
 
 function humanLabel(id: string): string {
   switch (id) {
-    case "notion.sdk.load":           return "@notionhq/client 로드";
-    case "notion.users.me":            return "Notion API 인증 (users.me)";
-    case "notion.projects.retrieve":   return "databases.retrieve(projectsDatabaseId) 접근";
-    case "notion.projects.schema":     return "Projects DB 필수 속성 검증";
-    case "notion.tasks.retrieve":      return "databases.retrieve(tasksDatabaseId) 접근";
-    case "notion.tasks.schema":        return "Tasks DB 필수 속성 검증";
+    case "notion.sdk.load":           return "Load @notionhq/client";
+    case "notion.users.me":            return "Notion API auth (users.me)";
+    case "notion.projects.retrieve":   return "databases.retrieve(projectsDatabaseId)";
+    case "notion.projects.schema":     return "Projects DB required-property validation";
+    case "notion.tasks.retrieve":      return "databases.retrieve(tasksDatabaseId)";
+    case "notion.tasks.schema":        return "Tasks DB required-property validation";
     default:                            return id;
   }
 }
@@ -697,17 +697,17 @@ function finalize(report: TestReport, wantJson: boolean): void {
   }
   log.blank();
   if (report.ok) {
-    log.ok("Notion 연결 OK — sync 직전 단계 모두 통과.");
+    log.ok("Notion connection OK — ready for sync.");
     process.exitCode = 0;
   } else {
     const failed = report.checks.filter((c) => c.status === "fail").length;
     const skipped = report.checks.filter((c) => c.status === "skip").length;
     log.error(
-      `Notion 연결 실패 — ${failed} fail${skipped > 0 ? `, ${skipped} skipped` : ""}.`,
+      `Notion connection failed — ${failed} fail${skipped > 0 ? `, ${skipped} skipped` : ""}.`,
     );
     log.info(
       dim(
-        "  보안: NOTION_TOKEN 값은 마스킹되어 출력됐다. 실제 값은 .vibeops.env 에만 있다.",
+        "  Security: NOTION_TOKEN values shown above are masked. The real value lives in .vibeops.env.",
       ),
     );
     process.exitCode = 1;

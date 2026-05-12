@@ -2,6 +2,9 @@
 
 > Workflow rails for Cursor-based vibe coding projects.
 
+[![npm version](https://img.shields.io/npm/v/@goodtekxyz/vibeops.svg)](https://www.npmjs.com/package/@goodtekxyz/vibeops)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 VibeOps is a local CLI that installs and operates the project structure needed to run Cursor-based vibe coding as reproducible TASKs: `AGENTS.md`, Cursor rules, project docs, TASK files, agents/prompts/workflows, Git lifecycle helpers, and optional Notion dashboard sync.
 
 VibeOps does not write product code for you. Cursor is the builder. VibeOps keeps the workflow on rails.
@@ -43,9 +46,11 @@ Vibe coding is fast, but chat history is a weak source of truth. Without a durab
 VibeOps requires Node.js 20+.
 
 ```bash
-npm install -g vibeops
+npm install -g @goodtekxyz/vibeops
 vibeops --help
 ```
+
+The published package is `@goodtekxyz/vibeops`. The installed CLI command is `vibeops`.
 
 For local development from this repository:
 
@@ -85,16 +90,16 @@ vibeops notion test
 vibeops notion sync --dry-run
 ```
 
-## BYOBrowser Example Flow
+## Quick Tutorial: Acme Automator
 
-Suppose the idea is: “Build **BYOBrowser**, a browser automation SaaS.”
+Suppose the idea is: “Build **Acme Automator**, a SaaS that schedules and runs browser automation jobs for marketing teams.”
 
 ```bash
-mkdir byobrowser
-cd byobrowser
+mkdir acme-automator
+cd acme-automator
 
-vibeops init --name BYOBrowser
-vibeops plan --idea "BYOBrowser: browser automation SaaS"
+vibeops init --name "Acme Automator" --git --initial-commit
+vibeops plan --idea "Acme Automator: schedule and run browser automation jobs for marketing teams"
 vibeops task generate --dry-run
 
 vibeops task start TASK-001
@@ -104,7 +109,7 @@ vibeops task check TASK-001
 vibeops task done TASK-001
 ```
 
-If Notion is used as a dashboard:
+If a Notion dashboard is enabled:
 
 ```bash
 vibeops notion init
@@ -146,7 +151,7 @@ vibeops
 
 Run any command with `--help` for the option details.
 
-## MVP Features
+## Features
 
 ### Project Bootstrapper
 
@@ -154,7 +159,7 @@ Run any command with `--help` for the option details.
 
 ### Interactive Planner
 
-`vibeops plan` asks 20 short questions and produces a normalized brief plus a Cursor planning prompt. Non-interactive mode is available for safe placeholder output.
+`vibeops plan` asks 20 short questions and produces a normalized brief plus a Cursor planning prompt. A non-interactive mode is available for safe placeholder output.
 
 ### Task Generator
 
@@ -175,18 +180,18 @@ Run any command with `--help` for the option details.
 ## Runner Modes
 
 - **Prompt mode (default)**: VibeOps prints Cursor-ready prompts. Cursor executes the code changes.
-- **cursor-cli (future)**: not implemented in the MVP. A future runner may hand prompts to Cursor CLI explicitly.
-- **direct-llm (future)**: not implemented in the MVP. VibeOps currently does not call LLM APIs directly.
+- VibeOps does not call LLM APIs and does not invoke Cursor CLI directly today; it works as a workflow rail around the human + Cursor loop.
 
 ## Notion Setup
 
 Notion is optional. If enabled:
 
-- `NOTION_TOKEN` lives in `.vibeops.env` (gitignored).
-- Target IDs live in `.vibeops.json`.
+- `NOTION_TOKEN` is the **only** environment variable VibeOps reads. It lives in `.vibeops.env` (gitignored) or in `process.env`.
+- Target IDs live in `.vibeops.json`, not in `.vibeops.env`.
 - `projectsTargetId` / `tasksTargetId` are preferred resolved **data_source** IDs.
 - `projectsDatabaseId` / `tasksDatabaseId` remain legacy/container fallbacks.
 - `notion init` uses data_source-first discovery. If no data sources are found, it can search accessible pages, scan 1-depth inline database blocks, then resolve child databases to data source IDs.
+- Legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` environment variables are no longer used. The `.vibeops.env.example` that `vibeops init` writes contains only `NOTION_TOKEN=`.
 
 Required Projects DB properties:
 
@@ -216,6 +221,8 @@ Required Tasks DB properties:
 | `Summary` | `rich_text` |
 | `Result Summary` | `rich_text` |
 
+> `MVP Phase` here is a Notion property name kept for compatibility with existing dashboards. It is a free-form label column and is not an internal release-phase tag.
+
 Required Status options:
 
 - Projects DB: `Building`, `Planning`, `Paused`, `Done`, `Archived`
@@ -225,7 +232,7 @@ VibeOps validates these options in `notion test` and `notion sync --dry-run`, bu
 
 ## GitHub Setup
 
-GitHub integration is a post-MVP convenience that lives on top of the GitHub CLI (`gh`). VibeOps never stores `GITHUB_TOKEN` — authentication is owned by `gh auth login`.
+GitHub integration runs on top of the GitHub CLI (`gh`). VibeOps never stores `GITHUB_TOKEN` — authentication is owned by `gh auth login`.
 
 1. Install `gh`:
 
@@ -304,6 +311,61 @@ Git
   hint    create the first commit or run `vibeops init --git --initial-commit`
 ```
 
+## Status Output
+
+`vibeops status` summarizes the local project surface only. It never calls the Notion API and never spawns `gh`. The Notion section reads from `.vibeops.env` / `process.env` (for `NOTION_TOKEN` presence) and `.vibeops.json` (for target IDs). The GitHub section reads from `.vibeops.json`. The Package section reads from `package.json`.
+
+Example output for a fully-configured project:
+
+```text
+Git
+  branch  main
+  status  clean
+
+Notion
+  enabled          yes
+  token            configured (.vibeops.env)
+  projects target  configured
+  tasks target     configured
+  hint             run `vibeops notion test`
+
+GitHub
+  enabled     yes
+  mode        gh-cli
+  owner/repo  goodtekxyz/vibeops
+  remote      origin
+  url         https://github.com/goodtekxyz/vibeops
+
+Package
+  name     @goodtekxyz/vibeops
+  version  0.2.0
+  bin      vibeops
+```
+
+For a fresh project that has not been wired to Notion or GitHub yet:
+
+```text
+Notion
+  enabled          no
+  token            missing
+  projects target  missing
+  tasks target     missing
+  hint             run `vibeops notion init`
+
+GitHub
+  enabled  no
+  hint     run `vibeops github init`
+```
+
+If the project has no `package.json`, the Package section degrades gracefully:
+
+```text
+Package
+  package.json missing
+```
+
+`vibeops status --json` exposes the same surface programmatically, including `notion.tokenSource`, `notion.hasProjectsTarget`, `notion.hasTasksTarget`, the entire `github` object, and the entire `package` object. Legacy environment variables (`NOTION_API_KEY`, `NOTION_PROJECT_DB`, `NOTION_TASK_DB`) are no longer surfaced — VibeOps only uses `NOTION_TOKEN`.
+
 ## Git Rollback Safety
 
 - `task start` records base branch, base commit, and task branch in task state.
@@ -344,7 +406,7 @@ pnpm typecheck
 pnpm build
 pnpm smoke
 pnpm pack
-pnpm publish --dry-run
+pnpm publish --dry-run --access public --no-git-checks
 ```
 
 Actual `npm publish` is a manual release action and is not performed by this repository workflow.
@@ -361,21 +423,17 @@ Actual `npm publish` is a manual release action and is not performed by this rep
 - `github init` uses `gh` CLI auth — VibeOps never stores `GITHUB_TOKEN`.
 - `github init --dry-run` runs zero `gh` / `git remote` / file mutations and produces only a plan.
 
-## Roadmap
+## Support
 
-- Human review and `task done --finalize` for TASK-007 through TASK-011.
-- Optional Vitest/ESLint/Prettier setup.
-- `agent prompt --copy`.
-- `plan --apply` and `task generate --apply`.
-- Optional `--fix-docs-path` for explicitly repairing Notion Docs Path mismatches.
-- Future runner modes: Cursor CLI and direct LLM integrations.
-- No planned MVP support for hosted web UI, GitHub API automation, Notion webhooks, or real-time bidirectional sync.
+- Bugs, setup issues, and usage questions: [support@goodtek.xyz](mailto:support@goodtek.xyz)
+- Collaboration and feedback: [hello@goodtek.xyz](mailto:hello@goodtek.xyz)
+- Issue tracker: [github.com/goodtekxyz/vibeops/issues](https://github.com/goodtekxyz/vibeops/issues)
 
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — agent operating guide.
-- [`docs/project/00-overview.md`](docs/project/00-overview.md) — vision and MVP boundaries.
-- [`docs/project/01-architecture.md`](docs/project/01-architecture.md) — CLI/config/data flow.
+- [`docs/project/00-overview.md`](docs/project/00-overview.md) — vision and scope.
+- [`docs/project/01-architecture.md`](docs/project/01-architecture.md) — CLI / config / data flow.
 - [`docs/project/03-current-state.md`](docs/project/03-current-state.md) — current implementation state.
 - [`docs/project/04-decisions.md`](docs/project/04-decisions.md) — decisions already made.
 - [`docs/project/05-backlog.md`](docs/project/05-backlog.md) — task order.

@@ -1,6 +1,6 @@
 import { relative } from "node:path";
 
-import { bold, cyan, dim, gray, green, log, red, yellow } from "../lib/logger.js";
+import { bold, cyan, dim, green, log, red, yellow } from "../lib/logger.js";
 
 import { type StatusReport } from "./collector.js";
 
@@ -14,6 +14,29 @@ function relOrAbs(root: string, p: string): string {
 function statusBadge(value: number, label: string): string {
   if (value === 0) return dim(`${label}:0`);
   return `${label}:${value}`;
+}
+
+function pad(label: string, width: number): string {
+  if (label.length >= width) return label;
+  return label + " ".repeat(width - label.length);
+}
+
+function tokenLine(report: StatusReport): string {
+  if (!report.notion.hasToken) return red("missing");
+  return `${green("configured")} ${dim(`(${report.notion.tokenSource})`)}`;
+}
+
+function targetLine(present: boolean): string {
+  return present ? green("configured") : red("missing");
+}
+
+function notionHint(report: StatusReport): string {
+  if (!report.notion.enabled) return "run `vibeops notion init`";
+  if (!report.notion.hasToken) return "set NOTION_TOKEN in `.vibeops.env`";
+  if (!report.notion.hasProjectsTarget || !report.notion.hasTasksTarget) {
+    return "run `vibeops notion init` to pick a Projects / Tasks DB";
+  }
+  return "run `vibeops notion test`";
 }
 
 export function printHuman(report: StatusReport): void {
@@ -72,13 +95,13 @@ export function printHuman(report: StatusReport): void {
         `  branch  ${report.git.branch ?? "(unknown)"} ${dim("(unborn, no commits yet)")}`,
       );
     } else if (report.git.state === "detached") {
-      log.info(`  branch  ${dim("(detached)")}${report.git.branch ? ` ${report.git.branch}` : ""}`);
+      log.info(
+        `  branch  ${dim("(detached)")}${report.git.branch ? ` ${report.git.branch}` : ""}`,
+      );
     } else {
       log.info(`  branch  ${report.git.branch ?? dim("(unknown)")}`);
     }
-    log.info(
-      `  status  ${report.git.dirty ? yellow("dirty") : green("clean")}`,
-    );
+    log.info(`  status  ${report.git.dirty ? yellow("dirty") : green("clean")}`);
     if (report.git.state === "unborn") {
       log.info(
         `  hint    create the first commit or run ${cyan("`vibeops init --git --initial-commit`")}`,
@@ -87,32 +110,62 @@ export function printHuman(report: StatusReport): void {
   }
   log.blank();
 
+  // Notion: enabled / token / projects target / tasks target / hint.
+  // We intentionally do NOT print legacy env names (NOTION_API_KEY,
+  // NOTION_PROJECT_DB, NOTION_TASK_DB) — modern VibeOps only uses
+  // NOTION_TOKEN + notion.{projectsTargetId,tasksTargetId}.
   log.info(bold("Notion"));
-  const keys = [
-    ["NOTION_TOKEN", report.notion.hasToken],
-    ["NOTION_API_KEY", report.notion.hasApiKey],
-    ["NOTION_PROJECT_DB", report.notion.hasProjectDb],
-    ["NOTION_TASK_DB", report.notion.hasTaskDb],
-  ] as const;
-  for (const [name, present] of keys) {
-    log.info(`  ${present ? green("✓") : gray("·")} ${name}`);
+  const notionLabelWidth = 16; // "projects target"
+  log.info(
+    `  ${pad("enabled", notionLabelWidth)} ${report.notion.enabled ? green("yes") : dim("no")}`,
+  );
+  log.info(`  ${pad("token", notionLabelWidth)} ${tokenLine(report)}`);
+  log.info(
+    `  ${pad("projects target", notionLabelWidth)} ${targetLine(report.notion.hasProjectsTarget)}`,
+  );
+  log.info(
+    `  ${pad("tasks target", notionLabelWidth)} ${targetLine(report.notion.hasTasksTarget)}`,
+  );
+  log.info(`  ${pad("hint", notionLabelWidth)} ${dim(notionHint(report))}`);
+  log.blank();
+
+  log.info(bold("GitHub"));
+  const githubLabelWidth = 11; // "owner/repo"
+  if (!report.github.enabled) {
+    log.info(`  ${pad("enabled", githubLabelWidth)} ${dim("no")}`);
+    log.info(`  ${pad("hint", githubLabelWidth)} ${dim("run `vibeops github init`")}`);
+  } else {
+    log.info(`  ${pad("enabled", githubLabelWidth)} ${green("yes")}`);
+    if (report.github.mode.length > 0) {
+      log.info(`  ${pad("mode", githubLabelWidth)} ${report.github.mode}`);
+    }
+    const slug =
+      report.github.owner.length > 0 && report.github.repo.length > 0
+        ? `${report.github.owner}/${report.github.repo}`
+        : dim("(unknown)");
+    log.info(`  ${pad("owner/repo", githubLabelWidth)} ${slug}`);
+    log.info(
+      `  ${pad("remote", githubLabelWidth)} ${report.github.remote.length > 0 ? report.github.remote : dim("(none)")}`,
+    );
+    log.info(
+      `  ${pad("url", githubLabelWidth)} ${report.github.url.length > 0 ? report.github.url : dim("(none)")}`,
+    );
   }
-  if (report.config?.notion) {
-    const n = report.config.notion;
+  log.blank();
+
+  log.info(bold("Package"));
+  const pkgLabelWidth = 8; // "version"
+  if (!report.package.exists) {
+    log.info(`  ${dim("package.json missing")}`);
+  } else {
     log.info(
-      `  ${n.enabled ? green("✓") : gray("·")} notion.enabled ${dim(`(${n.enabled})`)}`,
+      `  ${pad("name", pkgLabelWidth)} ${report.package.name.length > 0 ? report.package.name : dim("(unset)")}`,
     );
     log.info(
-      `  ${n.projectsTargetId.length > 0 ? green("✓") : gray("·")} projectsTargetId ${dim(`(${n.projectsTargetId.length > 0 ? "set" : "empty"})`)}`,
+      `  ${pad("version", pkgLabelWidth)} ${report.package.version.length > 0 ? report.package.version : dim("(unset)")}`,
     );
     log.info(
-      `  ${n.tasksTargetId.length > 0 ? green("✓") : gray("·")} tasksTargetId ${dim(`(${n.tasksTargetId.length > 0 ? "set" : "empty"})`)}`,
-    );
-    log.info(
-      `  ${n.projectsDatabaseId.length > 0 ? green("✓") : gray("·")} projectsDatabaseId ${dim(`(${n.projectsDatabaseId.length > 0 ? "set" : "empty"})`)}`,
-    );
-    log.info(
-      `  ${n.tasksDatabaseId.length > 0 ? green("✓") : gray("·")} tasksDatabaseId ${dim(`(${n.tasksDatabaseId.length > 0 ? "set" : "empty"})`)}`,
+      `  ${pad("bin", pkgLabelWidth)} ${report.package.bin.length > 0 ? report.package.bin : dim("(none)")}`,
     );
   }
   log.blank();
@@ -142,11 +195,17 @@ export function toJson(report: StatusReport): string {
       tasks: {
         counts: report.taskCounts,
         next: report.nextTask
-          ? { id: report.nextTask.id, title: report.nextTask.title, status: report.nextTask.status }
+          ? {
+              id: report.nextTask.id,
+              title: report.nextTask.title,
+              status: report.nextTask.status,
+            }
           : null,
       },
       git: report.git,
       notion: report.notion,
+      github: report.github,
+      package: report.package,
     },
     null,
     2,

@@ -63,11 +63,11 @@ async function contextSection(paths: string[], projectRoot: string): Promise<str
 
 const FOOTER = `---
 
-너는 위 에이전트 정의의 **Role / Inputs / Output Format / Rules / 금지사항**을 그대로 적용한다.
-출력은 Cursor 채팅창에 그대로 붙여 넣을 수 있는 단일 마크다운이다.
+Apply the **Role / Inputs / Output Format / Rules / Forbidden** sections of the agent definition above as-is.
+Your output must be a single markdown blob that pastes cleanly into the Cursor chat.
 
-작업이 끝나면 \`AGENTS.md\` § "작업 완료 후 보고 형식"에 따라 보고한다:
-TASK ID · 요약 · 변경 파일 · 검증 · 문서 반영(05-current-state / TASK / docs/logs).
+When done, follow the "Completion report" format in \`AGENTS.md\`:
+TASK ID · summary · changed files · verification · doc updates (05-current-state / TASK / docs/logs).
 `;
 
 export async function buildPrompt(inputs: PromptInputs): Promise<string> {

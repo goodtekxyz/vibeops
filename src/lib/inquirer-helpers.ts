@@ -28,7 +28,7 @@ export async function askInput(opts: AskInputOptions): Promise<string> {
     default: opts.default,
     validate: (raw: string): string | true => {
       if (opts.required && raw.trim().length === 0) {
-        return "필수 항목입니다.";
+        return "This field is required.";
       }
       return true;
     },
@@ -58,7 +58,7 @@ export async function askSelect(opts: AskSelectOptions): Promise<string> {
   });
   if (!isOther(answer)) return answer;
   const custom = await input({
-    message: `↳ ${opts.message} — "Other"에 들어갈 값을 입력 (빈 값이면 그대로 "Other")`,
+    message: `↳ ${opts.message} — enter the value for "Other" (leave empty to keep "Other")`,
   });
   return custom.trim().length > 0 ? formatCustom(custom) : OTHER_LABEL;
 }
@@ -77,7 +77,7 @@ export async function askCheckbox(opts: AskCheckboxOptions): Promise<string[]> {
   const defaults = new Set(opts.default ?? []);
   const choices = opts.choices.map((c) => ({ name: c, value: c, checked: defaults.has(c) }));
   const answer = await checkbox<string>({
-    message: `${opts.message}  ${"\u001b[2m"}(방향키 · Space · Enter)${"\u001b[0m"}`,
+    message: `${opts.message}  ${"\u001b[2m"}(arrow keys · Space · Enter)${"\u001b[0m"}`,
     choices,
     loop: false,
     pageSize: 8,
@@ -89,7 +89,7 @@ export async function askCheckbox(opts: AskCheckboxOptions): Promise<string[]> {
       continue;
     }
     const custom = await input({
-      message: `↳ ${opts.message} — "Other" 항목 입력 (쉼표로 구분 가능, 빈 값이면 그대로 "Other")`,
+      message: `↳ ${opts.message} — enter values for "Other" (comma-separated, leave empty to keep "Other")`,
     });
     const trimmed = custom.trim();
     if (trimmed.length === 0) {

@@ -58,15 +58,15 @@ export async function planCommand(options: PlanCommandOptions): Promise<void> {
   } else {
     if (!nonInteractive && process.stdin.isTTY !== true) {
       log.error(
-        "vibeops plan은 TTY가 필요합니다. CI/파이프 환경에서는 --non-interactive 를 사용하거나 --from <brief.md> 로 전달하세요.",
+        "vibeops plan requires a TTY. In CI/piped environments, pass --non-interactive or supply --from <brief.md>.",
       );
       process.exitCode = 1;
       return;
     }
     log.step(
       nonInteractive
-        ? "non-interactive: 주어진 값 + 안전한 placeholder로 ProjectBrief 생성"
-        : "interactive: 20개 질문으로 ProjectBrief 생성 (방향키·Space·Enter)",
+        ? "non-interactive: build the ProjectBrief from flag values + safe placeholders"
+        : "interactive: build the ProjectBrief from 20 questions (arrow keys · Space · Enter)",
     );
     log.blank();
     bundle = await gatherBrief({
@@ -78,7 +78,7 @@ export async function planCommand(options: PlanCommandOptions): Promise<void> {
 
   const briefMd = briefToMarkdown(bundle.brief, bundle.meta);
   await writeText(briefAbs, briefMd);
-  log.ok(`brief 작성: ${relDisplay(cwd, briefAbs)}`);
+  log.ok(`Wrote brief: ${relDisplay(cwd, briefAbs)}`);
 
   const promptMd = buildPlanPrompt({
     brief: bundle.brief,
@@ -86,20 +86,20 @@ export async function planCommand(options: PlanCommandOptions): Promise<void> {
     briefRelativePath: relDisplay(cwd, briefAbs),
   });
   await writeText(promptAbs, promptMd);
-  log.ok(`Cursor 계획 프롬프트: ${relDisplay(cwd, promptAbs)}`);
+  log.ok(`Cursor planning prompt: ${relDisplay(cwd, promptAbs)}`);
 
   if (bundle.meta.assumptions.length > 0) {
     log.blank();
-    log.info(`${yellow("!")} ${bold("Assumptions")} (Planner Agent가 다시 확인해야 할 항목):`);
+    log.info(`${yellow("!")} ${bold("Assumptions")} (items the Planner Agent should reconfirm):`);
     for (const a of bundle.meta.assumptions) log.info(`  · ${a}`);
   }
 
   log.blank();
-  log.info(bold("다음 단계:"));
-  log.info(`  1) Cursor에서 새 채팅 → ${cyan(relDisplay(cwd, promptAbs))} 의 전체 내용을 그대로 붙여넣는다.`);
-  log.info(`  2) Planner Agent가 docs/project/* 와 초기 백로그를 만들면 git diff로 검토 후 커밋한다.`);
-  log.info(`  3) brief를 수정하고 싶으면 ${cyan(relDisplay(cwd, briefAbs))} 를 편집한 뒤`);
-  log.info(`     ${dim("vibeops plan --from " + DEFAULT_BRIEF_REL)} 로 prompt를 재생성한다.`);
+  log.info(bold("Next steps:"));
+  log.info(`  1) Open a new Cursor chat and paste the full contents of ${cyan(relDisplay(cwd, promptAbs))}.`);
+  log.info(`  2) Review the Planner Agent's docs/project/* + initial backlog via git diff and commit.`);
+  log.info(`  3) To revise the brief, edit ${cyan(relDisplay(cwd, briefAbs))} and regenerate the prompt with`);
+  log.info(`     ${dim("vibeops plan --from " + DEFAULT_BRIEF_REL)}.`);
 }
 
 interface LoadFromFileInputs {
@@ -112,11 +112,11 @@ interface LoadFromFileInputs {
 async function loadFromFile(inputs: LoadFromFileInputs): Promise<BriefBundle> {
   const { cwd, fromPath, nonInteractive, idea } = inputs;
   if (!(await pathExists(fromPath))) {
-    log.error(`--from 으로 지정한 파일이 없습니다: ${fromPath}`);
+    log.error(`--from path does not exist: ${fromPath}`);
     process.exit(1);
   }
   const md = await readText(fromPath);
-  log.step(`brief 로드: ${relDisplay(cwd, fromPath)}`);
+  log.step(`Loading brief: ${relDisplay(cwd, fromPath)}`);
   const parsed = parseBriefFromMarkdown(md);
   parsed.meta.source = "from-file";
 
@@ -137,12 +137,12 @@ async function loadFromFile(inputs: LoadFromFileInputs): Promise<BriefBundle> {
 
   if (nonInteractive) {
     log.warn(
-      `필수 항목 누락: ${missing.join(", ")} → placeholder로 채우고 Assumptions에 기록합니다.`,
+      `Missing required fields: ${missing.join(", ")} → filling with placeholders and recording them in Assumptions.`,
     );
     return parsed;
   }
 
-  log.warn(`필수 항목 누락: ${missing.join(", ")} → 누락 항목만 추가 질문합니다.`);
+  log.warn(`Missing required fields: ${missing.join(", ")} → asking only the missing questions.`);
   log.blank();
   const filled = await gatherBrief({
     cwd,

@@ -149,7 +149,7 @@ export async function notionSyncCommand(
     const apiErr = notionApiError(err);
     report.errors.push({
       reason: "sdk-load",
-      message: `@notionhq/client 로드 실패 — ${apiErr.message}`,
+      message: `Failed to load @notionhq/client — ${apiErr.message}`,
       details: apiErr,
     });
     return finalize(report, wantJson, "preflight");
@@ -220,13 +220,13 @@ export async function notionSyncCommand(
     let message: string;
     let reason: string;
     if (propertiesMissing) {
-      message = `Notion DB 응답에 properties 객체가 없다. ${MISSING_PROPERTIES_HINT}`;
+      message = `Notion DB response is missing a properties object. ${MISSING_PROPERTIES_HINT}`;
       reason = "schema-missing-properties";
     } else if (statusOptionsMissing) {
-      message = `Notion Status 속성에 VibeOps 가 쓰는 option 이 부족하다 (${violations.length} 위반). ${STATUS_OPTIONS_HINT}`;
+      message = `Notion Status property is missing required options (${violations.length} violation${violations.length === 1 ? "" : "s"}). ${STATUS_OPTIONS_HINT}`;
       reason = "schema-status-options";
     } else {
-      message = `Notion DB 스키마가 VibeOps 요구사항과 다르다 (${violations.length} 위반).`;
+      message = `Notion DB schema does not match VibeOps requirements (${violations.length} violation${violations.length === 1 ? "" : "s"}).`;
       reason = "schema";
     }
     report.errors.push({
@@ -353,12 +353,12 @@ function formatMutateError(inputs: MutateErrorInputs): string {
 
 function mutateHint(err: NotionApiError): string {
   if (err.status === 404) {
-    return " — Notion 이 target id 를 못 찾았다. resolved data_source id 가 맞는지, integration 이 해당 data_source 에 직접 연결돼 있는지 확인. `vibeops notion test --debug-shape` 로 진단 가능.";
+    return " — Notion could not find the target id. Verify the resolved data_source id, and confirm the integration is connected to that data_source directly. Diagnose with `vibeops notion test --debug-shape`.";
   }
-  // "Invalid status option" / "Invalid select option" — VibeOps 가 쓰는 option
-  // 이 Notion 에 등록되지 않은 케이스. status-options validator 가 이미 잡았어야
-  // 하지만, Notion 응답이 status options 를 안 돌려준 환경에서는 actual 에서만
-  // 터질 수 있어 추가 안내를 붙인다.
+  // "Invalid status option" / "Invalid select option" — the options VibeOps
+  // uses are not registered in Notion. The status-options validator should
+  // catch this earlier, but environments where Notion does not return
+  // status options can still trip on the actual run; surface guidance here.
   if (
     err.code === "validation_error" &&
     /Invalid (status|select) option/i.test(err.message)
@@ -397,18 +397,18 @@ function explainNotionError(err: NotionApiError): string {
   const tail = err.status ? ` (HTTP ${err.status})` : "";
   switch (err.code) {
     case "unauthorized":
-      return `NOTION_TOKEN 이 거부됐다. integration 만료/오타 확인.${tail}`;
+      return `NOTION_TOKEN was rejected. Verify the integration is not expired and the value is correct.${tail}`;
     case "restricted_resource":
-      return `Notion DB 가 integration 에 공유되지 않았다. Notion DB → Connections 에 integration 추가.${tail}`;
+      return `The Notion DB is not shared with the integration. Add it via Notion DB → Connections.${tail}`;
     case "object_not_found":
-      return `Notion 리소스를 찾지 못했다. database id / page id 확인.${tail}`;
+      return `Notion resource not found. Verify the database id / page id.${tail}`;
     case "validation_error":
-      return `요청 거부 (validation_error): ${err.message}${tail}`;
+      return `Request rejected (validation_error): ${err.message}${tail}`;
     case "rate_limited":
-      return `Notion API rate limit — 잠시 후 다시 시도.${tail}`;
+      return `Notion API rate limit — retry shortly.${tail}`;
     case "request_timeout":
     case "ETIMEDOUT":
-      return `Notion API 5s timeout. 네트워크 상태 확인.${tail}`;
+      return `Notion API 5s timeout. Check your network.${tail}`;
     default:
       return `${err.code}: ${err.message}${tail}`;
   }
@@ -526,7 +526,7 @@ function finalize(report: SyncReport, wantJson: boolean, phase: string): void {
         }
         log.info(
           dim(
-            `  Projects DB 8 속성 / Tasks DB 10 속성 + 필수 Status options 모두 만족해야 한다. \`vibeops notion test\` 로 자세히 확인.`,
+            `  All 8 Projects DB properties, 10 Tasks DB properties, and the required Status options must be present. Inspect details with \`vibeops notion test\`.`,
           ),
         );
       }
@@ -570,18 +570,18 @@ function finalize(report: SyncReport, wantJson: boolean, phase: string): void {
   );
 
   if (report.dryRun) {
-    log.info(yellow("  dry-run — Notion API mutation은 수행하지 않았다."));
+    log.info(yellow("  dry-run — no Notion mutation performed."));
   }
 
   if (report.ok) {
     log.ok(
       report.dryRun
-        ? "sync plan OK — 실제 푸시는 --dry-run 없이 다시 실행."
-        : "Notion sync 완료.",
+        ? "Sync plan OK — re-run without --dry-run to apply."
+        : "Notion sync complete.",
     );
     process.exitCode = 0;
   } else {
-    log.error("Notion sync 실패 — 위 에러 확인.");
+    log.error("Notion sync failed — see errors above.");
     process.exitCode = 1;
   }
 }

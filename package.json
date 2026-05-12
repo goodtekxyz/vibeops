@@ -1,6 +1,6 @@
 {
-  "name": "vibeops",
-  "version": "0.1.0",
+  "name": "@goodtekxyz/vibeops",
+  "version": "0.2.0",
   "description": "Workflow rails for Cursor-based vibe coding projects.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
@@ -13,6 +13,9 @@
   "homepage": "https://github.com/goodtekxyz/vibeops#readme",
   "bugs": {
     "url": "https://github.com/goodtekxyz/vibeops/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "bin": {
     "vibeops": "dist/cli.js"
