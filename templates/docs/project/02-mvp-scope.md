@@ -1,36 +1,36 @@
 # 02 — MVP Scope
 
-> `planner` 에이전트가 채운다. 작게 잡는다.
+> Filled in by the `planner` agent. Keep it small.
 
-## MVP 한 문장
+## MVP in one sentence
 
-<!-- “2주 안에 누가 무엇을 할 수 있게 한다”의 한 줄. -->
+<!-- A single line: "Within two weeks, who can do what." -->
 
-## 안에 들어가는 것
+## In scope
 
 <!--
-MVP에 반드시 필요한 능력을 5~10개로.
-- IN: 사용자 가입과 단일 로그인
+The 5 to 10 capabilities the MVP must have.
+- IN: sign-up and single sign-on
 - IN: ...
 -->
 
-## 의도적으로 빼는 것 (Out for MVP)
+## Intentionally out for MVP
 
 <!--
-나중에 할 수도 있지만 MVP에서는 안 한다.
-- OUT: 다중 워크스페이스
-- OUT: 결제 UI
-이것이 명확할수록 백로그가 작아진다.
+Things that may ship later but not in the MVP.
+- OUT: multiple workspaces
+- OUT: payment UI
+The clearer this is, the smaller the backlog gets.
 -->
 
-## 완료 정의 (Definition of Done)
+## Definition of done
 
 <!--
-- 어떤 시나리오가 끝까지 돈다
-- 어떤 데이터 흐름이 보존된다
-- 어떤 에러 상황을 견디는지
+- Which scenarios run end-to-end.
+- Which data flows are preserved.
+- Which error situations are tolerated.
 -->
 
-## 검증 방법
+## How to validate
 
-<!-- 실제 사람이 어떻게 “MVP가 됐다”를 확인할지. demo 시나리오 한 개. -->
+<!-- How a real person confirms "the MVP is ready". One demo scenario. -->

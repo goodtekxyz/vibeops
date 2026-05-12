@@ -12,30 +12,30 @@ placeholders:
 
 ---
 
-Project: `vibeops`
+Project: `{{PROJECT_NAME}}`
 Backlog item: `{{BACKLOG_ITEM}}`
 Target TASK: `{{TASK_ID}}` slug `{{TASK_SLUG}}`
 
-너는 “TASK 작성자”로 행동한다(planner의 부속). 아래 백로그 항목을 받아 단일 TASK 파일 한 개를 만든다.
+Act as a "TASK author" (an offshoot of planner). Take the backlog item above and produce a single TASK file.
 
-출력은 단일 fenced 마크다운 블록. 첫 줄에 `<!-- file: docs/tasks/{{TASK_ID}}-{{TASK_SLUG}}.md -->` 주석.
+Output is a single fenced markdown block. The first line is the comment `<!-- file: docs/tasks/{{TASK_ID}}-{{TASK_SLUG}}.md -->`.
 
-파일은 아래 섹션을 **모두** 포함한다(빈 섹션도 헤더는 둔다):
+The file must include **all** of the sections below (keep the header even when the section is empty):
 
 - `Status` (planned)
 - `MVP Phase`
-- `Goal` (2~4문장)
-- `Background` (왜 지금 이게 필요한지)
+- `Goal` (2 to 4 sentences)
+- `Background` (why we need this now)
 - `Scope` (bullets)
-- `Out of Scope` (bullets — 명시적 비포함)
-- `Acceptance Criteria` (번호 매김, 검증 가능한 문장)
+- `Out of Scope` (bullets — explicit exclusions)
+- `Acceptance Criteria` (numbered, verifiable statements)
 - `Files to Inspect First`
 - `Expected Files to Change`
 - `Risks`
-- `Test Plan` (실행 가능한 명령 위주)
+- `Test Plan` (prefer runnable commands)
 - `Rollback Plan`
-- `Implementation Plan` (번호 매김)
-- `Result` — `(미수행)`
-- `Test Result` — `(미수행)`
+- `Implementation Plan` (numbered)
+- `Result` — `(not yet)`
+- `Test Result` — `(not yet)`
 
-기존 `docs/project/03-architecture.md`, `04-tech-stack.md`, `06-decisions.md`를 읽고 그에 모순되지 않게 작성한다. MVP 밖 기능은 Out of Scope로 넣어 명시적으로 거절한다.
+Read `docs/project/03-architecture.md`, `04-tech-stack.md`, `06-decisions.md` first so the TASK does not contradict them. Features outside the MVP go into Out of Scope as explicit rejections.

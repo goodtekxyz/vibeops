@@ -1,30 +1,30 @@
 # 01 — Requirements
 
-> `planner` 에이전트가 채운다.
+> Filled in by the `planner` agent.
 
-## 기능 요구사항 (Functional)
-
-<!--
-번호 매김. 각 줄은 “시스템은 ~한다” 형태.
-F-001. 사용자는 ...
-F-002. 시스템은 ...
--->
-
-## 비기능 요구사항 (Non-functional)
+## Functional requirements
 
 <!--
-성능 / 신뢰성 / 보안 / 운영 / 호환성 등.
-NF-001. 어떤 명령도 사용자 데이터를 ...
+Numbered. Each line reads "the system does …".
+F-001. Users can ...
+F-002. The system ...
 -->
 
-## 사용자/이해관계자
+## Non-functional requirements
 
-<!-- 누가 사용하는가, 누가 관심 있는가. 역할별로. -->
+<!--
+Performance / reliability / security / operations / compatibility.
+NF-001. No command may corrupt user data ...
+-->
 
-## 제약 (Constraints)
+## Users / stakeholders
 
-<!-- 기술·시간·예산·법규 등 외부에서 주어진 조건. -->
+<!-- Who uses the product, who cares about it. By role. -->
 
-## 가정 (Assumptions)
+## Constraints
 
-<!-- “이건 그렇다고 친다”의 목록. 깨지면 위험한 것들. -->
+<!-- Technical, schedule, budget, regulatory — anything imposed from outside. -->
+
+## Assumptions
+
+<!-- The "let's assume this is true" list. Items that would be risky if they break. -->

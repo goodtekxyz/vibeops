@@ -1,27 +1,27 @@
 # 00 — Overview
 
-> 이 문서는 `vibeops plan`이 `planner` 에이전트로 채울 자리다. 아래 섹션 헤더만 두고 본문은 비워 둔다.
+> This document is the slot that `vibeops plan` (via the `planner` agent) fills in. Keep the section headers below and leave the bodies empty.
 
-## 한 줄 정의
+## One-line definition
 
-<!-- 이 프로젝트가 무엇인지 한 문장. 누구를 위한, 무엇을 하는 도구/서비스인지. -->
+<!-- One sentence describing what this project is — who it is for and what the tool/service does. -->
 
-## 해결하려는 문제
+## Problem to solve
 
-<!-- 3~5개 bullet. 현재의 불편을 사실 위주로. -->
+<!-- 3 to 5 bullets. Stay fact-based about current pain points. -->
 
-## 사용 예시
+## Example usage
 
-<!-- 한 명의 가상 사용자가 어떤 흐름으로 이 도구를 쓰는지. 6~10줄 시나리오. -->
+<!-- A 6-to-10-line scenario showing how a single hypothetical user flows through the product. -->
 
-## 핵심 가치 (Core Roles)
+## Core roles
 
-<!-- 이 제품이 “하는 일” 4~8개를 한 줄씩. 각 줄은 동사로 시작. -->
+<!-- 4 to 8 things this product "does", one per line. Each line starts with a verb. -->
 
-## 용어
+## Vocabulary
 
-<!-- 이 프로젝트 안에서만 통하는 단어 5~10개. 동의어/혼동 단어 정리. -->
+<!-- 5 to 10 terms that mean something specific in this project. Disambiguate synonyms. -->
 
-## 명시적 비목표 (Out of Scope, ever)
+## Non-goals (out of scope, forever)
 
-<!-- 이 프로젝트가 의도적으로 안 하는 일. MVP 밖이라 안 한다와는 다르다 — 그건 02-mvp-scope.md에. -->
+<!-- Things this project intentionally does not do. Different from "out of MVP scope" — that lives in 02-mvp-scope.md. -->

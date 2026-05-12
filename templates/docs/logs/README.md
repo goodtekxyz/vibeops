@@ -1,38 +1,38 @@
 # Daily Logs
 
-이 디렉터리는 **하루 한 파일** 정책으로 운영한다.
+This directory follows a **one-file-per-day** policy.
 
-- 파일 이름: `YYYY-MM-DD.md` (로컬 날짜).
-- 그 날 첫 변경 시 파일을 만든다. 같은 날의 추가 변경은 같은 파일에 항목으로 추가한다.
-- 로그는 **사실 위주**: 결정 요약, 변경 파일, 검증 결과, 다음 작업.
+- Filename: `YYYY-MM-DD.md` (local date).
+- Create the file on the day's first change. Additional changes the same day append entries to the same file.
+- Logs are **fact-first**: decision summary, changed files, verification result, next work.
 
-## 한 항목 표준
+## Entry template
 
 ```
-## YYYY-MM-DD · TASK-NNN <짧은 제목>
+## YYYY-MM-DD · TASK-NNN <short title>
 
-### 결정 요약
+### Decision summary
 
 - ...
 
-### 변경 파일
+### Changed files
 
-- 신규: ...
-- 갱신: ...
+- new: ...
+- update: ...
 
-### 검증
+### Verification
 
-| 명령 | 결과 |
+| Command | Result |
 | --- | --- |
 | `...` | ... |
 
-### 다음 작업
+### Next work
 
 - TASK-NNN — ...
 ```
 
-## 비스코프
+## Non-goals
 
-- 잡담·감상·자기 평가
-- TASK 본문 복사·붙여넣기
-- 푸시되지 않은 비밀 값
+- Chitchat, opinions, self-praise.
+- Copy-pasted TASK bodies.
+- Secret values that should not be committed.

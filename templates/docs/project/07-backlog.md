@@ -1,23 +1,23 @@
 # 07 — Backlog
 
-TASK 순서. 위에서 아래로 진행한다. 한 TASK가 끝나기 전 다음으로 넘어가지 않는다.
+TASK order. Work top to bottom. Do not skip to the next item before the current TASK is done.
 
-> `planner` 에이전트가 채울 자리.
+> Slot to be filled by the `planner` agent.
 
 ## MVP 1
 
-| ID       | 제목                                | 상태    |
+| ID       | Title                               | Status  |
 | -------- | ----------------------------------- | ------- |
-| TASK-001 | <첫 TASK 제목>                      | planned |
+| TASK-001 | <first TASK title>                  | planned |
 
-## MVP 2 (후순위)
+## MVP 2 (later)
 
-<!-- 채울 자리 -->
+<!-- Slot. -->
 
-## 후순위 (Out of MVP, 그러나 살아있는 후보)
+## Later (out of MVP, but live candidates)
 
-<!-- MVP 끝난 다음 검토할 항목들. 즉시 TASK로 만들지 않는다. -->
+<!-- Items to revisit after MVP. Do not turn them into TASKs right away. -->
 
-## 명시적 비목표
+## Non-goals
 
-`docs/project/00-overview.md` § 명시적 비목표를 따른다. 백로그는 그 안에서만 늘어난다.
+Follow the "Non-goals" section in `docs/project/00-overview.md`. The backlog only grows inside those bounds.

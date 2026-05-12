@@ -1,29 +1,29 @@
 # 04 — Tech Stack
 
-> `architect` 에이전트가 채운다. 각 선택에 “왜”를 한 줄씩 붙인다.
+> Filled in by the `architect` agent. Add a one-line "why" to each choice.
 
-## 런타임·언어
+## Runtime / language
 
-<!-- Node.js / Python / Go 등. 버전. 그 결정의 이유. -->
+<!-- Node.js / Python / Go, etc. Version. The reason behind the choice. -->
 
-## 프레임워크·라이브러리
+## Frameworks / libraries
 
 <!--
-| 영역    | 채택               | 왜                                            |
-| ------- | ------------------ | --------------------------------------------- |
-| 서버    | ...                | ...                                           |
-| ORM     | ...                | ...                                           |
-| 테스트  | vitest             | TS 친화, 빠른 실행                            |
+| Area    | Choice             | Why                                            |
+| ------- | ------------------ | ---------------------------------------------- |
+| Server  | ...                | ...                                            |
+| ORM     | ...                | ...                                            |
+| Tests   | vitest             | TS-friendly, fast                              |
 -->
 
-## 인프라
+## Infrastructure
 
-<!-- 어디서 도는가, 어떻게 배포되는가(고수준). 자세한 명령은 09-deployment.md. -->
+<!-- Where the system runs, how it is deployed (high level). Detailed commands live in 09-deployment.md. -->
 
-## 패키지 매니저·빌드
+## Package manager / build
 
-<!-- pnpm/npm/yarn, tsc/esbuild/vite 등. 단일 진입점인지. -->
+<!-- pnpm / npm / yarn, tsc / esbuild / vite, etc. Whether there is a single entry point. -->
 
-## 명시적 비채택
+## Explicit non-adoptions
 
-<!-- 굳이 안 쓰기로 한 것들과 이유. -->
+<!-- Things we deliberately do not use, and why. -->

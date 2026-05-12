@@ -1,11 +1,11 @@
 # Workflow · Project Start
 
-새 프로젝트를 시작할 때의 첫 한 시간.
+The first hour of a new project.
 
-## 0. 준비
+## 0. Prepare
 
-- 빈 디렉터리에서 시작한다.
-- 사용자는 한두 문단짜리 **아이디어**를 가지고 있다.
+- Start in an empty directory.
+- The user has a one-to-two-paragraph **idea**.
 
 ## 1. Bootstrap
 
@@ -14,7 +14,7 @@ vibeops init --name <project-name>
 git init && git add . && git commit -m "chore: bootstrap vibeops"
 ```
 
-생성되는 것:
+What gets created:
 - `AGENTS.md`, `.cursor/rules/*`, `docs/project/*`, `docs/tasks/`, `docs/logs/`
 - `.vibeops/agents/*`, `.vibeops/prompts/*`, `.vibeops/workflows/*`
 - `.vibeops.json`, `.vibeops.env.example`
@@ -25,49 +25,49 @@ git init && git add . && git commit -m "chore: bootstrap vibeops"
 vibeops plan --idea "<one-paragraph idea>"
 ```
 
-출력된 프롬프트를 Cursor에 붙여 넣는다. Cursor는 `planner` 에이전트가 되어 4개 파일을 채운다.
+Paste the resulting prompt into Cursor. Cursor takes on the `planner` agent role and fills in four files.
 
 - `docs/project/00-overview.md`
 - `docs/project/01-requirements.md`
 - `docs/project/02-mvp-scope.md`
 - `docs/project/07-backlog.md`
 
-다음으로 `architect`를 호출해 `03-architecture.md`·`04-tech-stack.md`를 채운다.
+Next, invoke `architect` to fill in `03-architecture.md` and `04-tech-stack.md`.
 
 ## 3. Backlog → TASKs
 
-각 백로그 항목에 대해:
+For each backlog item:
 
 ```bash
 vibeops task generate --from-backlog TASK-NNN
 ```
 
-`docs/tasks/TASK-NNN-*.md` 파일이 생긴다.
+A `docs/tasks/TASK-NNN-*.md` file appears.
 
 ## 4. First TASK
 
 ```bash
 vibeops task start TASK-001
 vibeops task prompt TASK-001 --agent builder
-# Cursor에 붙여 넣어 작업
+# paste into Cursor and let it work
 vibeops task check TASK-001
 vibeops task done TASK-001
 ```
 
-머지 가이드를 보고 사람이 직접 머지·푸시.
+Read the merge guidance, then merge and push manually.
 
-## 5. (옵션) Notion
-
-```bash
-vibeops notion init      # .vibeops.env 작성 안내
-vibeops notion test      # API 접근·DB 스키마 검증
-vibeops notion sync      # docs/tasks 메타 → Notion
-```
-
-## 6. 매일
+## 5. (Optional) Notion
 
 ```bash
-vibeops status           # 어디까지 왔는지 1초 안에 확인
+vibeops notion init      # interactive .vibeops.env setup
+vibeops notion test      # validate API access and DB schemas
+vibeops notion sync      # push docs/tasks metadata to Notion
 ```
 
-`docs/logs/YYYY-MM-DD.md`에 그날 결정·진척을 한 항목씩 남긴다.
+## 6. Daily
+
+```bash
+vibeops status           # check where you are in one second
+```
+
+Add one entry per decision or step to `docs/logs/YYYY-MM-DD.md` each day.

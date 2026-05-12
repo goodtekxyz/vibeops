@@ -1,29 +1,29 @@
 # 08 — Environment
 
-이 프로젝트가 사용하는 환경 변수와 그 의미.
+Environment variables used by this project and what they mean.
 
-## 로컬 개발
+## Local development
 
-`.vibeops.env.example`을 `.vibeops.env`로 복사하고 값을 채운다. `.vibeops.env`는 절대 커밋하지 않는다(`.gitignore`에 포함).
+Copy `.vibeops.env.example` to `.vibeops.env` and fill in the values. Never commit `.vibeops.env` — it is listed in `.gitignore`.
 
-| 변수            | 용도                                                       | 필수 여부      |
-| --------------- | ---------------------------------------------------------- | -------------- |
-| `NOTION_TOKEN`  | Notion internal integration secret (VibeOps 가 읽는 유일한 비밀값) | Notion 사용 시 |
+| Variable        | Purpose                                                          | Required        |
+| --------------- | ---------------------------------------------------------------- | --------------- |
+| `NOTION_TOKEN`  | Notion internal integration secret (the only secret VibeOps reads) | If using Notion |
 
-VibeOps 가 환경변수로 읽는 비밀값은 `NOTION_TOKEN` 하나뿐이다. Notion **Projects / Tasks DB target ID** 는 환경변수가 아니라 `.vibeops.json` 의 `notion.projectsTargetId` / `notion.tasksTargetId` 에 저장된다 — `vibeops notion init` 이 채워 준다. GitHub 인증은 `gh auth` 가 담당하므로 `GITHUB_TOKEN` 을 여기에 둘 필요는 없다.
+`NOTION_TOKEN` is the only secret VibeOps reads from the environment. Notion **Projects / Tasks DB target IDs** are not environment variables — they live in `.vibeops.json` as `notion.projectsTargetId` / `notion.tasksTargetId`, and `vibeops notion init` writes them. GitHub auth is owned by `gh auth`, so there is no need to put `GITHUB_TOKEN` here.
 
-> Legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` 환경변수는 더 이상 사용되지 않는다. 기존 프로젝트의 `.vibeops.env` 에 남아 있어도 VibeOps 는 무시한다 — 안전을 위해 직접 정리하면 좋다.
+> The legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` environment variables are no longer used. VibeOps ignores them if they remain in an existing `.vibeops.env`. It is safe to remove them by hand.
 
 <!--
-프로젝트가 자체 환경 변수를 가지게 되면 여기에 추가한다.
-예) DATABASE_URL, OAUTH_CLIENT_ID, ...
+Add project-specific environment variables here once they exist.
+Examples: DATABASE_URL, OAUTH_CLIENT_ID, ...
 -->
 
-## 스테이징 / 운영
+## Staging / production
 
-<!-- 채울 자리 -->
+<!-- Slot. -->
 
-## 비밀 관리
+## Secret management
 
-- `.vibeops.env`는 평문 로컬 파일이다. 운영 비밀은 별도 secret manager에 둔다.
-- 어떤 VibeOps 명령도 이 값을 stdout에 그대로 노출하지 않는다(마스킹).
+- `.vibeops.env` is a plain-text local file. Production secrets belong in a real secret manager.
+- No VibeOps command prints secret values to stdout in the clear (they are masked).

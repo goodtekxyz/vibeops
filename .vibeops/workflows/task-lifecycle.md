@@ -1,10 +1,10 @@
 # Workflow · Task Lifecycle
 
-한 TASK의 시작부터 완료까지.
+A TASK from start to finish.
 
-## 0. 선택
+## 0. Pick
 
-`vibeops status`로 다음 진행할 TASK를 확인한다. 보통 in_progress → planned 순.
+Run `vibeops status` to identify the next TASK. Typically run `in_progress` items before `planned` ones.
 
 ## 1. Start
 
@@ -12,10 +12,10 @@
 vibeops task start TASK-NNN
 ```
 
-- 현재 작업 폴더가 dirty면 거부(`--allow-dirty`로 우회 가능, 권장 X).
-- base branch / base commit / task branch를 `.vibeops/state/tasks/TASK-NNN.json`에 기록.
-- `task/NNN-<slug>` 브랜치 생성·체크아웃.
-- TASK 파일 Status를 `in_progress`로.
+- A dirty working tree is refused (override with `--allow-dirty`, not recommended).
+- Records base branch / base commit / task branch in `.vibeops/state/tasks/TASK-NNN.json`.
+- Creates and checks out the `task/NNN-<slug>` branch.
+- Sets the TASK file's Status to `in_progress`.
 
 ## 2. Prompt
 
@@ -23,12 +23,12 @@ vibeops task start TASK-NNN
 vibeops task prompt TASK-NNN --agent builder
 ```
 
-출력된 단일 마크다운을 Cursor 채팅창에 붙여 넣는다. Cursor는 builder 에이전트로 작동.
+Paste the single markdown output directly into the Cursor chat. Cursor takes on the builder agent role.
 
-다른 에이전트도 같은 방식.
-- `--agent reviewer` : 변경 diff 점검
-- `--agent tester` : Test Plan 실행
-- `--agent docs` : 문서 세 가지 갱신
+Other agents work the same way:
+- `--agent reviewer` — review the diff.
+- `--agent tester` — run the Test Plan.
+- `--agent docs` — update the three docs.
 
 ## 3. Check
 
@@ -36,9 +36,9 @@ vibeops task prompt TASK-NNN --agent builder
 vibeops task check TASK-NNN
 ```
 
-- Acceptance Criteria 항목별 ✓/✗
-- “Expected Files to Change”와 실제 변경 파일 매칭
-- 현재 브랜치·dirty·커밋 수 요약
+- Score Acceptance Criteria items with ✓ / ✗.
+- Match `Expected Files to Change` against actual changes.
+- Summarize current branch / dirty / commit count.
 
 ## 4. Done
 
@@ -46,11 +46,11 @@ vibeops task check TASK-NNN
 vibeops task done TASK-NNN
 ```
 
-- TASK 파일의 Status=`done`, Result/Test Result 본문 검증
-- `.vibeops/state/tasks/TASK-NNN.json`에 `doneAt` 기록
-- **머지 가이드** 출력 (자동 머지 금지)
+- Validates the TASK file's Status, Result, Test Result bodies.
+- Records `doneAt` in `.vibeops/state/tasks/TASK-NNN.json`.
+- Prints **merge guidance** (no automatic merge).
 
-머지는 사람이 직접:
+A human merges:
 
 ```bash
 git switch main
@@ -58,14 +58,14 @@ git merge --ff-only task/NNN-<slug>
 git branch -d task/NNN-<slug>
 ```
 
-## 5. (옵션) Notion sync
+## 5. (Optional) Notion sync
 
 ```bash
 vibeops notion sync
 ```
 
-TASK 메타(요약·상태·우선순위·브랜치·docs path·결과 요약)가 Notion에 푸시된다.
+Pushes TASK metadata (summary, status, priority, branch, docs path, result summary) to Notion.
 
-## 비상시: Rollback
+## When things go wrong: Rollback
 
-[`rollback.md`](rollback.md) 참고.
+See [`rollback.md`](rollback.md).

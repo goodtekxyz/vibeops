@@ -5,44 +5,44 @@ alwaysApply: true
 
 # Agent Orchestration
 
-이 프로젝트에는 `.vibeops/agents/*.md`에 8개 에이전트 정의가 있다. 각 에이전트는 **자신의 역할 밖**으로 나가지 않는다.
+This project defines 8 agents in `.vibeops/agents/*.md`. Every agent stays inside **its own role**.
 
-## 흐름
+## Flow
 
 ```
-사용자/PM
+user / PM
    │
    ▼
-[orchestrator]  ── 다음 TASK 선택, 적절한 에이전트 호출
+[orchestrator]  ── picks the next TASK, calls the right agent
    │
-   ├──▶ [planner]    아이디어 → docs/project/{00,01,02,07}
+   ├──▶ [planner]    idea → docs/project/{00,01,02,07}
    ├──▶ [architect]  docs/project/{03,04}
-   ├──▶ [builder]    단일 TASK 코드 변경
+   ├──▶ [builder]    one TASK, code changes
    ├──▶ [reviewer]   diff vs Acceptance Criteria
-   ├──▶ [tester]     Test Plan 실행 → Test Result
-   ├──▶ [docs]       05-current-state / TASK Result / logs 갱신
-   └──▶ [recovery]   롤백 진단 (파괴적 작업은 --confirm)
+   ├──▶ [tester]     run Test Plan → Test Result
+   ├──▶ [docs]       update 05-current-state / TASK Result / logs
+   └──▶ [recovery]   diagnose rollback (destructive actions require --confirm)
 ```
 
-## 호출 방법
+## How to invoke
 
-VibeOps CLI로 에이전트별 프롬프트를 얻는다.
+Get an agent prompt from the VibeOps CLI:
 
 ```
 vibeops agent prompt <agent> <TASK-NNN>
 vibeops task prompt <TASK-NNN> --agent <agent>
 ```
 
-출력된 마크다운을 Cursor 채팅창에 그대로 붙여 넣는다.
+Paste the resulting markdown directly into the Cursor chat.
 
-## 책임 경계
+## Role boundaries
 
-- `builder`가 `reviewer`의 일을 대신하지 않는다(자기 점검은 좋지만 검토는 별도 호출).
-- `planner`가 코드를 짜지 않는다. `architect`가 비즈니스 로직을 결정하지 않는다.
-- `docs`가 코드 변경을 만들지 않는다(문서만).
-- 어떤 에이전트도 **여러 TASK를 동시에 진행하지 않는다**.
+- `builder` does not do `reviewer`'s job (self-checks are fine, but a real review is a separate call).
+- `planner` does not write code. `architect` does not decide business logic.
+- `docs` does not make code changes — documentation only.
+- No agent runs **multiple TASKs in parallel**.
 
-## 금지사항
+## Forbidden
 
-- “이 일은 내 일이 아닌데 그냥 해 줄게” → 안 된다. 다른 에이전트로 다시 호출한다.
-- 에이전트 정의 파일(`.vibeops/agents/*.md`)을 TASK 없이 임의로 수정하기.
+- "Not really my job but I'll just do it" — no. Call the right agent again.
+- Editing the agent definition files (`.vibeops/agents/*.md`) without a TASK that authorizes it.

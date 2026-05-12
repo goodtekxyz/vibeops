@@ -1,51 +1,53 @@
 # Workflow · Notion Sync
 
-Notion은 **사람이 보는 운영판**이다. Source of truth가 아니다.
+Notion is the **human dashboard**. It is not the source of truth.
 
-## 무엇이 동기화되는가
+## What is synced
 
-| 방향               | 무엇                                       | 어디                          |
-| ------------------ | ------------------------------------------ | ----------------------------- |
-| docs → Notion      | TASK ID, 제목, status, priority, branch, docs path, 결과 요약 | Task DB                        |
-| docs → Notion      | 프로젝트 이름, 현재 상태 요약, 다음 TASK ID                     | Project DB(단일 row 기본)      |
-| Notion → docs      | TASK의 status, priority (frontmatter)         | `docs/tasks/*.md` frontmatter |
+| Direction           | What                                                                  | Where                          |
+| ------------------- | --------------------------------------------------------------------- | ------------------------------ |
+| docs → Notion       | TASK ID, title, status, priority, branch, docs path, result summary    | Task DB                        |
+| docs → Notion       | Project name, current-state summary, next TASK ID                       | Project DB (single row by default) |
+| Notion → docs       | TASK status, priority (frontmatter)                                   | `docs/tasks/*.md` frontmatter  |
 
-## 무엇은 동기화되지 않는가
+## What is NOT synced
 
-- TASK 본문 (Scope, Acceptance Criteria, Implementation Plan 등)
-- `docs/project/00~07`의 본문
-- 코드 변경 / Git 상태
+- TASK bodies (Scope, Acceptance Criteria, Implementation Plan, …).
+- The bodies of `docs/project/00 ~ 07`.
+- Code changes / Git state.
 
-상세는 항상 Git의 docs에서 본다.
+Details always live in the Git docs.
 
-## 설정
+## Setup
 
 ```bash
 vibeops notion init
-# NOTION_TOKEN 입력을 안내한다 (`.vibeops.env` 가 없으면 새로 만들지 묻고,
-# 있으면 NOTION_TOKEN 라인만 안전하게 교체한다).
-# Projects / Tasks DB 의 target ID 는 환경변수가 아니라
-# `.vibeops.json` 의 `notion.projectsTargetId` / `notion.tasksTargetId` 에 저장된다.
+# Prompts for NOTION_TOKEN. If `.vibeops.env` does not exist it asks before
+# creating one; if it exists, only the NOTION_TOKEN line is replaced safely.
+# Target IDs for the Projects / Tasks databases are not environment variables —
+# they are stored in `.vibeops.json` as `notion.projectsTargetId` /
+# `notion.tasksTargetId`.
 
 vibeops notion test
-# API 접근 + DB 스키마 검증 (필수 속성: Name / TaskId / Status / Priority / Branch / DocsPath / ResultSummary)
+# Validates API access + DB schemas (required properties: Name / TaskId /
+# Status / Priority / Branch / DocsPath / ResultSummary).
 ```
 
-> Legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` 환경변수는 더 이상 사용하지 않는다. VibeOps 는 `NOTION_TOKEN` 만 읽는다.
+> The legacy `NOTION_API_KEY` / `NOTION_PROJECT_DB` / `NOTION_TASK_DB` environment variables are no longer used. VibeOps reads only `NOTION_TOKEN`.
 
-## 사용
+## Usage
 
 ```bash
-vibeops notion sync             # push (멱등)
-vibeops notion sync --dry-run   # 미리보기
+vibeops notion sync             # push (idempotent)
+vibeops notion sync --dry-run   # preview
 
 vibeops task pull               # Notion → docs frontmatter
-vibeops task pull --dry-run     # 미리보기
+vibeops task pull --dry-run     # preview
 ```
 
-## 비스코프 (MVP)
+## Non-goals
 
-- 실시간 webhook
-- 양방향 본문 동기화
-- 페이지 child block 동기화
-- 새 TASK를 Notion에서 만들고 docs로 끌어오기 (그건 `vibeops task generate`의 영역)
+- Realtime webhooks.
+- Two-way body sync.
+- Child-block sync on Notion pages.
+- Creating new TASKs in Notion and pulling them into docs (that belongs to `vibeops task generate`).
