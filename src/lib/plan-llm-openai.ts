@@ -122,16 +122,24 @@ export function parsePlanLlmTurn(jsonText: string): PlanLlmAssistantTurn {
   }
   if (turn === "question") {
     const message = typeof raw.message === "string" ? raw.message : "";
-    const questionType = raw.questionType;
     if (message.length === 0) {
       throw new Error('Invalid JSON: "question" turn needs non-empty "message".');
-    }
-    if (questionType !== "single" && questionType !== "multi" && questionType !== "text") {
-      throw new Error('Invalid JSON: questionType must be "single", "multi", or "text".');
     }
     const options = Array.isArray(raw.options)
       ? raw.options.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
       : [];
+    const rawQt = raw.questionType;
+    let questionType: "single" | "multi" | "text";
+    if (rawQt === "single" || rawQt === "multi" || rawQt === "text") {
+      questionType = rawQt;
+    } else if (options.length >= 2) {
+      /** Model often omits or mistypes questionType — multi is the safer default when lists are offered. */
+      questionType = "multi";
+    } else if (options.length === 1) {
+      questionType = "single";
+    } else {
+      questionType = "text";
+    }
     return {
       turn: "question",
       message,
