@@ -73,7 +73,9 @@ program
 
 program
   .command("plan")
-  .description("Run 20 interactive questions and produce a ProjectBrief + Cursor planning prompt")
+  .description(
+    "Requires `vibeops init`: LLM planning → ProjectBrief + planning prompt; optional --apply-planner runs the planner via the same LLM (docs + TASKs, commit, push, Notion). Use --legacy-wizard for the fixed 20-question flow",
+  )
   .option("--idea <text>", "One-line idea default (use `Name: idea` to extract the project name)")
   .option("--from <path>", "Read an existing brief markdown and regenerate the prompt")
   .option(
@@ -82,18 +84,69 @@ program
   )
   .option(
     "--non-interactive",
-    "Skip prompts and use the supplied values plus safe placeholders",
+    "Skip prompts and use the supplied values plus safe placeholders (no LLM)",
+  )
+  .option(
+    "--legacy-wizard",
+    "Use the original 20-question wizard instead of an LLM planning session",
+  )
+  .option(
+    "--provider <id>",
+    "LLM provider when several are available: openai | codex-oauth | cursor-agent",
+  )
+  .option(
+    "--model <id>",
+    "LLM model id for the selected provider (skips interactive model list; same as setting VIBEOPS_*_MODEL for that path)",
   )
   .option("--cwd <path>", "Run against a different directory")
+  .option(
+    "--apply-planner",
+    "After writing the brief + prompt: call the same LLM provider to emit docs/project + docs/tasks; then (TTY) ask commit → push → Notion in order, or (--non-interactive) commit unless --no-git-commit, push only with --push, Notion unless --no-notion-sync",
+  )
+  .option(
+    "--apply-dry-run",
+    "With --apply-planner (or alone): call the LLM and list files that would be written; no writes, git, or Notion",
+  )
+  .option("--no-git-commit", "With --apply-planner: skip git commit after writes")
+  .option("--push", "With --apply-planner: run git push after commit (TTY: optional `vibeops github init` before push; skips the push Yes/No prompt)")
+  .option("--no-notion-sync", "With --apply-planner: skip Notion sync even when the brief enables it")
   .action(
     async (options: {
       idea?: string;
       from?: string;
       output?: string;
       nonInteractive?: boolean;
+      legacyWizard?: boolean;
+      provider?: string;
+      model?: string;
       cwd?: string;
+      applyPlanner?: boolean;
+      applyDryRun?: boolean;
+      noGitCommit?: boolean;
+      push?: boolean;
+      noNotionSync?: boolean;
     }) => {
-      await planCommand(options);
+      const provider =
+        options.provider === "openai" ||
+        options.provider === "codex-oauth" ||
+        options.provider === "cursor-agent"
+          ? options.provider
+          : undefined;
+      await planCommand({
+        idea: options.idea,
+        from: options.from,
+        output: options.output,
+        nonInteractive: options.nonInteractive,
+        legacyWizard: options.legacyWizard === true,
+        provider,
+        llmModel: typeof options.model === "string" ? options.model : undefined,
+        cwd: options.cwd,
+        applyPlanner: options.applyPlanner === true,
+        applyPlannerDryRun: options.applyDryRun === true,
+        noGitCommit: options.noGitCommit === true,
+        gitPush: options.push === true,
+        noNotionSync: options.noNotionSync === true,
+      });
     },
   );
 

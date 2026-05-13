@@ -66,6 +66,8 @@ export interface GatherBriefInputs {
   idea?: string;
   nonInteractive: boolean;
   seed?: Partial<ProjectBrief>;
+  /** When true, meta.source is legacy-wizard (fixed 20-question flow). */
+  legacyWizard?: boolean;
 }
 
 export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundle> {
@@ -260,7 +262,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   const meta: BriefMeta = {
     vibeopsVersion: VERSION,
     generatedAt: new Date().toISOString(),
-    source: inputs.nonInteractive ? "non-interactive" : "interactive",
+    source: inputs.legacyWizard === true ? "legacy-wizard" : inputs.nonInteractive ? "non-interactive" : "interactive",
     schemaVersion: PROJECT_BRIEF_SCHEMA_VERSION,
     assumptions,
   };
@@ -313,10 +315,15 @@ export function briefToMarkdown(brief: ProjectBrief, meta: BriefMeta): string {
   );
   lines.push("");
   lines.push(
-    "This brief is the input for the Cursor **Planner Agent**. VibeOps does not call LLMs directly.",
-  );
-  lines.push(
-    "The Planner Agent reads this brief, fills in `docs/project/*`, and creates the initial backlog.",
+    meta.source === "llm-openai" ||
+      meta.source === "llm-codex-oauth" ||
+      meta.source === "llm-cursor-agent"
+      ? meta.source === "llm-codex-oauth"
+        ? "This brief was produced by an **LLM planning session** using **Codex (ChatGPT OAuth)** (`codex login`, read from ~/.codex/auth.json). Review and edit it, then let the Planner Agent fill `docs/project/*`."
+        : meta.source === "llm-openai"
+          ? "This brief was produced by an **LLM planning session** using an **OpenAI platform API key**. Review and edit it, then let the Planner Agent fill `docs/project/*`."
+          : "This brief was produced by an **LLM planning session** using the **Cursor Agent CLI**. Review and edit it, then let the Planner Agent fill `docs/project/*`."
+      : "This brief is the input for the Cursor **Planner Agent**. VibeOps collected these answers locally (or from `--from`) — the Planner Agent reads this brief, fills in `docs/project/*`, and creates the initial backlog.",
   );
   lines.push("");
 
@@ -410,11 +417,10 @@ export function parseBriefFromMarkdown(md: string): { brief: ProjectBrief; meta:
   const generatedAt = headerMatch?.[1] ?? new Date().toISOString();
   const recordedVersion = headerMatch?.[2] ?? VERSION;
   const recordedSource = (headerMatch?.[3] as BriefSource | undefined) ?? "from-file";
-
   const meta: BriefMeta = {
     vibeopsVersion: recordedVersion,
     generatedAt,
-    source: recordedSource === "from-file" ? "from-file" : recordedSource,
+    source: recordedSource,
     schemaVersion: PROJECT_BRIEF_SCHEMA_VERSION,
     assumptions,
   };

@@ -70,7 +70,8 @@ vibeops init
 # Non-interactive Git bootstrap:
 vibeops init --git --initial-commit
 
-# 2. Answer 20 short planning questions and generate a Cursor planning prompt.
+# 2. LLM planning session (OpenAI API key, Codex `codex login` / ~/.codex/auth.json, or Cursor `agent` CLI) → brief + planning prompt.
+#    Use `vibeops plan --legacy-wizard` for the original 20-question flow.
 vibeops plan
 
 # 3. Generate a TASK prompt or scaffold TASK markdown.
@@ -126,7 +127,7 @@ vibeops
 │       [--git|--no-git] [--initial-commit|--no-initial-commit]
 │       [--default-branch <name>] [--commit-message <message>]
 ├─ status [--json] [--cwd <path>]
-├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--cwd <path>]
+├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--legacy-wizard] [--provider <id>] [--cwd <path>]
 ├─ agent
 │  ├─ list [--json] [--cwd <path>]
 │  ├─ show <name> [--raw] [--cwd <path>]
@@ -159,7 +160,7 @@ Run any command with `--help` for the option details.
 
 ### Interactive Planner
 
-`vibeops plan` asks 20 short questions and produces a normalized brief plus a Cursor planning prompt. A non-interactive mode is available for safe placeholder output.
+`vibeops plan` runs only inside a **VibeOps project** (expects **`.vibeops.json`** from `vibeops init`). It writes `.vibeops/brief/project-brief.md` and `.vibeops/generated/plan-prompt.md`; with **`--apply-planner`** it also writes `docs/project/*` and `docs/tasks/*` via the LLM. The command uses **OpenAI** (`OPENAI_API_KEY`), **Codex (ChatGPT OAuth)** via tokens from `codex login` (`~/.codex/auth.json`, same OAuth client as Hermes/OpenClaw `openai-codex`), or the **Cursor Agent CLI** (`agent login`). With a TTY you **always pick** among those three (each line shows ✓ or “needs setup”; Codex can start browser OAuth from that menu). Pass `--provider` to skip the menu when that path is already ready. Then pick a **model** from the provider catalog (or `--model`). Next you pick the **planning dialogue language** (preset list + Other); the LLM asks **one question per turn** in that language. Each question header shows a **rough ASCII progress line** and **ETA hint** (assumes up to ~14 steps; not a guarantee). **Multi**-choice suggestions use **checkboxes** (Space, Other, **Wrap up — draft summary now** when allowed, then **Go back** last when you can undo); **single**-choice uses **arrow select** with **Other**, wrap-up, and **Go back** last (no extra Continue step). **Text** answers: type `back` alone to go back when allowed, or `wrap` / `enough` to stop questions and ask for a draft summary from the thread so far. When the model is ready, it shows a **readable markdown summary**; you must **confirm** before the `ProjectBrief` is written. After that, **`--apply-planner`** runs the planner pass via the same provider: fills `docs/project/*` and initial `docs/tasks/*`. With a **TTY** and without **`--non-interactive`**, you are then asked **in order**: create a **git commit** (default Yes; if Git is not initialized yet, you can run **`git init`** + branch **`main`** from the same prompts), **git push** (default No; use **`--push`** to skip the question and push after a successful commit; after you choose push, you can run **`vibeops github init`** to connect or create a GitHub repo / set **`origin`**, same as the standalone command), and **Notion sync** when the brief enables it (default Yes; **`--no-notion-sync`** skips; if Notion is not configured, you can run **`vibeops notion init`** from the same flow, then sync retries once ready). In **`--non-interactive`** mode, commit runs automatically (unless **`--no-git-commit`**), push only with **`--push`**, and Notion runs when the brief enables it (unless **`--no-notion-sync`**). **`--apply-dry-run`** asks the model which files it would emit without writing. Codex defaults to ChatGPT-account models (`gpt-5.4`; override with `VIBEOPS_CODEX_MODEL`). Use `--legacy-wizard` for the fixed 20-question flow. `--non-interactive` and `--from` never call an LLM for the brief unless you add `--apply-planner` with `--provider` (and optional `--model`) for the apply step.
 
 ### Task Generator
 
