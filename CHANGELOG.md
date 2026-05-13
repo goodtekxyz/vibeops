@@ -4,6 +4,13 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 0.4.0 - 2026-05-13
+
+### Changed
+
+- **Interactive plan LLM (`questionType`)**: system prompt prefers **`multi`** (checkbox, Space toggles) whenever several options can apply; reserve **`single`** for mutually exclusive choices. **`multi` vs `single` terminal behavior** is spelled out for the model.
+- **Plan JSON parsing**: if `questionType` is missing or invalid and **two or more** `options` are present, default to **`multi`** so users get multi-select instead of a hard error or accidental single-only flow.
+
 ## 0.3.0 - 2026-05-13
 
 ### Changed
