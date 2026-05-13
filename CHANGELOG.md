@@ -4,11 +4,16 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 0.3.0 - 2026-05-13
+
 ### Changed
 
-- `vibeops plan` (interactive default): verifies an LLM provider — **OpenAI** (`OPENAI_API_KEY`), **Codex (ChatGPT OAuth)** via `~/.codex/auth.json` from `codex login` (refresh at `https://auth.openai.com/oauth/token` with the same public `client_id` as Hermes / OpenClaw `openai-codex`; requests use `POST …/backend-api/codex/responses` with `store:false` and `stream:true`), or **Cursor Agent CLI** (`agent login`). Then runs the adaptive JSON-protocol planning loop until the model emits a full `ProjectBrief`. Env: `VIBEOPS_CODEX_MODEL`, `VIBEOPS_CODEX_BASE_URL`. `--provider openai|codex-oauth|cursor-agent` forces one path when available. `--legacy-wizard` restores the fixed 20-question flow; `--non-interactive` and `--from` do not call an LLM.
-
-- `vibeops task start`: if the working tree is dirty only under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, the command proceeds with a warning instead of exiting. Uncommitted changes outside those paths still require a clean tree or `--allow-dirty`. This avoids blocking the next TASK after `task done` / `--finalize` left TASK or project docs uncommitted on `main`.
+- **`vibeops plan` requires `vibeops init`**: exits early if `.vibeops.json` is missing so partial `.vibeops/` trees are not created outside a full VibeOps project.
+- **Interactive LLM planning** (default): OpenAI API key, **Codex (ChatGPT OAuth)** via `~/.codex/auth.json`, or **Cursor Agent CLI**; always lists all three providers; live model catalogs (`/v1/models`, Codex `/models` with `client_version`, `agent models`); **`--model`** skips the picker. Codex uses ChatGPT-account models (default **`gpt-5.4`**); **`VIBEOPS_CODEX_CLIENT_VERSION`** / `codex --version` / bundled default for `client_version`.
+- **Planning dialogue UX**: terminal **language picker** after model; **one question per turn**; **wrap up early** (`wrap` / `enough` or picker row) → `confirm` only; **go back** on pickers / `back` for text; **rough progress + ETA** line per question; **`confirm` then terminal Yes** before **`done`** ProjectBrief.
+- **`--apply-planner`**: second LLM pass from `plan-prompt.md`, parses `<!-- file: docs/... -->` fences, writes **`docs/project/*`** and **`docs/tasks/*`**; interactive **commit → optional `github init` before push → push → Notion sync** prompts; **`--apply-dry-run`**, **`--no-git-commit`**, **`--push`**, **`--no-notion-sync`**; optional **`git init`**, **`notion init`**, same flow as **`vibeops github init`** when setup is missing.
+- **LLM protocol / system prompt**: product-first pacing; session rule for wrap-up → `confirm` only.
+- **`vibeops task start`**: allows a dirty tree when changes are limited to governance doc paths (`docs/tasks/`, `docs/project/`, `docs/logs/`, `.vibeops/state/`).
 
 ## 0.2.0 - 2026-05-12
 

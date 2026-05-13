@@ -9,12 +9,14 @@ import type { OpenAiChatMessage } from "./plan-llm-openai.js";
 
 const DEFAULT_BASE = "https://chatgpt.com/backend-api/codex";
 
-function codexBaseUrl(): string {
+/** Base URL for Codex ChatGPT routes (`…/responses`, `…/models`). */
+export function codexResponsesBaseUrl(): string {
   return (process.env.VIBEOPS_CODEX_BASE_URL ?? DEFAULT_BASE).replace(/\/$/, "");
 }
 
+/** ChatGPT-account Codex (`/backend-api/codex/responses`) does not accept API-only codex model ids such as `gpt-5.1-codex`. */
 function codexModel(): string {
-  return process.env.VIBEOPS_CODEX_MODEL?.trim() || "gpt-5.1-codex";
+  return process.env.VIBEOPS_CODEX_MODEL?.trim() || "gpt-5.4";
 }
 
 interface ResponsesInputMessage {
@@ -150,7 +152,7 @@ export async function readSseTextBody(response: Response): Promise<string> {
 
 async function postCodexResponses(body: Record<string, unknown>): Promise<Response> {
   const { accessToken } = await resolveCodexOAuthAccessToken();
-  const url = `${codexBaseUrl()}/responses`;
+  const url = `${codexResponsesBaseUrl()}/responses`;
   return fetch(url, {
     method: "POST",
     headers: {
@@ -167,9 +169,12 @@ async function postCodexResponses(body: Record<string, unknown>): Promise<Respon
  * One planning model turn via Codex (ChatGPT OAuth). Returns raw assistant text
  * (expected to be a single JSON object per VibeOps protocol).
  */
-export async function codexOAuthPlanCompletion(messages: readonly OpenAiChatMessage[]): Promise<string> {
+export async function codexOAuthPlanCompletion(
+  messages: readonly OpenAiChatMessage[],
+  options?: { readonly model?: string },
+): Promise<string> {
   const { instructions, input } = mapChatMessagesToCodexBody(messages);
-  const model = codexModel();
+  const model = options?.model?.trim() || codexModel();
 
   const withJsonFormat = (): Record<string, unknown> => ({
     model,
@@ -206,6 +211,33 @@ export async function codexOAuthPlanCompletion(messages: readonly OpenAiChatMess
     }
   }
 
+  const text = await readSseTextBody(res);
+  if (text.length === 0) {
+    throw new Error("Codex responses stream produced empty text.");
+  }
+  return text;
+}
+
+/**
+ * One assistant turn as free markdown (no JSON schema) — used for planner apply.
+ */
+export async function codexOAuthTextCompletion(
+  messages: readonly OpenAiChatMessage[],
+  options?: { readonly model?: string },
+): Promise<string> {
+  const { instructions, input } = mapChatMessagesToCodexBody(messages);
+  const model = options?.model?.trim() || codexModel();
+  const res = await postCodexResponses({
+    model,
+    instructions,
+    input,
+    store: false,
+    stream: true,
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Codex responses HTTP ${res.status}: ${errText.slice(0, 500)}`);
+  }
   const text = await readSseTextBody(res);
   if (text.length === 0) {
     throw new Error("Codex responses stream produced empty text.");

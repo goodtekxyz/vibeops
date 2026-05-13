@@ -7,9 +7,9 @@
  * @see https://developers.openai.com/codex/auth
  * @see https://docs.openclaw.ai/concepts/oauth (OpenAI Codex OAuth)
  */
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /** Public OAuth client id used by Codex CLI / Hermes / OpenClaw for ChatGPT login. */
 export const CODEX_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -75,7 +75,8 @@ export async function probeCodexOAuthFile(): Promise<CodexAuthProbeResult> {
       return {
         ok: false,
         path,
-        reason: `No Codex auth file. Run ${"codex login"} (ChatGPT) or copy auth.json from a machine where login succeeded.`,
+        reason:
+          "No Codex auth file yet. With an interactive TTY, `vibeops plan` can open ChatGPT OAuth in the browser; otherwise run `codex login` or copy auth.json.",
       };
     }
     const msg = e instanceof Error ? e.message : String(e);
@@ -97,6 +98,36 @@ async function readAuthPayload(): Promise<{ path: string; root: Record<string, u
   } catch {
     return null;
   }
+}
+
+/**
+ * Writes or merges OAuth tokens into the Codex CLI auth file (`auth.json`).
+ */
+export async function saveCodexAuthTokens(tokens: {
+  readonly access_token: string;
+  readonly refresh_token: string;
+  readonly id_token?: string;
+}): Promise<void> {
+  const path = codexAuthJsonPath();
+  await mkdir(dirname(path), { recursive: true });
+  let root: Record<string, unknown> = {};
+  try {
+    root = JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
+  } catch {
+    /* new file */
+  }
+  const tokenBag =
+    root.tokens !== undefined && typeof root.tokens === "object" && !Array.isArray(root.tokens)
+      ? { ...(root.tokens as Record<string, unknown>) }
+      : {};
+  tokenBag.access_token = tokens.access_token;
+  tokenBag.refresh_token = tokens.refresh_token;
+  if (typeof tokens.id_token === "string" && tokens.id_token.length > 0) {
+    tokenBag.id_token = tokens.id_token;
+  }
+  root.tokens = tokenBag;
+  root.auth_mode = "chatgpt";
+  await writeFile(path, `${JSON.stringify(root, null, 2)}\n`, "utf-8");
 }
 
 function extractTokens(root: Record<string, unknown>): CodexTokenPair | null {

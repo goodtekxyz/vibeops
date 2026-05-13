@@ -14,6 +14,7 @@ function agentBin(): string {
 export async function cursorAgentPrint(params: {
   readonly cwd: string;
   readonly prompt: string;
+  readonly model?: string;
 }): Promise<string> {
   const command = agentBin();
   const argv = [
@@ -23,6 +24,7 @@ export async function cursorAgentPrint(params: {
     "--plan",
     "--workspace",
     params.cwd,
+    ...(params.model?.trim() ? ["--model", params.model.trim()] : []),
     "--trust",
     params.prompt,
   ];

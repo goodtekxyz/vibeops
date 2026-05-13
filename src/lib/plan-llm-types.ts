@@ -1,9 +1,7 @@
 import type { ProjectBrief } from "../types/brief.js";
 
 /** One assistant turn from the planning LLM (JSON). */
-export type PlanLlmAssistantTurn =
-  | PlanLlmQuestionTurn
-  | PlanLlmDoneTurn;
+export type PlanLlmAssistantTurn = PlanLlmQuestionTurn | PlanLlmConfirmTurn | PlanLlmDoneTurn;
 
 export interface PlanLlmQuestionTurn {
   readonly turn: "question";
@@ -12,6 +10,14 @@ export interface PlanLlmQuestionTurn {
   readonly questionType: "single" | "multi" | "text";
   /** Required for single/multi — short labels the user picks with arrow keys */
   readonly options?: readonly string[];
+}
+
+/** Final human-readable check before emitting projectBrief. */
+export interface PlanLlmConfirmTurn {
+  readonly turn: "confirm";
+  /** Markdown shown to the user for approval (must use the chosen planning language). */
+  readonly readableSummary: string;
+  readonly plannerNote?: string;
 }
 
 export interface PlanLlmDoneTurn {

@@ -15,6 +15,7 @@ const tmpRoot = mkdtempSync(join(tmpdir(), "vibeops-smoke-"));
 try {
   const cases = [
     ["--help"],
+    ["init", "--cwd", tmpRoot, "--no-git", "--no-initial-commit", "--name", "smoke-plan"],
     ["init", "--dry-run"],
     ["init", "--dry-run", "--git", "--initial-commit"],
     ["status"],
