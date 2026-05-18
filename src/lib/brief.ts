@@ -66,8 +66,6 @@ export interface GatherBriefInputs {
   idea?: string;
   nonInteractive: boolean;
   seed?: Partial<ProjectBrief>;
-  /** When true, meta.source is legacy-wizard (fixed 20-question flow). */
-  legacyWizard?: boolean;
 }
 
 export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundle> {
@@ -262,7 +260,7 @@ export async function gatherBrief(inputs: GatherBriefInputs): Promise<BriefBundl
   const meta: BriefMeta = {
     vibeopsVersion: VERSION,
     generatedAt: new Date().toISOString(),
-    source: inputs.legacyWizard === true ? "legacy-wizard" : inputs.nonInteractive ? "non-interactive" : "interactive",
+    source: inputs.nonInteractive ? "non-interactive" : "interactive",
     schemaVersion: PROJECT_BRIEF_SCHEMA_VERSION,
     assumptions,
   };

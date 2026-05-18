@@ -4,6 +4,7 @@ import { basename, extname, join } from "node:path";
 import matter from "gray-matter";
 
 import { isDirectory, readText, writeText } from "./filesystem.js";
+import { readGitInfo } from "./git.js";
 import {
   type GitContext,
   type TaskCounts,
@@ -43,7 +44,10 @@ export function statusDisplay(status: TaskStatus): string {
 }
 
 function extractIdFromFilename(file: string): string {
-  const m = /^(TASK-\d+)/i.exec(basename(file));
+  const name = basename(file);
+  const mvp = /^TASK-mvp/i.exec(name);
+  if (mvp) return "TASK-mvp";
+  const m = /^(TASK-\d+)/i.exec(name);
   return m ? m[1]!.toUpperCase() : basename(file, ".md");
 }
 
@@ -114,7 +118,10 @@ export async function scanTasks(tasksDir: string): Promise<TaskMeta[]> {
   if (!(await isDirectory(tasksDir))) return [];
   const entries = await readdir(tasksDir, { withFileTypes: true });
   const files = entries
-    .filter((e) => e.isFile() && e.name.endsWith(".md") && /^TASK-\d+/i.test(e.name))
+    .filter(
+      (e) =>
+        e.isFile() && e.name.endsWith(".md") && /^TASK-(?:\d+|mvp)/i.test(e.name),
+    )
     .map((e) => join(tasksDir, e.name))
     .sort();
   const out: TaskMeta[] = [];
@@ -141,13 +148,78 @@ export function countTasks(tasks: TaskMeta[]): TaskCounts {
   return counts;
 }
 
+export function pickInProgressTask(tasks: readonly TaskMeta[]): TaskMeta | null {
+  return tasks.find((t) => t.status === "in_progress") ?? null;
+}
+
 export function pickNextTask(tasks: TaskMeta[]): TaskMeta | null {
-  const inProgress = tasks.find((t) => t.status === "in_progress");
+  const inProgress = pickInProgressTask(tasks);
   if (inProgress) return inProgress;
   const review = tasks.find((t) => t.status === "review");
   if (review) return review;
-  const planned = tasks.find((t) => t.status === "planned");
-  return planned ?? null;
+  const planned = tasks.filter((t) => t.status === "planned");
+  const mvp = planned.find((t) => t.id.toUpperCase() === "TASK-MVP");
+  return mvp ?? planned[0] ?? null;
+}
+
+const TEMPLATE_TASK_ID = "TASK-000";
+
+export function filterActionableTasks(tasks: readonly TaskMeta[]): TaskMeta[] {
+  return tasks.filter((t) => t.id.toUpperCase() !== TEMPLATE_TASK_ID);
+}
+
+export function isMvpTaskId(id: string): boolean {
+  return id.toUpperCase() === "TASK-MVP";
+}
+
+function taskSortKey(id: string): number {
+  if (isMvpTaskId(id)) return 1_000_000;
+  const m = /^TASK-(\d+)$/i.exec(id.trim());
+  return m ? Number.parseInt(m[1]!, 10) : 0;
+}
+
+/** Latest finished TASK by numeric id (TASK-mvp sorts after numbered tasks). */
+export function pickLatestDoneTask(tasks: readonly TaskMeta[]): TaskMeta | null {
+  const done = filterActionableTasks(tasks).filter((t) => t.status === "done");
+  if (done.length === 0) return null;
+  return [...done].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
+}
+
+export async function loadActionableTasks(tasksDir: string): Promise<TaskMeta[]> {
+  return filterActionableTasks(await scanTasks(tasksDir));
+}
+
+/** True when HEAD is on the TASK's recorded task branch. */
+export function isOnTaskBranch(
+  gitBranch: string | null | undefined,
+  ctx: GitContext | null,
+): boolean {
+  return (
+    typeof gitBranch === "string" &&
+    ctx !== null &&
+    gitBranch === ctx.taskBranch
+  );
+}
+
+/**
+ * Prefer the TASK for the current `task/*` branch so `next` does not jump to the
+ * next Planned TASK while merge / `vibeops done` is still pending.
+ */
+export async function pickActiveTask(
+  tasksDir: string,
+  cwd: string,
+): Promise<TaskMeta | null> {
+  const actionable = await loadActionableTasks(tasksDir);
+  const git = await readGitInfo(cwd);
+
+  if (git.isRepo && typeof git.branch === "string" && git.branch.startsWith("task/")) {
+    for (const t of actionable) {
+      const ctx = await readGitContext(t.filePath);
+      if (isOnTaskBranch(git.branch, ctx)) return t;
+    }
+  }
+
+  return pickNextTask(actionable);
 }
 
 export async function findTaskFile(
@@ -155,44 +227,19 @@ export async function findTaskFile(
   taskId: string,
 ): Promise<string | null> {
   const all = await scanTasks(tasksDir);
-  const target = taskId.toUpperCase();
+  const normalized = taskId.trim();
+  const target =
+    /^mvp$/i.test(normalized) || /^task-mvp$/i.test(normalized)
+      ? "TASK-MVP"
+      : normalized.toUpperCase();
   for (const t of all) {
     if (t.id.toUpperCase() === target) return t.filePath;
   }
   return null;
 }
 
-/**
- * Read the highest TASK number currently present in `tasksDir`.
- * Considers only filenames that match `TASK-NNN-*.md` (the `TASK-000-template.md`
- * scaffolding file is included — callers can subtract its `0` if they want to
- * skip the placeholder).
- *
- * Returns 0 if no TASK files exist or the directory is missing.
- */
-export async function highestTaskNumber(tasksDir: string): Promise<number> {
-  if (!(await isDirectory(tasksDir))) return 0;
-  const entries = await readdir(tasksDir, { withFileTypes: true });
-  let max = 0;
-  for (const e of entries) {
-    if (!e.isFile() || !e.name.endsWith(".md")) continue;
-    const m = /^TASK-(\d+)/i.exec(e.name);
-    if (!m) continue;
-    const n = Number.parseInt(m[1]!, 10);
-    if (Number.isFinite(n) && n > max) max = n;
-  }
-  return max;
-}
-
-export async function nextTaskNumber(tasksDir: string): Promise<number> {
-  return (await highestTaskNumber(tasksDir)) + 1;
-}
-
-export function formatTaskId(n: number, width = 3): string {
-  return `TASK-${String(n).padStart(width, "0")}`;
-}
-
 const TASK_FILENAME_RE = /^TASK-(\d+)(?:-(.+))?$/i;
+const TASK_MVP_FILENAME_RE = /^TASK-mvp(?:-(.+))?$/i;
 
 export interface TaskNameParts {
   id: string;
@@ -202,6 +249,12 @@ export interface TaskNameParts {
 
 export function parseTaskFilename(filePath: string): TaskNameParts {
   const stem = basename(filePath, extname(filePath));
+  const mvp = TASK_MVP_FILENAME_RE.exec(stem);
+  if (mvp) {
+    const tail = (mvp[1] ?? "").trim().toLowerCase();
+    const slug = tail.length > 0 ? `mvp-${tail}` : "mvp";
+    return { id: "TASK-mvp", number: "mvp", slug };
+  }
   const m = TASK_FILENAME_RE.exec(stem);
   if (!m) {
     return { id: stem.toUpperCase(), number: "000", slug: stem.toLowerCase() };
@@ -262,6 +315,12 @@ export function isPlaceholderContent(content: string): boolean {
   if (trimmed.length === 0) return true;
   if (/^\(.*\uBBF8\uC218\uD589.*\)$/.test(trimmed)) return true; // legacy Korean placeholder
   if (/^_*\(none\)_*$/i.test(trimmed)) return true;
+  if (/^\(not yet\)$/i.test(trimmed)) return true;
+  if (/^\(scaffold/i.test(trimmed)) return true;
+  if (/^pending\.?$/i.test(trimmed)) return true;
+  if (/^tbd\.?$/i.test(trimmed)) return true;
+  if (/^todo\.?$/i.test(trimmed)) return true;
+  if (/^-{1,3}$/.test(trimmed)) return true;
   return false;
 }
 
@@ -344,6 +403,18 @@ export async function updateInlineStatus(
   const raw = await readText(filePath);
   const display = statusDisplay(next);
   const updated = replaceSectionContent(raw, "Status", display);
+  if (updated !== raw) {
+    await writeText(filePath, updated);
+  }
+}
+
+export async function updateTaskSection(
+  filePath: string,
+  title: string,
+  content: string,
+): Promise<void> {
+  const raw = await readText(filePath);
+  const updated = replaceSectionContent(raw, title, content);
   if (updated !== raw) {
     await writeText(filePath, updated);
   }

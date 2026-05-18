@@ -19,7 +19,7 @@ It gives a project:
 - `docs/tasks/TASK-*.md` as the AI execution source of truth.
 - `.cursor/rules/*` and `AGENTS.md` so Cursor knows how to behave.
 - `.vibeops/agents`, `.vibeops/prompts`, `.vibeops/workflows` for reusable agent instructions.
-- Git task lifecycle commands for start/check/done/rollback.
+- MVP workflow: `plan` → `start` → build in Cursor → `done` (Git merge included).
 - Notion metadata sync for a human dashboard.
 
 ## Why It Exists
@@ -70,22 +70,21 @@ vibeops init
 # Non-interactive Git bootstrap:
 vibeops init --git --initial-commit
 
-# 2. LLM planning session (OpenAI API key, Codex `codex login` / ~/.codex/auth.json, or Cursor `agent` CLI) → brief + planning prompt.
-#    Use `vibeops plan --legacy-wizard` for the original 20-question flow.
+# 2. LLM planning → brief + TASK-mvp + mvp-build.md (OpenAI, Codex OAuth, or Cursor agent CLI).
 vibeops plan
 
-# 3. Generate a TASK prompt or scaffold TASK markdown.
-vibeops task generate --dry-run
+# 3. Task branch for the single MVP TASK.
+vibeops start
 
-# 4. Start one TASK at a time.
-vibeops task start TASK-001
-vibeops task prompt TASK-001 --agent builder
+# 4. Drag .vibeops/generated/mvp-build.md into a new Cursor chat and implement.
 
-# 5. Review and move to human review.
-vibeops task check TASK-001
-vibeops task done TASK-001
+# 5. Finish: verify Result/Test Result, merge to main, delete task branch.
+vibeops done
 
-# 6. Optional Notion dashboard sync.
+# 6. Optional: interactive nudge
+vibeops next
+
+# 7. Optional Notion dashboard sync.
 vibeops notion init
 vibeops notion test
 vibeops notion sync --dry-run
@@ -101,13 +100,9 @@ cd acme-automator
 
 vibeops init --name "Acme Automator" --git --initial-commit
 vibeops plan --idea "Acme Automator: schedule and run browser automation jobs for marketing teams"
-vibeops task generate --dry-run
-
-vibeops task start TASK-001
-vibeops task prompt TASK-001 --agent builder
-# Paste the prompt into Cursor and let Cursor implement the TASK.
-vibeops task check TASK-001
-vibeops task done TASK-001
+vibeops start
+# Drag .vibeops/generated/mvp-build.md into Cursor and build the MVP.
+vibeops done
 ```
 
 If a Notion dashboard is enabled:
@@ -123,31 +118,15 @@ vibeops notion sync
 
 ```text
 vibeops
-├─ init [--dry-run] [--force] [--cwd <path>] [--name <projectName>]
-│       [--git|--no-git] [--initial-commit|--no-initial-commit]
-│       [--default-branch <name>] [--commit-message <message>]
-├─ status [--json] [--cwd <path>]
-├─ plan [--idea <text>] [--from <path>] [--output <path>] [--non-interactive] [--legacy-wizard] [--provider <id>] [--cwd <path>]
-├─ agent
-│  ├─ list [--json] [--cwd <path>]
-│  ├─ show <name> [--raw] [--cwd <path>]
-│  └─ prompt <name> <taskId> [--context <path...>] [--cwd <path>]
-├─ task
-│  ├─ generate [--from <path>] [--output <path>] [--count <n>] [--phase <name>] [--scaffold] [--dry-run] [--cwd <path>]
-│  ├─ start <taskId> [--dry-run] [--allow-dirty] [--agent <name>] [--cwd <path>]
-│  ├─ prompt <taskId> --agent <name> [--context <path...>] [--cwd <path>]
-│  ├─ check <taskId> [--strict] [--agent <name>] [--cwd <path>]
-│  ├─ done <taskId> [--dry-run] [--finalize] [--cwd <path>]
-│  ├─ rollback <taskId> [--confirm | --confirm-destructive] [--strategy <name>] [--keep-branch] [--dry-run] [--cwd <path>]
-│  └─ pull [--dry-run] [--json] [--status <list>] [--limit <n>] [--cwd <path>] [--verbose]
-├─ notion
-│  ├─ init [--dry-run] [--enable] [--projects-db <id>] [--tasks-db <id>] [--non-interactive] [--cwd <path>]
-│  ├─ test [--json] [--debug-shape] [--cwd <path>]
-│  └─ sync [--dry-run] [--json] [--only-tasks] [--only-project] [--cwd <path>]
-└─ github
-   ├─ status [--json] [--cwd <path>]
-   └─ init [--dry-run] [--yes] [--owner <user>] [--repo <name>] [--public|--private]
-           [--remote <name>] [--connect <owner/repo or url>] [--no-package-update] [--cwd <path>]
+├─ init
+├─ plan
+├─ start [mvp]
+├─ done [mvp]
+├─ next
+├─ status
+├─ rollback [mvp]
+├─ notion { init | test | sync }
+└─ github { status | init }
 ```
 
 Run any command with `--help` for the option details.
@@ -160,23 +139,24 @@ Run any command with `--help` for the option details.
 
 ### Interactive Planner
 
-`vibeops plan` runs only inside a **VibeOps project** (expects **`.vibeops.json`** from `vibeops init`). It writes `.vibeops/brief/project-brief.md` and `.vibeops/generated/plan-prompt.md`; with **`--apply-planner`** it also writes `docs/project/*` and `docs/tasks/*` via the LLM. The command uses **OpenAI** (`OPENAI_API_KEY`), **Codex (ChatGPT OAuth)** via tokens from `codex login` (`~/.codex/auth.json`, same OAuth client as Hermes/OpenClaw `openai-codex`), or the **Cursor Agent CLI** (`agent login`). With a TTY you **always pick** among those three (each line shows ✓ or “needs setup”; Codex can start browser OAuth from that menu). Pass `--provider` to skip the menu when that path is already ready. Then pick a **model** from the provider catalog (or `--model`). Next you pick the **planning dialogue language** (preset list + Other); the LLM asks **one question per turn** in that language. Each question header shows a **rough ASCII progress line** and **ETA hint** (assumes up to ~14 steps; not a guarantee). **Multi**-choice suggestions use **checkboxes** (Space, Other, **Wrap up — draft summary now** when allowed, then **Go back** last when you can undo); **single**-choice uses **arrow select** with **Other**, wrap-up, and **Go back** last (no extra Continue step). **Text** answers: type `back` alone to go back when allowed, or `wrap` / `enough` to stop questions and ask for a draft summary from the thread so far. When the model is ready, it shows a **readable markdown summary**; you must **confirm** before the `ProjectBrief` is written. After that, **`--apply-planner`** runs the planner pass via the same provider: fills `docs/project/*` and initial `docs/tasks/*`. With a **TTY** and without **`--non-interactive`**, you are then asked **in order**: create a **git commit** (default Yes; if Git is not initialized yet, you can run **`git init`** + branch **`main`** from the same prompts), **git push** (default No; use **`--push`** to skip the question and push after a successful commit; after you choose push, you can run **`vibeops github init`** to connect or create a GitHub repo / set **`origin`**, same as the standalone command), and **Notion sync** when the brief enables it (default Yes; **`--no-notion-sync`** skips; if Notion is not configured, you can run **`vibeops notion init`** from the same flow, then sync retries once ready). In **`--non-interactive`** mode, commit runs automatically (unless **`--no-git-commit`**), push only with **`--push`**, and Notion runs when the brief enables it (unless **`--no-notion-sync`**). **`--apply-dry-run`** asks the model which files it would emit without writing. Codex defaults to ChatGPT-account models (`gpt-5.4`; override with `VIBEOPS_CODEX_MODEL`). Use `--legacy-wizard` for the fixed 20-question flow. `--non-interactive` and `--from` never call an LLM for the brief unless you add `--apply-planner` with `--provider` (and optional `--model`) for the apply step.
+`vibeops plan` (requires `.vibeops.json`) runs an LLM discovery session (OpenAI, Codex OAuth, or Cursor Agent CLI), then writes:
 
-### Task Generator
+- `.vibeops/brief/project-brief.md`
+- `docs/tasks/TASK-mvp-*.md`
+- `.vibeops/generated/mvp-build.md` — **drag this file into Cursor** to implement the MVP
 
-`vibeops task generate` builds a Cursor prompt for generating TASK files. With `--scaffold`, it creates placeholder TASK markdown directly. It does not call an LLM.
+Use `--from` to regenerate MVP artifacts from an edited brief. Use `--non-interactive` in CI (placeholders only).
 
-### Git Task Lifecycle
+### MVP Git Rails
 
-`task start`, `task prompt`, `task check`, and `task done` keep one TASK moving through `Planned → In Progress → Review → Done`. `task done` defaults to `Review`; use `--finalize` only after human review. `task start` still expects a clean tree for application code, but if the only uncommitted changes live under `docs/tasks/`, `docs/project/`, `docs/logs/`, or `.vibeops/state/`, it warns and continues so a prior doc-only finalize does not block the next TASK.
-
-### Rollback Safety
-
-`task rollback` prints recovery options by default. Destructive Git actions require explicit confirmation (`--confirm` or `--confirm-destructive`) and should be reviewed before use.
+- `vibeops start` — task branch + Git Context on **TASK-mvp**
+- `vibeops done` — verify Result/Test Result, mark Done, merge, **Notion sync** (when enabled), post-MVP dirty-tree cleanup, next-task LLM suggestion
+- `vibeops next` — interactive guide (start → build → finish)
+- `vibeops rollback` — advisory by default; `--confirm` / `--confirm-destructive` to execute
 
 ### Notion Dashboard Sync
 
-`notion init/test/sync` and `task pull` keep Notion as a metadata dashboard. VibeOps syncs project/task metadata only and never updates Notion page bodies.
+`notion init/test/sync` pushes project + TASK **metadata** only (not markdown bodies).
 
 ## Runner Modes
 

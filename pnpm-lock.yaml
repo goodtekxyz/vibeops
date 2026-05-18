@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@goodtek/vibeops':
+        specifier: ^0.3.0
+        version: 0.3.0(@types/node@20.19.40)
       '@inquirer/prompts':
         specifier: ^8.4.3
         version: 8.4.3(@types/node@20.19.40)
@@ -188,6 +191,11 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@goodtek/vibeops@0.3.0':
+    resolution: {integrity: sha512-f+twJ2mvGjBE49KzeM+ILCtcRhurwoI+5io7VkYEpyrwAePz2YjH2SrLcUzQ1foFTcvE63QIIKVH63MtZTLOXQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@inquirer/ansi@2.0.5':
     resolution: {integrity: sha512-doc2sWgJpbFQ64UflSVd17ibMGDuxO1yKgOgLMwavzESnXjFWJqUeG8saYosqKpHp4kWiM5x1nXvEjbpx90gzw==}
@@ -512,6 +520,15 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.7':
     optional: true
+
+  '@goodtek/vibeops@0.3.0(@types/node@20.19.40)':
+    dependencies:
+      '@inquirer/prompts': 8.4.3(@types/node@20.19.40)
+      '@notionhq/client': 5.20.0
+      commander: 12.1.0
+      gray-matter: 4.0.3
+    transitivePeerDependencies:
+      - '@types/node'
 
   '@inquirer/ansi@2.0.5': {}
 

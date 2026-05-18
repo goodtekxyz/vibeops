@@ -1,7 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { dim, log } from "./logger.js";
+
 const exec = promisify(execFile);
+
+/** Avoid `maxBuffer` errors on large `git commit` / `git add` output. */
+const DEFAULT_GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
 export interface GitInfo {
   isRepo: boolean;
@@ -26,8 +31,19 @@ async function tryGit(cwd: string, args: string[]): Promise<{ stdout: string } |
   }
 }
 
-export async function runGit(cwd: string, args: string[]): Promise<GitRunResult> {
-  const { stdout, stderr } = await exec("git", args, { cwd });
+export interface RunGitOptions {
+  readonly maxBuffer?: number;
+}
+
+export async function runGit(
+  cwd: string,
+  args: string[],
+  options: RunGitOptions = {},
+): Promise<GitRunResult> {
+  const { stdout, stderr } = await exec("git", args, {
+    cwd,
+    maxBuffer: options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER,
+  });
   return { stdout, stderr };
 }
 
@@ -118,8 +134,80 @@ export async function gitCreateBranch(
   await runGit(cwd, args);
 }
 
+/**
+ * When only governance / VibeOps paths are dirty, stash them so `git switch` can proceed.
+ * Callers that switch branches should restore with {@link restoreGovernanceStashAfterSwitch}.
+ */
+export async function stashGovernanceIfBlocking(cwd: string): Promise<boolean> {
+  const git = await readGitInfo(cwd);
+  if (git.dirty !== true) return false;
+  const gov = await gitGovernanceOnlyDirty(cwd);
+  if (!gov.onlyGovernance || gov.allPaths.length === 0) return false;
+
+  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const tracked: string[] = [];
+  const untracked: string[] = [];
+  for (const e of entries) {
+    if (!isGovernanceDocumentationPath(e.path)) continue;
+    if (e.untracked) untracked.push(e.path);
+    else tracked.push(e.path);
+  }
+
+  let didStash = false;
+  if (tracked.length > 0) {
+    await runGit(cwd, [
+      "stash",
+      "push",
+      "-m",
+      "vibeops: governance before branch switch",
+      "--",
+      ...tracked,
+    ]);
+    didStash = true;
+  }
+  if (untracked.length > 0) {
+    try {
+      await runGit(cwd, [
+        "stash",
+        "push",
+        "-u",
+        "-m",
+        "vibeops: governance untracked before branch switch",
+        "--",
+        ...untracked,
+      ]);
+      didStash = true;
+    } catch {
+      // Untracked generated files (e.g. cursor-implement-*.md) may not stash; switch can still proceed.
+    }
+  }
+  return didStash;
+}
+
+/** Re-apply governance paths stashed for a branch switch (e.g. new `docs/tasks/*.md`). */
+export async function restoreGovernanceStashAfterSwitch(
+  cwd: string,
+  didStash: boolean,
+): Promise<void> {
+  if (!didStash) return;
+  try {
+    await runGit(cwd, ["stash", "pop"]);
+    log.info(dim("Restored stashed governance paths on the task branch."));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.warn(
+      `Could not restore stashed governance files (${msg}). Run ${dim("git stash pop")} manually.`,
+    );
+  }
+}
+
 export async function gitCheckout(cwd: string, ref: string): Promise<void> {
-  await runGit(cwd, ["checkout", ref]);
+  const stashed = await stashGovernanceIfBlocking(cwd);
+  if (stashed) {
+    log.info(dim("Stashed governance-only changes (.vibeops/, docs/) before branch switch."));
+  }
+  await runGit(cwd, ["switch", ref]);
+  await restoreGovernanceStashAfterSwitch(cwd, stashed);
 }
 
 export async function gitCheckoutNewBranch(
@@ -127,9 +215,14 @@ export async function gitCheckoutNewBranch(
   name: string,
   startPoint?: string,
 ): Promise<void> {
-  const args = ["checkout", "-b", name];
+  const stashed = await stashGovernanceIfBlocking(cwd);
+  if (stashed) {
+    log.info(dim("Stashed governance-only changes (.vibeops/, docs/) before branch switch."));
+  }
+  const args = ["switch", "-c", name];
   if (typeof startPoint === "string" && startPoint.length > 0) args.push(startPoint);
   await runGit(cwd, args);
+  await restoreGovernanceStashAfterSwitch(cwd, stashed);
 }
 
 export async function gitDeleteBranch(
@@ -221,12 +314,12 @@ function parsePorcelain(lines: string[]): PorcelainEntry[] {
   return out;
 }
 
-/** Paths under these prefixes may stay uncommitted across `task done` / doc updates. */
+/** Paths under these prefixes may stay uncommitted across `start` / `done` / doc updates. */
 const GOVERNANCE_DOC_REL_PREFIXES = [
   "docs/tasks/",
   "docs/project/",
   "docs/logs/",
-  ".vibeops/state/",
+  ".vibeops/",
 ] as const;
 
 function normalizeRepoRelPath(p: string): string {
@@ -241,9 +334,117 @@ export function isGovernanceDocumentationPath(repoRelativePath: string): boolean
   return false;
 }
 
+/** Build artifacts / deps — never auto-committed by `vibeops done` cleanup. */
+const AUTO_COMMIT_EXCLUDED_PREFIXES = [
+  "node_modules/",
+  ".next/",
+  ".pnpm-store/",
+  "dist/",
+  "build/",
+  ".turbo/",
+  "coverage/",
+  ".vercel/",
+  ".output/",
+  ".cache/",
+] as const;
+
+const AUTO_COMMIT_EXCLUDED_EXACT = new Set([
+  "node_modules",
+  ".next",
+  "dist",
+  "build",
+]);
+
+export function isAutoCommitExcludedPath(repoRelativePath: string): boolean {
+  const n = normalizeRepoRelPath(repoRelativePath);
+  if (AUTO_COMMIT_EXCLUDED_EXACT.has(n)) return true;
+  for (const prefix of AUTO_COMMIT_EXCLUDED_PREFIXES) {
+    if (n.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+export async function gitMergeInProgress(cwd: string): Promise<boolean> {
+  return (await tryGit(cwd, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])) !== null;
+}
+
+/** Conflict paths from an in-progress merge (`git diff --diff-filter=U`). */
+export async function listUnmergedRelPaths(cwd: string): Promise<string[]> {
+  const res = await tryGit(cwd, ["diff", "--name-only", "--diff-filter=U"]);
+  if (res === null) return [];
+  return res.stdout
+    .split("\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
+
+/**
+ * During a merge, take the incoming branch version for governance / VibeOps paths
+ * (typical after `vibeops done` merge conflicts on `.vibeops/generated/*`).
+ */
+export async function tryResolveGovernanceUnmerged(cwd: string): Promise<string[]> {
+  const unmerged = await listUnmergedRelPaths(cwd);
+  const resolved: string[] = [];
+  for (const p of unmerged) {
+    if (!isGovernanceDocumentationPath(p)) continue;
+    try {
+      await runGit(cwd, ["checkout", "--theirs", "--", p]);
+      await runGit(cwd, ["add", "--", p]);
+      resolved.push(p);
+    } catch {
+      // skip paths that cannot be auto-resolved
+    }
+  }
+  return resolved;
+}
+
+export async function listWorkingTreeRelPaths(cwd: string): Promise<string[]> {
+  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const all = new Set<string>();
+  for (const e of entries) {
+    all.add(e.path);
+    if (typeof e.origPath === "string" && e.origPath.length > 0) {
+      all.add(e.origPath);
+    }
+  }
+  return [...all];
+}
+
+export function partitionPathsForAutoCommit(
+  paths: readonly string[],
+  opts: { readonly unmerged?: readonly string[] } = {},
+): {
+  readonly committable: readonly string[];
+  readonly excluded: readonly string[];
+  readonly unmerged: readonly string[];
+} {
+  const unmergedSet = new Set(opts.unmerged ?? []);
+  const committable: string[] = [];
+  const excluded: string[] = [];
+  const unmerged: string[] = [];
+  for (const p of paths) {
+    if (unmergedSet.has(p)) {
+      unmerged.push(p);
+      continue;
+    }
+    if (isAutoCommitExcludedPath(p)) excluded.push(p);
+    else committable.push(p);
+  }
+  return { committable, excluded, unmerged };
+}
+
+export async function gitAddPaths(cwd: string, paths: readonly string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const chunkSize = 80;
+  for (let i = 0; i < paths.length; i += chunkSize) {
+    const slice = paths.slice(i, i + chunkSize);
+    await runGit(cwd, ["add", "--", ...slice]);
+  }
+}
+
 /**
  * When the index/worktree is dirty, classify whether every changed path is
- * limited to governance docs (TASK files, project docs, logs, task state JSON).
+ * limited to governance docs and VibeOps metadata (`.vibeops/**`, docs/tasks, etc.).
  * Used by `vibeops task start` so `task done --finalize` on main does not
  * block the next TASK unless application code is also dirty.
  */

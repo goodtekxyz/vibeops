@@ -1,23 +1,20 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 
-import { agentListCommand } from "./commands/agent-list.js";
-import { agentPromptCommand } from "./commands/agent-prompt.js";
-import { agentShowCommand } from "./commands/agent-show.js";
+import { doneCommand } from "./commands/done.js";
 import { githubInitCommand } from "./commands/github-init.js";
 import { githubStatusCommand } from "./commands/github-status.js";
 import { initCommand } from "./commands/init.js";
+import { nextCommand } from "./commands/next.js";
 import { notionInitCommand } from "./commands/notion-init.js";
 import { notionSyncCommand } from "./commands/notion-sync.js";
 import { notionTestCommand } from "./commands/notion-test.js";
 import { planCommand } from "./commands/plan.js";
+import { rollbackCommand } from "./commands/rollback.js";
+import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
-import { taskCheckCommand } from "./commands/task-check.js";
-import { taskDoneCommand } from "./commands/task-done.js";
-import { taskGenerateCommand } from "./commands/task-generate.js";
-import { taskPullCommand } from "./commands/task-pull.js";
-import { taskRollbackCommand } from "./commands/task-rollback.js";
-import { taskStartCommand } from "./commands/task-start.js";
+import { taskAddCommand } from "./commands/task-add.js";
+import { taskStatusCommand } from "./commands/task-status.js";
 import { VERSION } from "./version.js";
 
 const program = new Command();
@@ -25,462 +22,217 @@ const program = new Command();
 program
   .name("vibeops")
   .description(
-    "VibeOps — a local CLI that keeps Cursor-based vibe coding on rails.\n" +
-      "  It installs docs, Cursor rules, AGENTS.md, agents, TASK templates,\n" +
-      "  and Git/Notion workflows into a project, then drives work one TASK at a time.",
+    "VibeOps — plan an MVP, build in Cursor (drag mvp-build.md), finish with Git rails.\n" +
+      "  Commands: init · plan · start · done · next · status · task add · task status (+ optional notion · github · rollback)",
   )
   .version(VERSION, "-v, --version", "Print the VibeOps version");
 
 program
   .command("init")
-  .description("Install the VibeOps workflow files into the current directory")
-  .option("--dry-run", "Show what would be created without writing any files")
-  .option("--force", "Overwrite existing files (use with care)")
-  .option("--cwd <path>", "Run against a different directory")
-  .option("--name <projectName>", "Project name written into .vibeops.json")
-  .option("--git", "Initialize a Git repository without prompting")
-  .option("--no-git", "Skip Git initialization and commits")
-  .option("--initial-commit", "Run `git add .` and create an initial commit")
-  .option("--no-initial-commit", "Do not create an initial commit")
-  .option("--default-branch <name>", "Default Git branch name (default `main`)")
-  .option(
-    "--commit-message <message>",
-    "Initial commit message (default 'chore: initialize vibeops project')",
-  )
-  .action(
-    async (options: {
-      dryRun?: boolean;
-      force?: boolean;
-      cwd?: string;
-      name?: string;
-      git?: boolean;
-      initialCommit?: boolean;
-      defaultBranch?: string;
-      commitMessage?: string;
-    }) => {
-      await initCommand(options);
-    },
-  );
-
-program
-  .command("status")
-  .description("Show VibeOps installation, TASK counts, and integration state")
-  .option("--json", "Print machine-readable JSON")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(async (options: { json?: boolean; cwd?: string }) => {
-    await statusCommand(options);
+  .description("Install the VibeOps workflow into the current directory")
+  .option("--dry-run", "Show what would be created without writing files")
+  .option("--force", "Overwrite existing files")
+  .option("--cwd <path>", "Target directory")
+  .option("--name <projectName>", "Project name in .vibeops.json")
+  .option("--git", "Initialize Git without prompting")
+  .option("--no-git", "Skip Git")
+  .option("--initial-commit", "Create initial commit")
+  .option("--no-initial-commit", "Skip initial commit")
+  .option("--default-branch <name>", "Default branch (default main)")
+  .option("--commit-message <message>", "Initial commit message")
+  .action(async (opts) => {
+    await initCommand(opts);
   });
 
 program
   .command("plan")
-  .description(
-    "Requires `vibeops init`: LLM planning → ProjectBrief + planning prompt; optional --apply-planner runs the planner via the same LLM (docs + TASKs, commit, push, Notion). Use --legacy-wizard for the fixed 20-question flow",
-  )
-  .option("--idea <text>", "One-line idea default (use `Name: idea` to extract the project name)")
-  .option("--from <path>", "Read an existing brief markdown and regenerate the prompt")
-  .option(
-    "--output <path>",
-    "Output path for the Cursor planning prompt (default `.vibeops/generated/plan-prompt.md`)",
-  )
-  .option(
-    "--non-interactive",
-    "Skip prompts and use the supplied values plus safe placeholders (no LLM)",
-  )
-  .option(
-    "--legacy-wizard",
-    "Use the original 20-question wizard instead of an LLM planning session",
-  )
-  .option(
-    "--provider <id>",
-    "LLM provider when several are available: openai | codex-oauth | cursor-agent",
-  )
-  .option(
-    "--model <id>",
-    "LLM model id for the selected provider (skips interactive model list; same as setting VIBEOPS_*_MODEL for that path)",
-  )
-  .option("--cwd <path>", "Run against a different directory")
-  .option(
-    "--apply-planner",
-    "After writing the brief + prompt: call the same LLM provider to emit docs/project + docs/tasks; then (TTY) ask commit → push → Notion in order, or (--non-interactive) commit unless --no-git-commit, push only with --push, Notion unless --no-notion-sync",
-  )
-  .option(
-    "--apply-dry-run",
-    "With --apply-planner (or alone): call the LLM and list files that would be written; no writes, git, or Notion",
-  )
-  .option("--no-git-commit", "With --apply-planner: skip git commit after writes")
-  .option("--push", "With --apply-planner: run git push after commit (TTY: optional `vibeops github init` before push; skips the push Yes/No prompt)")
-  .option("--no-notion-sync", "With --apply-planner: skip Notion sync even when the brief enables it")
-  .action(
-    async (options: {
-      idea?: string;
-      from?: string;
-      output?: string;
-      nonInteractive?: boolean;
-      legacyWizard?: boolean;
-      provider?: string;
-      model?: string;
-      cwd?: string;
-      applyPlanner?: boolean;
-      applyDryRun?: boolean;
-      noGitCommit?: boolean;
-      push?: boolean;
-      noNotionSync?: boolean;
-    }) => {
-      const provider =
-        options.provider === "openai" ||
-        options.provider === "codex-oauth" ||
-        options.provider === "cursor-agent"
-          ? options.provider
-          : undefined;
-      await planCommand({
-        idea: options.idea,
-        from: options.from,
-        output: options.output,
-        nonInteractive: options.nonInteractive,
-        legacyWizard: options.legacyWizard === true,
-        provider,
-        llmModel: typeof options.model === "string" ? options.model : undefined,
-        cwd: options.cwd,
-        applyPlanner: options.applyPlanner === true,
-        applyPlannerDryRun: options.applyDryRun === true,
-        noGitCommit: options.noGitCommit === true,
-        gitPush: options.push === true,
-        noNotionSync: options.noNotionSync === true,
-      });
-    },
-  );
-
-const agent = program
-  .command("agent")
-  .description("Inspect the `.vibeops/agents/*` agent definitions");
-
-agent
-  .command("list")
-  .description("List available agents")
-  .option("--json", "Print machine-readable JSON")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(async (options: { json?: boolean; cwd?: string }) => {
-    await agentListCommand(options);
+  .description("LLM planning → brief + TASK-mvp + .vibeops/generated/mvp-build.md")
+  .option("--idea <text>", "One-line idea (optional Name: idea prefix)")
+  .option("--from <path>", "Regenerate MVP artifacts from an existing brief")
+  .option("--non-interactive", "Placeholders only (CI); no LLM")
+  .option("--provider <id>", "openai | codex-oauth | cursor-agent")
+  .option("--model <id>", "LLM model id")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    const provider =
+      opts.provider === "openai" ||
+      opts.provider === "codex-oauth" ||
+      opts.provider === "cursor-agent"
+        ? opts.provider
+        : undefined;
+    await planCommand({
+      idea: opts.idea,
+      from: opts.from,
+      nonInteractive: opts.nonInteractive,
+      provider,
+      llmModel: opts.model,
+      cwd: opts.cwd,
+    });
   });
 
-agent
-  .command("show <name>")
-  .description("Print an agent definition body")
-  .option("--raw", "Include frontmatter in the output")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(async (name: string, options: { raw?: boolean; cwd?: string }) => {
-    await agentShowCommand(name, options);
+program
+  .command("start [taskRef]")
+  .description(
+    "Create task branch (default: TASK-mvp, or active backlog TASK if no MVP file)",
+  )
+  .option("--dry-run", "Show plan only")
+  .option("--allow-dirty", "Allow dirty working tree")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await startCommand(taskRef, opts);
   });
 
-agent
-  .command("prompt <name> <taskId>")
-  .description("Print a Cursor-ready prompt built from the agent + TASK context")
-  .option("--context <path...>", "Additional context file paths")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(
-    async (
-      name: string,
-      taskId: string,
-      options: { context?: string[]; cwd?: string },
-    ) => {
-      await agentPromptCommand(name, taskId, options);
-    },
-  );
-
-const task = program
-  .command("task")
-  .description("TASK lifecycle commands");
-
-task
-  .command("generate")
+program
+  .command("done [taskRef]")
   .description(
-    "Build a Cursor prompt for generating TASK files, or with --scaffold write skeleton TASK markdown",
+    "Finish TASK: auto-fill Result/Test Result + summary md, merge to main, Notion sync (default: TASK-mvp or active backlog)",
   )
-  .option("--from <path>", "Primary backlog/brief markdown to feed into the prompt")
-  .option(
-    "--output <path>",
-    "Output path for the generated prompt (default `.vibeops/generated/task-generate-prompt.md`)",
-  )
-  .option("--count <number>", "Suggested TASK count for Cursor (default 8, warns above 20)")
-  .option("--phase <name>", "Generate TASKs for a specific phase label only (e.g. 'MVP 4')")
-  .option("--scaffold", "Write skeleton TASK markdown files directly, without an LLM")
-  .option("--dry-run", "Print the plan without writing or modifying files")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (options: {
-      from?: string;
-      output?: string;
-      count?: string;
-      phase?: string;
-      scaffold?: boolean;
-      dryRun?: boolean;
-      cwd?: string;
-    }) => {
-      await taskGenerateCommand(options);
-    },
-  );
+  .option("--dry-run", "Show plan only")
+  .option("--no-merge", "Skip push / merge / branch delete")
+  .option("--skip-summary", "Skip last-done-summary.md and TASK auto-fill")
+  .option("--refresh-task-sections", "Overwrite existing Result / Test Result")
+  .option("--merge-via-pr", "Merge via gh PR")
+  .option("--allow-dirty", "Allow dirty tree during merge")
+  .option("--no-notion-sync", "Skip automatic Notion sync after done")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await doneCommand(taskRef, opts);
+  });
+
+program
+  .command("next")
+  .description("Interactive guide for the MVP workflow (↑/↓ · Yes/No)")
+  .option("--dry-run", "On runnable steps, print only")
+  .option("--non-interactive", "Print panel once")
+  .option("--execute", "With --non-interactive, run the runnable step once")
+  .option("--merge-via-pr", "On finish: merge via GitHub PR")
+  .option("--allow-dirty", "Allow dirty tree on merge")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await nextCommand(opts);
+  });
+
+program
+  .command("status")
+  .description("Installation, TASK-mvp state, Git, Notion, GitHub")
+  .option("--json", "JSON output")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await statusCommand(opts);
+  });
+
+const task = program.command("task").description("Backlog TASK files");
 
 task
-  .command("start <taskId>")
+  .command("add")
   .description(
-    "Confirm a clean working tree (or docs-only governance changes), create the task branch, record Status/Git context, and print a Builder prompt",
+    "Interactive: close open TASK (optional), create next TASK-NNN, branch checkout, In Progress",
   )
-  .option("--dry-run", "Print the plan without touching files or Git")
-  .option(
-    "--allow-dirty",
-    "Proceed even if the Git working tree is dirty (including non-doc changes)",
-  )
-  .option("--agent <name>", "Agent to build the prompt with (default `builder`)")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (
-      taskId: string,
-      options: { dryRun?: boolean; allowDirty?: boolean; agent?: string; cwd?: string },
-    ) => {
-      await taskStartCommand(taskId, options);
-    },
-  );
+  .option("--dry-run", "Show plan only (no writes, no LLM planning session)")
+  .option("--non-interactive", "CI: minimal scaffold without prompts (optional --idea)")
+  .option("--idea <text>", "Short description (CI / smoke only)")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await taskAddCommand({
+      dryRun: Boolean(opts.dryRun),
+      nonInteractive: Boolean(opts.nonInteractive),
+      idea: opts.idea as string | undefined,
+      cwd: opts.cwd as string | undefined,
+    });
+  });
 
 task
-  .command("prompt <taskId>")
-  .description("Print a Cursor-ready prompt built from the TASK + agent context")
-  .option(
-    "--agent <name>",
-    "Agent name (orchestrator / planner / architect / builder / reviewer / tester / docs / recovery)",
-  )
-  .option("--context <path...>", "Additional context file paths")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(
-    async (
-      taskId: string,
-      options: { agent?: string; context?: string[]; cwd?: string },
-    ) => {
-      await agentPromptCommand(options.agent ?? "builder", taskId, {
-        cwd: options.cwd,
-        context: options.context,
-      });
-    },
-  );
+  .command("status")
+  .description("Briefing on current TASK progress and recommended next step")
+  .option("--json", "JSON output")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await taskStatusCommand({
+      json: Boolean(opts.json),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
 
-task
-  .command("check <taskId>")
-  .description(
-    "Read-only check: git diff/log + acceptance criteria + doc updates + Result fields + a Reviewer prompt",
-  )
-  .option("--strict", "Exit with code 1 if any required item is missing")
-  .option("--agent <name>", "Agent to build the prompt with (default `reviewer`)")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(
-    async (
-      taskId: string,
-      options: { strict?: boolean; agent?: string; cwd?: string },
-    ) => {
-      await taskCheckCommand(taskId, options);
-    },
-  );
+program
+  .command("rollback [taskRef]")
+  .description("Advisory rollback for TASK-mvp (--confirm / --confirm-destructive to execute)")
+  .option("--confirm", "Run non-destructive rollback")
+  .option("--confirm-destructive", "Allow destructive rollback (reset --hard)")
+  .option("--strategy <name>", "branch-delete | reset-base | revert-merge")
+  .option("--keep-branch", "Keep task branch when deleting")
+  .option("--dry-run", "Print plan only")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await rollbackCommand(taskRef, opts);
+  });
 
-task
-  .command("done <taskId>")
-  .description(
-    "Validate Result/Test Result, move Status to Review, and print a commit message (no auto-commit)",
-  )
-  .option("--dry-run", "Print the plan without touching files")
-  .option("--finalize", "Move Status to Done instead of Review (use after human review)")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (
-      taskId: string,
-      options: { dryRun?: boolean; finalize?: boolean; cwd?: string },
-    ) => {
-      await taskDoneCommand(taskId, options);
-    },
-  );
-
-task
-  .command("rollback <taskId>")
-  .description(
-    "Default: advisory only. --confirm: non-destructive rollback. --confirm-destructive: hard reset.",
-  )
-  .option("--confirm", "Allow non-destructive rollback execution (branch-delete etc.)")
-  .option("--confirm-destructive", "Allow destructive rollback execution (reset --hard etc.)")
-  .option(
-    "--strategy <name>",
-    "branch-delete | reset-base | revert-merge (default branch-delete)",
-  )
-  .option("--keep-branch", "Keep the task branch even when using branch-delete")
-  .option("--dry-run", "Print the plan without running any git commands, even with --confirm")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (
-      taskId: string,
-      options: {
-        confirm?: boolean;
-        confirmDestructive?: boolean;
-        strategy?: "branch-delete" | "reset-base" | "revert-merge";
-        keepBranch?: boolean;
-        dryRun?: boolean;
-        cwd?: string;
-      },
-    ) => {
-      await taskRollbackCommand(taskId, options);
-    },
-  );
-
-task
-  .command("pull")
-  .description(
-    "Generate `docs/tasks/*.md` skeletons from Notion Tasks DB rows (defaults to Status = Planned)",
-  )
-  .option("--dry-run", "Print the plan without touching files or Notion")
-  .option("--json", "Print machine-readable JSON")
-  .option(
-    "--status <name>",
-    "Notion Status values to pull (comma-separated, e.g. 'Planned,Ready'). Default `Planned`",
-  )
-  .option("--limit <number>", "Maximum rows to pull from Notion (default 20, max 100)")
-  .option("--cwd <path>", "Run against a different directory")
-  .option(
-    "--verbose",
-    "Print a decision trace per considered row (taskId / pageId / docsPath / reason)",
-  )
-  .action(
-    async (options: {
-      dryRun?: boolean;
-      json?: boolean;
-      status?: string;
-      limit?: string;
-      cwd?: string;
-      verbose?: boolean;
-    }) => {
-      await taskPullCommand(options);
-    },
-  );
-
-const notion = program
-  .command("notion")
-  .description("Notion dashboard sync");
+const notion = program.command("notion").description("Optional Notion dashboard sync");
 
 notion
   .command("init")
-  .description(
-    "Interactive setup: use arrow keys + Enter to pick Yes/No, then write `.vibeops.json` `notion` section and `.vibeops.env(.example)`",
-  )
-  .option("--dry-run", "Print the plan without changing files (no interactive prompts)")
-  .option("--enable", "Set `notion.enabled = true` and skip the first prompt")
-  .option("--projects-db <id>", "Set `notion.projectsDatabaseId` (skip the prompt)")
-  .option("--tasks-db <id>", "Set `notion.tasksDatabaseId` (skip the prompt)")
-  .option(
-    "--non-interactive",
-    "Force non-interactive mode in a TTY (use flag values + safe defaults only)",
-  )
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (options: {
-      dryRun?: boolean;
-      enable?: boolean;
-      projectsDb?: string;
-      tasksDb?: string;
-      nonInteractive?: boolean;
-      cwd?: string;
-    }) => {
-      await notionInitCommand(options);
-    },
-  );
+  .description("Configure Notion in .vibeops.json and .vibeops.env")
+  .option("--dry-run", "Plan only")
+  .option("--enable", "Enable Notion")
+  .option("--projects-db <id>", "Projects database id")
+  .option("--tasks-db <id>", "Tasks database id")
+  .option("--non-interactive", "No prompts")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await notionInitCommand(opts);
+  });
 
 notion
   .command("test")
-  .description(
-    "Read-only check: Notion API auth + access to Projects/Tasks DBs + required-property schema validation",
-  )
-  .option("--json", "Print machine-readable JSON")
-  .option(
-    "--debug-shape",
-    "Also print a token-safe diagnostic of the Projects/Tasks retrieve responses (top-level keys, data_sources, etc.)",
-  )
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (options: { json?: boolean; debugShape?: boolean; cwd?: string }) => {
-      await notionTestCommand(options);
-    },
-  );
+  .description("Verify Notion token and database schema")
+  .option("--json", "JSON output")
+  .option("--debug-shape", "Print API shape diagnostics")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await notionTestCommand(opts);
+  });
 
 notion
   .command("sync")
-  .description(
-    "Push `docs/project` + `docs/tasks` metadata into Notion Projects/Tasks DBs (read-only on local files)",
-  )
-  .option("--dry-run", "Print the plan without any Notion mutation (queries only)")
-  .option("--json", "Print machine-readable JSON")
-  .option("--only-tasks", "Sync the Tasks DB only (leave the Project row alone)")
-  .option("--only-project", "Sync the Project DB only (leave Task rows alone)")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (options: {
-      dryRun?: boolean;
-      json?: boolean;
-      onlyTasks?: boolean;
-      onlyProject?: boolean;
-      cwd?: string;
-    }) => {
-      await notionSyncCommand(options);
-    },
-  );
+  .description("Push docs/project + TASK metadata to Notion")
+  .option("--dry-run", "Query only")
+  .option("--json", "JSON output")
+  .option("--only-tasks", "Tasks DB only")
+  .option("--only-project", "Project DB only")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await notionSyncCommand(opts);
+  });
 
-const github = program
-  .command("github")
-  .description("GitHub repository integration");
+const github = program.command("github").description("Optional GitHub remote setup");
 
 github
   .command("status")
-  .description(
-    "Read-only check: gh install/auth + git remotes + `.vibeops.json` github section + `package.json` repo fields",
-  )
-  .option("--json", "Print machine-readable JSON")
-  .option("--cwd <path>", "Inspect a different directory")
-  .action(async (options: { json?: boolean; cwd?: string }) => {
-    await githubStatusCommand(options);
+  .description("gh auth, remotes, .vibeops.json github section")
+  .option("--json", "JSON output")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await githubStatusCommand(opts);
   });
 
 github
   .command("init")
-  .description(
-    "Interactive setup: check gh auth, manage the git remote, optionally `gh repo create`, then update `.vibeops.json` and `package.json`",
-  )
-  .option("--dry-run", "Print the plan without running gh / git or writing files")
-  .option("--yes", "Skip interactive prompts and use safe defaults")
-  .option("--owner <owner>", "GitHub owner (user or org)")
-  .option("--repo <repo>", "GitHub repo name")
-  .option("--public", "Force visibility = public (skip the prompt)")
-  .option("--private", "Force visibility = private (skip the prompt)")
-  .option("--remote <name>", "Git remote name (default `origin`)")
-  .option(
-    "--connect <ownerOrUrl>",
-    "Connect to an existing repo instead of creating one (owner/repo or https/ssh URL)",
-  )
-  .option("--no-package-update", "Do not modify `package.json` repository/homepage/bugs fields")
-  .option("--cwd <path>", "Run against a different directory")
-  .action(
-    async (options: {
-      dryRun?: boolean;
-      yes?: boolean;
-      owner?: string;
-      repo?: string;
-      public?: boolean;
-      private?: boolean;
-      remote?: string;
-      connect?: string;
-      packageUpdate?: boolean;
-      cwd?: string;
-    }) => {
-      await githubInitCommand({
-        ...options,
-        // Commander turns `--no-package-update` into `packageUpdate: false`.
-        // Our command type still accepts the legacy `noPackageUpdate`
-        // shape for tests / direct invocation.
-        noPackageUpdate: options.packageUpdate === false,
-      });
-    },
-  );
+  .description("Connect or create a GitHub repo and update config")
+  .option("--dry-run", "Plan only")
+  .option("--yes", "Non-interactive defaults")
+  .option("--owner <owner>", "GitHub owner")
+  .option("--repo <repo>", "Repo name")
+  .option("--public", "Public repo")
+  .option("--private", "Private repo")
+  .option("--remote <name>", "Remote name (default origin)")
+  .option("--connect <ownerOrUrl>", "Existing repo")
+  .option("--no-package-update", "Skip package.json repo fields")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await githubInitCommand({
+      ...opts,
+      noPackageUpdate: opts.packageUpdate === false,
+    });
+  });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error("[vibeops] error:", err);

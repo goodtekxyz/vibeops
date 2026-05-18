@@ -8,7 +8,7 @@ import {
   readPackageJson,
   type PackageJsonShape,
 } from "../lib/package-json.js";
-import { countTasks, pickNextTask, scanTasks } from "../lib/task.js";
+import { countTasks, pickActiveTask, scanTasks } from "../lib/task.js";
 import { projectPaths } from "../lib/paths.js";
 import {
   DEFAULT_GITHUB_CONFIG,
@@ -132,7 +132,7 @@ export async function collectStatus(cwd: string): Promise<StatusReport> {
     ? await scanTasks(paths.docsTasks)
     : [];
   const taskCounts = countTasks(tasks);
-  const nextTask = pickNextTask(tasks);
+  const nextTask = await pickActiveTask(paths.docsTasks, paths.root);
 
   const git = await readGitInfo(paths.root);
 

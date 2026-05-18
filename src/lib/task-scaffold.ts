@@ -1,137 +1,91 @@
 import { basename, join } from "node:path";
 
-import { pathExists, writeText } from "./filesystem.js";
-import { formatTaskId, highestTaskNumber } from "./task.js";
-import { slugify } from "./task-generator.js";
+import type { TaskMeta } from "../types/task.js";
+import { statusDisplay } from "./task.js";
 
-export interface ScaffoldPlanInputs {
-  tasksDir: string;
-  count: number;
-  phase?: string;
-  /** optional explicit slug; if absent, uses `planned-task` */
-  slug?: string;
-  /** optional explicit title; if absent, uses `(scaffolded TASK — fill in)` */
-  title?: string;
-}
-
-export interface ScaffoldEntry {
-  id: string;
-  number: number;
-  slug: string;
-  title: string;
-  fileName: string;
-  absPath: string;
-  phase: string;
-}
-
-export interface ScaffoldPlan {
-  entries: ScaffoldEntry[];
-  startNumber: number;
-}
-
-export async function planScaffoldEntries(
-  inputs: ScaffoldPlanInputs,
-): Promise<ScaffoldPlan> {
-  const startNumber = (await highestTaskNumber(inputs.tasksDir)) + 1;
-  const baseSlug = slugify(inputs.slug ?? "planned-task", "planned-task");
-  const baseTitle = inputs.title ?? "(scaffolded TASK — fill in)";
-  const phase = inputs.phase ?? "(unassigned)";
-  const entries: ScaffoldEntry[] = [];
-  let cursor = startNumber;
-  for (let i = 0; i < inputs.count; i++) {
-    // skip numbers whose file already exists on disk so users running scaffold
-    // twice in a row don't collide with previously generated skeletons.
-    let candidatePath = "";
-    let chosen = -1;
-    while (chosen < 0) {
-      const fileName = `${formatTaskId(cursor)}-${baseSlug}.md`;
-      const abs = join(inputs.tasksDir, fileName);
-      if (!(await pathExists(abs))) {
-        chosen = cursor;
-        candidatePath = abs;
-      }
-      cursor++;
-    }
-    entries.push({
-      id: formatTaskId(chosen),
-      number: chosen,
-      slug: baseSlug,
-      title: baseTitle,
-      fileName: basename(candidatePath),
-      absPath: candidatePath,
-      phase,
-    });
+export function allocateNextTaskNumber(tasks: readonly TaskMeta[]): number {
+  let max = 0;
+  for (const t of tasks) {
+    const m = /^TASK-(\d+)$/i.exec(t.id.trim());
+    if (m) max = Math.max(max, Number.parseInt(m[1]!, 10));
   }
-  return { entries, startNumber };
+  return max + 1;
 }
 
-export function renderScaffoldMarkdown(entry: ScaffoldEntry): string {
-  return `# ${entry.id} · ${entry.title}
+export function formatTaskId(number: number): string {
+  return `TASK-${String(number).padStart(3, "0")}`;
+}
 
-> This file is a skeleton produced by \`vibeops task generate --scaffold\`. \`vibeops task done\` will refuse to advance the task until every section is filled in.
+export interface WorkNowTaskDraft {
+  id: string;
+  title: string;
+  idea: string;
+  mvpPhase: string;
+  spawnedFrom?: string;
+}
+
+export function buildWorkNowTaskMarkdown(draft: WorkNowTaskDraft): string {
+  const spawnedNote = draft.spawnedFrom
+    ? `\n\nWork-now slice while **${draft.spawnedFrom}** is still open — not a pre-planned backlog item scheduled after later TASK numbers.`
+    : "";
+
+  return `# ${draft.id}: ${draft.title}
 
 ## Status
 
-planned
+${statusDisplay("planned")}
 
 ## MVP Phase
 
-${entry.phase}
+${draft.mvpPhase}
 
 ## Goal
 
-(scaffold — describe in 2-4 sentences what becomes possible when this TASK ships.)
+${draft.idea.trim()}
 
 ## Background
 
-(scaffold — why now, which earlier TASKs or decisions this builds on.)
+${draft.idea.trim()}${spawnedNote}
 
 ## Scope
 
-- (scaffold — item 1)
-- (scaffold — item 2)
+- Deliver the goal above in a single focused pass.
 
 ## Out of Scope
 
-- (scaffold — items intentionally excluded)
+- Unrelated backlog items and broad refactors not required for this slice.
 
 ## Acceptance Criteria
 
-1. (scaffold — verifiable statement 1)
-2. (scaffold — verifiable statement 2)
+1. Goal and Scope are met and verifiable from the repo or commands in Test Plan.
+2. Result and Test Result sections are filled before \`vibeops done\`.
 
 ## Files to Inspect First
 
-- (scaffold)
+- (add paths before implementation)
 
 ## Expected Files to Change
 
-- new: (scaffold)
-- update: (scaffold)
+- (list as you implement)
 
 ## Risks
 
-- (scaffold)
+- Scope creep from the parent TASK — keep this slice narrow.
 
 ## Test Plan
 
-- (scaffold)
+- \`vibeops task check ${draft.id}\`
+- Project-specific checks for the change
 
 ## Rollback Plan
 
-- (scaffold — branch deletion or another recovery flow)
-
-## Git Context
-
-(populated by \`vibeops task start ${entry.id}\`)
-
-## Notion Page
-
-(populated by \`vibeops notion sync\`)
+- \`vibeops rollback ${draft.id}\` (advisory) or revert the task branch commits.
 
 ## Implementation Plan
 
-1. (scaffold)
+1. Confirm Scope with the open parent TASK (if any).
+2. Implement on \`vibeops start ${draft.id}\`.
+3. Fill Result and Test Result, then \`vibeops done ${draft.id}\`.
 
 ## Result
 
@@ -140,19 +94,36 @@ ${entry.phase}
 ## Test Result
 
 (not yet)
-
-## Review Notes
-
-(not yet)
 `;
 }
 
-export async function writeScaffoldFiles(plan: ScaffoldPlan): Promise<string[]> {
-  const written: string[] = [];
-  for (const entry of plan.entries) {
-    if (await pathExists(entry.absPath)) continue;
-    await writeText(entry.absPath, renderScaffoldMarkdown(entry));
-    written.push(entry.absPath);
+export function taskFilename(taskId: string, slug: string): string {
+  return `${taskId}-${slug}.md`;
+}
+
+export function uniqueTaskPath(
+  tasksDir: string,
+  taskId: string,
+  baseSlug: string,
+  existingPaths: readonly string[],
+): { slug: string; filePath: string } {
+  const names = new Set(existingPaths.map((p) => basename(p)));
+  let slug = baseSlug;
+  let name = taskFilename(taskId, slug);
+  let n = 2;
+  while (names.has(name)) {
+    slug = `${baseSlug}-${n}`;
+    name = taskFilename(taskId, slug);
+    n++;
   }
-  return written;
+  return { slug, filePath: join(tasksDir, name) };
+}
+
+export function titleFromIdea(idea: string, explicitTitle?: string): string {
+  const t = explicitTitle?.trim();
+  if (t && t.length > 0) return t;
+  const oneLine = idea.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= 80) return oneLine;
+  const cut = oneLine.slice(0, 77).trimEnd();
+  return `${cut}...`;
 }

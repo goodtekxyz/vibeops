@@ -4,6 +4,183 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 0.7.22 - 2026-05-16
+
+### Fixed
+
+- **Branch switch after `task add` / `start`**: governance-only stash (`docs/tasks/`, `.vibeops/`) is **restored with `git stash pop`** after `git switch`, so a newly created TASK file is not left off-disk (ENOENT on `updateInlineStatus`).
+
+## 0.7.21 - 2026-05-16
+
+### Added
+
+- **`vibeops task status`** — human briefing (or `--json`) for the active TASK: backlog counts, Goal/Result/Test Result, Git branch alignment, Cursor artifact paths, and the same **next step** hint as `vibeops next` (without the menu).
+
+## 0.7.20 - 2026-05-16
+
+### Changed
+
+- **`vibeops task add`** is **interactive by default** (no required flags):
+  - If a TASK is **In Progress**, asks whether to **`vibeops done`** it first (commit + merge + clean).
+  - **Just create task** — short prompt, LLM-named `TASK-NNN` file, `start`, branch checkout, **In Progress**.
+  - **Create plan using LLM** — Q&A → full TASK + `.vibeops/generated/task-build-TASK-NNN.md` for Cursor.
+- CI: `--non-interactive` and optional `--idea`; `--dry-run` for smoke.
+
+## 0.7.19 - 2026-05-16
+
+### Added
+
+- **`vibeops task add --idea "…"`** — writes the next `TASK-NNN-<slug>.md` as a **work-now slice** (links to the current In Progress TASK in Background when present). Does not edit `07-backlog.md`. Optional `--start`, `--parent`, `--phase`, `--dry-run`.
+
+## 0.7.18 - 2026-05-16
+
+### Fixed
+
+- **Branch switch** stashes only **tracked** governance paths; **untracked** `.vibeops/generated/*` uses `stash -u` or is skipped so `git switch` does not fail on “did not match any file(s) known to git”.
+
+## 0.7.17 - 2026-05-16
+
+### Changed
+
+- **`vibeops start`**, **`done`**, **`rollback`** with no task ref: use **TASK-mvp** when present; otherwise the **active / next backlog** TASK (`pickActiveTask`) — legacy projects without `TASK-mvp` no longer require `vibeops plan` first.
+
+## 0.7.16 - 2026-05-16
+
+### Changed
+
+- **`vibeops next`** shows **Prepare git before TASK-NNN** when `start` would fail (dirty app files on `main`, etc.) instead of a failing **Start** loop.
+- **`vibeops start`** prints clearer options (`commit`, `stash`, `--allow-dirty`, TASK-009 hint).
+
+## 0.7.15 - 2026-05-16
+
+### Fixed
+
+- **Post-done cleanup** no longer runs `git switch -c` while a **merge is in progress**; auto-resolves `.vibeops/` / docs merge conflicts when possible and prompts `git commit` to finish the merge.
+
+## 0.7.14 - 2026-05-16
+
+### Fixed
+
+- **`vibeops next`**: when Result/Test are filled and only **`.vibeops/` / docs** are dirty, shows **Finish** (`vibeops done`) instead of a stuck **Commit** loop; manual advance to Finish is preserved; Commit hints no longer say `git add -A`.
+
+## 0.7.13 - 2026-05-16
+
+### Fixed
+
+- **`vibeops start`** / branch switch: when only governance paths are dirty (e.g. `.vibeops/state/guide.json`), auto-**stash** them before `git switch` so checkout does not fail.
+
+## 0.7.12 - 2026-05-16
+
+### Fixed
+
+- **`vibeops start`** resumes an **existing** task branch (`git switch`) instead of failing with "Task branch already exists".
+- **`vibeops next`** shows **Resume … branch** when the task branch exists but HEAD is elsewhere (e.g. stuck on `chore/vibeops-post-mvp-*`).
+
+## 0.7.11 - 2026-05-16
+
+### Fixed
+
+- **Post-done cleanup** no longer runs `git add -A` on `node_modules/`, `.next/`, etc.; lists excluded paths and suggests `.gitignore`.
+- **`runGit`** uses a larger `maxBuffer` and `git commit -q` to avoid `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` on huge commits.
+- **`vibeops done`** auto-commit uses the same safe path filter (not `git add -A`).
+
+## 0.7.10 - 2026-05-16
+
+### Fixed
+
+- **`vibeops next`** stays on the current **`task/*` branch** until **`vibeops done`** (merge / Notion) — no longer jumps to the next Planned TASK when the TASK file is already **Done** but the branch is not merged.
+- **Close out** step when Status is Done but you are still on the task branch; blocks starting another TASK from the manual Next flow.
+
+## 0.7.9 - 2026-05-16
+
+### Added
+
+- **`vibeops next`** when **Result** / **Test Result** are empty or placeholders: writes **`.vibeops/generated/cursor-implement-<task>.md`** and tells you to **@-mention** that file in Cursor (ready-made implement prompt).
+
+## 0.7.8 - 2026-05-16
+
+### Fixed
+
+- **`vibeops next`** treats `Pending.` / `TBD` / `TODO` in **Result** / **Test Result** as placeholders (no longer jumps to **Finish** right after **start**); **Implement** comes before **Commit** when sections are still empty.
+- **`vibeops start`** for backlog TASKs points at the TASK file, not `mvp-build.md`.
+
+## 0.7.7 - 2026-05-16
+
+### Fixed
+
+- **`vibeops start`** (and merge dirty checks) treat **`.vibeops/generated/`** (e.g. `next-task-suggestion.md`, done summaries) and other **`.vibeops/**`** paths like governance docs, so a dirty tree with only VibeOps artifacts no longer blocks starting the next TASK.
+
+## 0.7.6 - 2026-05-16
+
+### Fixed
+
+- **`vibeops next`** no longer pins the guide to a stale `implement` step from `.vibeops/state/guide.json`; it re-detects from TASK + git (e.g. **Review** with Result/Test filled → **Finish** / `vibeops done`).
+- **Next** on manual steps: re-checks the repo and offers **`vibeops done`** when ready; menu label distinguishes run vs advance.
+
+## 0.7.5 - 2026-05-16
+
+### Changed
+
+- **`vibeops next`** on existing projects without `TASK-mvp`: picks the active backlog TASK (`in_progress` / `review` / next `planned`) or, when all numbered TASKs are **Done**, shows **Continue after MVP** (last TASK + `last-done-summary.md` / `next-task-suggestion.md`) instead of greenfield “run plan first”.
+- **`next`** runnable steps use the resolved TASK id (`vibeops start TASK-017`, `vibeops done TASK-017`) for backlog work.
+
+## 0.7.4 - 2026-05-16
+
+### Changed
+
+- **`vibeops done`** LLM auto-fill and next-task suggestion use the same providers as **`vibeops plan`**: **Codex OAuth** (`~/.codex/auth.json`), **Cursor Agent CLI**, then **OpenAI API key** — not only `OPENAI_API_KEY`.
+
+## 0.7.3 - 2026-05-16
+
+### Changed
+
+- **`vibeops done`** auto-fills **Result** and **Test Result** in the TASK file (from git + optional LLM; placeholders like `(not yet)` are replaced). Use `--refresh-task-sections` to overwrite existing text, `--skip-summary` to skip.
+
+## 0.7.2 - 2026-05-16
+
+### Added
+
+- **`vibeops done`** always writes **`.vibeops/generated/last-done-summary.md`** (plus dated archive under `done-summaries/`): TASK Result/Test Result, git log/stat, file list, patch excerpt, optional LLM narrative (`OPENAI_API_KEY`).
+- **`vibeops plan`** and **`vibeops next`** include that summary when starting the next iteration (TASK-mvp + `mvp-build.md` + next-task suggestion).
+
+## 0.7.1 - 2026-05-16
+
+### Added
+
+- **`vibeops done`** now runs **`vibeops notion sync` automatically** when Notion is enabled (`--no-notion-sync` to skip).
+- **Post-done follow-up:** if the working tree is still dirty, offers a cleanup branch → commit → merge to `main`; when clean, writes **`.vibeops/generated/next-task-suggestion.md`** via OpenAI (when `OPENAI_API_KEY` is set).
+
+## 0.7.0 - 2026-05-16
+
+### Changed (breaking)
+
+- **CLI surface reduced to the v2 MVP flow:** `init` · `plan` · `start` · `done` · `next` · `status`, plus optional `notion *`, `github *`, and `rollback`.
+- **Removed:** `task *`, `agent *`, `plan --apply-planner`, legacy 20-question wizard, multi-TASK `generate` / `pull` / `add`, and agent paste prompts. Implementation is **drag `.vibeops/generated/mvp-build.md` into Cursor** only.
+- **`plan`** always writes brief + `TASK-mvp` + `mvp-build.md` (no `--no-mvp`).
+- **`next`** guide is MVP-only (start → implement → finish → optional Notion).
+
+### Removed (code)
+
+- `src/commands/task-*.ts`, `src/commands/agent-*.ts`, `src/lib/{plan-apply-planner,prompt-builder,task-generator,task-scaffold,task-prompt,task-pull,task-add-cursor,project-docs,plan-post-apply-setup}.ts`, `src/agent/*`.
+
+## 0.6.0 - 2026-05-16
+
+### Added (v2 MVP workflow — recommended)
+
+- **`vibeops plan`** now writes **`docs/tasks/TASK-mvp-*.md`** and **`.vibeops/generated/mvp-build.md`** (orchestration prompt to **drag into Cursor**). Skip with **`--no-mvp`**.
+- Top-level **`vibeops start`** (default **TASK-mvp**) and **`vibeops done`** (Result/Test Result, optional git summary, merge to main, delete task branch).
+- **`vibeops status`** / **`vibeops next`** prefer the MVP flow when **TASK-mvp** is active.
+
+### Note
+
+- Legacy **`task *`**, **`--apply-planner`**, and eight-agent paste flows remain for existing projects; new work should use **plan → start → mvp-build.md in Cursor → done → next**.
+
+## 0.5.0 - 2026-05-16
+
+### Added
+
+- **`vibeops next`**: interactive workflow guide for the active TASK — shows current step, your to-dos, suggested commands, and a **Next / Prev** menu with **Yes/No** (↑/↓). Runs `task start`, `task check`, `task done`, **`merge` (push + direct `git merge` into main + branch cleanup by default)**, `task done --finalize`, and `notion sync` when appropriate. Optional **`--merge-via-pr`** uses `gh pr create` + `gh pr merge`. Cursor implementation remains manual. Session history for Prev is in `.vibeops/state/guide.json`. Flags: `--non-interactive`, `--execute`, `--dry-run`, `--allow-dirty`, optional `[taskId]`.
+
 ## 0.4.0 - 2026-05-13
 
 ### Changed

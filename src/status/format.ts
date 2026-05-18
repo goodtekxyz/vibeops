@@ -80,9 +80,15 @@ export function printHuman(report: StatusReport): void {
       `  next  ${report.nextTask.id} — ${report.nextTask.title || dim("(no title)")}  ${dim(`[${report.nextTask.status}]`)}`,
     );
   } else if (total === 0) {
-    log.info(`  ${dim("no TASK files yet — run `vibeops task generate`")}`);
+    log.info(`  ${dim("no TASK files — run `vibeops plan`")}`);
   } else {
-    log.info(`  ${dim("all tasks done")}`);
+    log.info(`  ${dim("all tracked tasks done")}`);
+  }
+  const mvp = report.tasks.find((t) => t.id.toUpperCase() === "TASK-MVP");
+  if (mvp && mvp.status !== "done") {
+    log.info(
+      `  workflow  ${cyan("vibeops start")} → ${cyan(".vibeops/generated/mvp-build.md")} in Cursor → ${cyan("vibeops done")}`,
+    );
   }
   log.blank();
 
