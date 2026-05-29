@@ -1,97 +1,44 @@
-import { mkdir } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { resolve } from "node:path";
 
-import { doneCommand } from "./done.js";
-import { startCommand } from "./start.js";
 import { pathExists, writeText } from "../lib/filesystem.js";
-import { bold, cyan, dim, log } from "../lib/logger.js";
-import { askInput, askSelect, yesNoSelect } from "../lib/inquirer-helpers.js";
+import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { askInput } from "../lib/inquirer-helpers.js";
+import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
-import { readConfig } from "../lib/config.js";
 import { slugify } from "../lib/slug.js";
-import {
-  defaultBuildPromptForTask,
-  gatherTaskPlanViaLlm,
-  llmGenerateQuickTask,
-  type QuickTaskLlmResult,
-} from "../lib/task-add-llm.js";
-import {
-  taskBuildPromptAbs,
-  taskBuildPromptRel,
-} from "../lib/task-add-build-prompt.js";
+import { fallbackTaskDraft, llmScaffoldTask } from "../lib/task-add-llm.js";
 import {
   allocateNextTaskNumber,
-  buildWorkNowTaskMarkdown,
   formatTaskId,
-  titleFromIdea,
   uniqueTaskPath,
 } from "../lib/task-scaffold.js";
-import { readGitInfo } from "../lib/git.js";
-import {
-  loadActionableTasks,
-  pickInProgressTask,
-  pickLatestDoneTask,
-} from "../lib/task.js";
+import { findBlockingTask, relPath } from "../lib/task-context.js";
+import { startTaskBranch } from "../lib/task-start.js";
+import { loadActionableTasks, readGitContext } from "../lib/task.js";
+import type { VibeopsGitConfig } from "../types/config.js";
 
 export interface TaskAddCommandOptions {
   dryRun?: boolean;
   nonInteractive?: boolean;
   cwd?: string;
-  /** CI / smoke only — skips prompts when combined with --non-interactive */
   idea?: string;
 }
 
-type AddMode = "just" | "plan";
-
-function relOrAbs(root: string, p: string): string {
-  const r = relative(root, p);
-  return r === "" ? "." : r.startsWith("..") ? p : r;
-}
-
-async function maybeCloseInProgressTask(
+async function loadGitConfigOrNull(
   root: string,
-  inProgress: NonNullable<ReturnType<typeof pickInProgressTask>>,
-  nonInteractive: boolean,
-): Promise<boolean> {
-  if (nonInteractive) return true;
-
-  log.info(
-    `Current TASK ${bold(inProgress.id)} is ${cyan("In Progress")}: ${dim(inProgress.title)}`,
-  );
-  log.blank();
-
-  const closeFirst = await yesNoSelect({
-    message: "Close this TASK first (commit, merge, clean tree) before starting a new one?",
-    defaultValue: true,
-  });
-
-  if (!closeFirst) {
-    log.warn(
-      `Keeping ${inProgress.id} open — finish it or run ${cyan("vibeops done")} before switching branches.`,
-    );
-    return true;
+  dryRun: boolean,
+): Promise<VibeopsGitConfig | null> {
+  try {
+    return await requireGitConfig(root);
+  } catch (e) {
+    if (e instanceof GitConfigError) {
+      if (dryRun) return null;
+      log.error(e.message);
+      process.exitCode = 1;
+      return null;
+    }
+    throw e;
   }
-
-  log.blank();
-  log.step(`Closing ${inProgress.id} via vibeops done…`);
-  await doneCommand(inProgress.id, { cwd: root, allowDirty: true });
-  if (process.exitCode !== undefined && process.exitCode !== 0) {
-    log.error("Could not close the current TASK — fix blockers above, then run task add again.");
-    return false;
-  }
-  log.blank();
-  return true;
-}
-
-async function pickAddMode(nonInteractive: boolean): Promise<AddMode> {
-  if (nonInteractive) return "just";
-  const choice = await askSelect({
-    message: "How do you want to create the new TASK?",
-    nonInteractive: false,
-    choices: ["Just create task", "Create plan using LLM"],
-    default: "Just create task",
-  });
-  return choice.startsWith("Create plan") ? "plan" : "just";
 }
 
 export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<void> {
@@ -103,124 +50,85 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
   log.info(bold("vibeops task add"));
   log.blank();
 
-  let tasks = await loadActionableTasks(projectPaths(root).docsTasks);
-  const inProgress = pickInProgressTask(tasks);
+  const gitCfg = await loadGitConfigOrNull(root, dryRun);
+  if (!dryRun && gitCfg === null) return;
 
-  if (inProgress !== null) {
-    const ok = await maybeCloseInProgressTask(root, inProgress, nonInteractive);
-    if (!ok) return;
-    tasks = await loadActionableTasks(projectPaths(root).docsTasks);
+  const paths = projectPaths(root);
+  const blocking = await findBlockingTask(paths, root);
+  if (blocking !== null) {
+    const ctx = await readGitContext(blocking.filePath);
+    log.warn(
+      `${yellow("Blocked")} — ${bold(blocking.id)} is still open (${blocking.title || "no title"}).`,
+    );
+    if (ctx) {
+      log.info(`  ${dim("branch")}  ${ctx.taskBranch}`);
+    }
+    log.info(`  ${dim("file")}   ${relPath(root, blocking.filePath)}`);
+    log.blank();
+    log.info(`Finish it first: ${cyan(`vibeops task done ${blocking.id}`)}`);
+    log.info(`Then run ${cyan("vibeops task add")} again.`);
+    process.exitCode = 1;
+    return;
   }
 
-  const mode = await pickAddMode(nonInteractive);
-  const latestDone = pickLatestDoneTask(tasks);
-  const nextNum = allocateNextTaskNumber(tasks);
-  const taskId = formatTaskId(nextNum);
-
-  const ideaDefault =
-    opts.idea?.trim() ||
-    (latestDone ? `Follow-up after ${latestDone.id}` : "New work slice");
-
+  const ideaDefault = "New work slice";
   const idea = await askInput({
-    message:
-      mode === "plan"
-        ? "What do you want to build? (starting point for planning)"
-        : "What are you doing now? (short)",
+    message: "What are you doing now? (short)",
     nonInteractive,
-    default: ideaDefault,
+    default: opts.idea?.trim() || ideaDefault,
     required: true,
   });
 
-  const paths = projectPaths(root);
-  const config = await readConfig(root);
-  const projectName = config?.name ?? "project";
+  const tasks = await loadActionableTasks(paths.docsTasks);
+  const taskId = formatTaskId(allocateNextTaskNumber(tasks));
 
-  let title = titleFromIdea(idea);
-  let slug = slugify(title);
-  let markdown = "";
-  let buildPromptMarkdown: string | null = null;
-  let llmNote: string | null = null;
+  let title: string;
+  let slug: string;
+  let markdown: string;
 
-  if (mode === "plan") {
-    if (dryRun) {
-      log.info(`[dry-run] Would run LLM planning for ${bold(taskId)}`);
-      log.info(dim(`  idea: ${idea}`));
-      return;
-    }
-    if (nonInteractive) {
-      log.error("Create plan using LLM requires an interactive terminal (omit --non-interactive).");
-      process.exitCode = 1;
-      return;
-    }
-    log.step("LLM task planning (interactive questions)…");
-    const planned = await gatherTaskPlanViaLlm({
-      cwd: root,
-      taskId,
-      projectName,
-      seedIdea: idea,
-    });
-    if (planned === null) {
-      log.error("No LLM provider available for planning.");
-      process.exitCode = 1;
-      return;
-    }
-    markdown = planned.markdown;
-    buildPromptMarkdown = planned.buildPromptMarkdown;
-    llmNote = `planned via ${planned.provider}`;
-    const header = /^#\s+TASK-\d+:\s*(.+)$/m.exec(markdown);
-    if (header?.[1]) title = header[1].trim();
-    slug = slugify(title);
+  if (dryRun || nonInteractive) {
+    const fb = fallbackTaskDraft(taskId, idea);
+    title = fb.title;
+    slug = fb.slug;
+    markdown = fb.markdown;
   } else {
-    let quick: QuickTaskLlmResult | null = null;
-    if (!nonInteractive || opts.idea) {
-      quick = await llmGenerateQuickTask({
-        cwd: root,
-        taskId,
-        idea,
-        latestDone,
-      });
-    }
-    if (quick !== null) {
-      title = quick.title;
-      slug = quick.slug;
-      markdown = quick.markdown;
-      llmNote = `quick scaffold via ${quick.provider}`;
+    const llm = await llmScaffoldTask({ cwd: root, taskId, idea });
+    if (llm !== null) {
+      title = llm.title;
+      slug = llm.slug;
+      markdown = llm.markdown;
+      log.skip(`Scaffold via ${llm.provider}`);
     } else {
-      const parent = inProgress ?? latestDone;
-      markdown = buildWorkNowTaskMarkdown({
-        id: taskId,
-        title,
-        idea,
-        mvpPhase: parent?.mvpPhase?.trim() || "Work-now slice",
-        spawnedFrom: parent?.id,
-      });
-      if (!nonInteractive) {
-        log.warn("LLM unavailable — using minimal TASK template.");
-      }
+      log.warn("LLM unavailable — using minimal TASK template.");
+      log.info(dim(`  Run ${cyan("vibeops llm connect")} to set up Codex, Cursor Agent CLI, or OpenAI.`));
+      const fb = fallbackTaskDraft(taskId, idea);
+      title = fb.title;
+      slug = fb.slug;
+      markdown = fb.markdown;
     }
   }
 
   const { filePath } = uniqueTaskPath(
     paths.docsTasks,
     taskId,
-    slug,
+    slugify(slug || title),
     tasks.map((t) => t.filePath),
   );
-  const relFile = relOrAbs(root, filePath);
-  const taskRelative = relFile.replace(/\\/g, "/");
-  const buildRel = taskBuildPromptRel(taskId);
-  const buildAbs = taskBuildPromptAbs(root, taskId);
-
-  if (buildPromptMarkdown === null) {
-    buildPromptMarkdown = defaultBuildPromptForTask(projectName, taskId, taskRelative);
-  }
+  const relFile = relPath(root, filePath);
+  const integration = gitCfg?.integrationBranch ?? "integration";
 
   if (dryRun) {
     log.info(`[dry-run] Would create ${bold(taskId)} → ${cyan(relFile)}`);
-    if (mode === "plan") {
-      log.info(`[dry-run] Would write ${cyan(buildRel)}`);
+    log.info(dim(`  branch task/${slugify(slug || title).replace(/^(\d+)-/, "$1-")} from ${integration}`));
+    if (gitCfg) {
+      await startTaskBranch({
+        cwd: root,
+        taskFile: filePath,
+        integrationBranch: gitCfg.integrationBranch,
+        remote: gitCfg.remote,
+        dryRun: true,
+      });
     }
-    log.blank();
     return;
   }
 
@@ -229,36 +137,25 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
   }
 
   await writeText(filePath, markdown);
-  await mkdir(join(root, ".vibeops", "generated"), { recursive: true });
-  await writeText(buildAbs, buildPromptMarkdown);
-
   log.ok(`Created ${bold(taskId)} → ${cyan(relFile)}`);
-  if (mode === "plan") {
-    log.ok(`Cursor build doc → ${cyan(buildRel)}`);
-  }
-  if (llmNote) log.skip(llmNote);
 
-  const git = await readGitInfo(root);
-  if (!git.isRepo) {
-    log.warn("Not a git repository — TASK file saved. Run vibeops init --git, then start.");
+  log.blank();
+  log.step("Starting task branch…");
+  const started = await startTaskBranch({
+    cwd: root,
+    taskFile: filePath,
+    integrationBranch: gitCfg!.integrationBranch,
+    remote: gitCfg!.remote,
+    allowDirty: true,
+  });
+  if (!started) {
+    process.exitCode = 1;
     return;
   }
 
   log.blank();
-  log.step(`Starting ${taskId} (branch + In Progress)…`);
-  await startCommand(taskId, { cwd: root, allowDirty: true });
-
-  if (process.exitCode !== undefined && process.exitCode !== 0) {
-    log.warn(`TASK file exists but start failed — run ${cyan(`vibeops start ${taskId}`)} when Git is ready.`);
-    return;
-  }
-
-  log.blank();
-  if (mode === "plan") {
-    log.info(bold("Build in Cursor"));
-    log.info(`  Drag ${cyan(buildRel)} into a new chat and implement.`);
-  } else {
-    log.info(bold("Work in Cursor"));
-    log.info(`  Edit ${cyan(relFile)} freely, then ${cyan(`vibeops done ${taskId}`)} when finished.`);
-  }
+  log.info(bold("Next in Cursor"));
+  log.info(`  Ask:  @${relFile} — plan Scope / Acceptance Criteria`);
+  log.info(`  Agent: same file — implement`);
+  log.info(`  Done: ${cyan(`vibeops task done ${taskId}`)}`);
 }

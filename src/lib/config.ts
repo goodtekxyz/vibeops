@@ -1,79 +1,93 @@
 import { join } from "node:path";
 
-import { readTextOrNull, writeText } from "./filesystem.js";
+import { pathExists, readTextOrNull, writeText } from "./filesystem.js";
 import { VIBEOPS_CONFIG_FILE } from "./paths.js";
 import { VERSION } from "../version.js";
 import {
-  DEFAULT_GITHUB_CONFIG,
-  type GithubConfig,
-  type GithubVisibility,
-  type NotionConfig,
+  type GitHost,
+  type LlmProviderPreference,
+  type VibeopsClientId,
   type VibeopsConfig,
+  type VibeopsGitConfig,
+  type VibeopsLlmConfig,
   VIBEOPS_CONFIG_SCHEMA_VERSION,
 } from "../types/config.js";
+import { isVibeopsClientId } from "./init-clients.js";
 
-function parseNotionSection(raw: unknown): NotionConfig | undefined {
-  if (raw === null || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
-  const out: NotionConfig = {
-    enabled: typeof r.enabled === "boolean" ? r.enabled : false,
-    projectsTargetId:
-      typeof r.projectsTargetId === "string" ? r.projectsTargetId : "",
-    tasksTargetId:
-      typeof r.tasksTargetId === "string" ? r.tasksTargetId : "",
-    projectsDatabaseId:
-      typeof r.projectsDatabaseId === "string" ? r.projectsDatabaseId : "",
-    tasksDatabaseId:
-      typeof r.tasksDatabaseId === "string" ? r.tasksDatabaseId : "",
-  };
-  return out;
+function parseClientsBlock(raw: unknown): VibeopsClientId[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: VibeopsClientId[] = [];
+  for (const item of raw) {
+    if (typeof item === "string" && isVibeopsClientId(item) && !out.includes(item)) {
+      out.push(item);
+    }
+  }
+  return out.length > 0 ? out : undefined;
 }
 
-function parseGithubVisibility(raw: unknown): GithubVisibility {
-  if (raw === "public" || raw === "private") return raw;
-  return "";
+export function getClientsFromConfig(config: VibeopsConfig | null): VibeopsClientId[] {
+  if (config?.clients && config.clients.length > 0) return [...config.clients];
+  return ["cursor"];
 }
 
-function parseGithubSection(raw: unknown): GithubConfig | undefined {
-  if (raw === null || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
-  return {
-    enabled: typeof r.enabled === "boolean" ? r.enabled : false,
-    mode: r.mode === "gh-cli" ? "gh-cli" : "gh-cli",
-    owner: typeof r.owner === "string" ? r.owner : "",
-    repo: typeof r.repo === "string" ? r.repo : "",
-    remote:
-      typeof r.remote === "string" && r.remote.length > 0 ? r.remote : "origin",
-    visibility: parseGithubVisibility(r.visibility),
-    url: typeof r.url === "string" ? r.url : "",
-  };
+export async function isVibeopsProject(root: string): Promise<boolean> {
+  if ((await readConfig(root)) !== null) return true;
+  return pathExists(join(root, VIBEOPS_CONFIG_FILE));
+}
+
+function parseGitBlock(raw: unknown): VibeopsGitConfig | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  const o = raw as Record<string, unknown>;
+  const remote = typeof o.remote === "string" && o.remote.length > 0 ? o.remote : "origin";
+  const host = o.host === "github" || o.host === "gitlab" ? o.host : undefined;
+  const integrationBranch =
+    typeof o.integrationBranch === "string" && o.integrationBranch.length > 0
+      ? o.integrationBranch
+      : undefined;
+  const productionBranch =
+    typeof o.productionBranch === "string" && o.productionBranch.length > 0
+      ? o.productionBranch
+      : undefined;
+  if (!host || !integrationBranch || !productionBranch) return undefined;
+  return { remote, host, integrationBranch, productionBranch };
+}
+
+function parseLlmBlock(raw: unknown): VibeopsLlmConfig | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  const p = (raw as { provider?: unknown }).provider;
+  if (p === "auto" || p === "codex-oauth" || p === "cursor-agent" || p === "openai") {
+    return { provider: p };
+  }
+  return undefined;
 }
 
 export async function readConfig(root: string): Promise<VibeopsConfig | null> {
   const text = await readTextOrNull(join(root, VIBEOPS_CONFIG_FILE));
   if (text === null) return null;
   try {
-    const parsed = JSON.parse(text) as Partial<VibeopsConfig> & {
-      notion?: unknown;
-      github?: unknown;
-    };
+    const parsed = JSON.parse(text) as Partial<VibeopsConfig>;
     if (
       typeof parsed.name === "string" &&
       typeof parsed.vibeopsVersion === "string" &&
       typeof parsed.createdAt === "string" &&
       parsed.schemaVersion === VIBEOPS_CONFIG_SCHEMA_VERSION
     ) {
-      const notion = parseNotionSection(parsed.notion);
-      const github = parseGithubSection(parsed.github);
-      const config: VibeopsConfig = {
+      const llm = parseLlmBlock(parsed.llm);
+      const git = parseGitBlock(parsed.git);
+      const clients = parseClientsBlock(parsed.clients) ?? ["cursor"];
+      return {
         name: parsed.name,
         vibeopsVersion: parsed.vibeopsVersion,
         schemaVersion: VIBEOPS_CONFIG_SCHEMA_VERSION,
         createdAt: parsed.createdAt,
+        clients,
+        ...(git ? { git } : {}),
+        ...(llm ? { llm } : {}),
       };
-      if (notion) config.notion = notion;
-      if (github) config.github = github;
-      return config;
     }
     return null;
   } catch {
@@ -81,14 +95,25 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
   }
 }
 
-export function buildConfig(name: string, nowIso?: string): VibeopsConfig {
+export function buildConfig(
+  name: string,
+  clients: VibeopsClientId[],
+  git: VibeopsGitConfig,
+  existing?: VibeopsConfig | null,
+  nowIso?: string,
+): VibeopsConfig {
   return {
     name,
     vibeopsVersion: VERSION,
     schemaVersion: VIBEOPS_CONFIG_SCHEMA_VERSION,
-    createdAt: nowIso ?? new Date().toISOString(),
+    createdAt: existing?.createdAt ?? nowIso ?? new Date().toISOString(),
+    clients,
+    git,
+    llm: existing?.llm ?? { provider: "auto" },
   };
 }
+
+export type { GitHost, VibeopsGitConfig };
 
 export function configToJson(config: VibeopsConfig): string {
   return `${JSON.stringify(config, null, 2)}\n`;
@@ -98,100 +123,28 @@ export async function writeConfig(root: string, config: VibeopsConfig): Promise<
   await writeText(join(root, VIBEOPS_CONFIG_FILE), configToJson(config));
 }
 
-/** Merge a partial notion section into an existing config without touching other fields. */
-export function mergeNotionConfig(
-  base: VibeopsConfig,
-  patch: Partial<NotionConfig>,
-): { merged: VibeopsConfig; changed: boolean } {
-  const current: NotionConfig = base.notion ?? {
-    enabled: false,
-    projectsTargetId: "",
-    tasksTargetId: "",
-    projectsDatabaseId: "",
-    tasksDatabaseId: "",
-  };
-  const next: NotionConfig = {
-    enabled: patch.enabled ?? current.enabled,
-    projectsTargetId:
-      patch.projectsTargetId !== undefined && patch.projectsTargetId.length > 0
-        ? patch.projectsTargetId
-        : current.projectsTargetId,
-    tasksTargetId:
-      patch.tasksTargetId !== undefined && patch.tasksTargetId.length > 0
-        ? patch.tasksTargetId
-        : current.tasksTargetId,
-    projectsDatabaseId:
-      patch.projectsDatabaseId !== undefined && patch.projectsDatabaseId.length > 0
-        ? patch.projectsDatabaseId
-        : current.projectsDatabaseId,
-    tasksDatabaseId:
-      patch.tasksDatabaseId !== undefined && patch.tasksDatabaseId.length > 0
-        ? patch.tasksDatabaseId
-        : current.tasksDatabaseId,
-  };
-  const changed =
-    base.notion === undefined ||
-    next.enabled !== current.enabled ||
-    next.projectsTargetId !== current.projectsTargetId ||
-    next.tasksTargetId !== current.tasksTargetId ||
-    next.projectsDatabaseId !== current.projectsDatabaseId ||
-    next.tasksDatabaseId !== current.tasksDatabaseId;
-  return { merged: { ...base, notion: next }, changed };
-}
-
-/** Preferred Projects target id for API calls: data_source target first, legacy DB fallback. */
-export function notionProjectsTargetId(notion: NotionConfig): string {
-  return notion.projectsTargetId.length > 0
-    ? notion.projectsTargetId
-    : notion.projectsDatabaseId;
-}
-
-/** Preferred Tasks target id for API calls: data_source target first, legacy DB fallback. */
-export function notionTasksTargetId(notion: NotionConfig): string {
-  return notion.tasksTargetId.length > 0 ? notion.tasksTargetId : notion.tasksDatabaseId;
-}
-
 /**
- * Merge a partial github section into an existing config without touching
- * other fields (notion, name, etc.). Empty strings in the patch are treated
- * as "no value provided" — the existing value is kept. Pass through
- * `enabled` / `mode` always (booleans / enums always overwrite).
+ * Merge `llm.provider` into existing `.vibeops.json` (preserves other keys).
  */
-export function mergeGithubConfig(
-  base: VibeopsConfig,
-  patch: Partial<GithubConfig>,
-): { merged: VibeopsConfig; changed: boolean } {
-  const current: GithubConfig = base.github ?? DEFAULT_GITHUB_CONFIG;
-  const next: GithubConfig = {
-    enabled: patch.enabled ?? current.enabled,
-    mode: patch.mode ?? current.mode,
-    owner:
-      patch.owner !== undefined && patch.owner.length > 0
-        ? patch.owner
-        : current.owner,
-    repo:
-      patch.repo !== undefined && patch.repo.length > 0
-        ? patch.repo
-        : current.repo,
-    remote:
-      patch.remote !== undefined && patch.remote.length > 0
-        ? patch.remote
-        : current.remote,
-    visibility:
-      patch.visibility !== undefined && patch.visibility.length > 0
-        ? patch.visibility
-        : current.visibility,
-    url:
-      patch.url !== undefined && patch.url.length > 0 ? patch.url : current.url,
-  };
-  const changed =
-    base.github === undefined ||
-    next.enabled !== current.enabled ||
-    next.mode !== current.mode ||
-    next.owner !== current.owner ||
-    next.repo !== current.repo ||
-    next.remote !== current.remote ||
-    next.visibility !== current.visibility ||
-    next.url !== current.url;
-  return { merged: { ...base, github: next }, changed };
+export async function setLlmProviderPreference(
+  root: string,
+  provider: LlmProviderPreference,
+): Promise<void> {
+  const path = join(root, VIBEOPS_CONFIG_FILE);
+  const text = await readTextOrNull(path);
+  if (text === null) {
+    throw new Error(`${VIBEOPS_CONFIG_FILE} not found — run vibeops init first.`);
+  }
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(`${VIBEOPS_CONFIG_FILE} is not valid JSON.`);
+  }
+  const prevLlm =
+    typeof data.llm === "object" && data.llm !== null && !Array.isArray(data.llm)
+      ? (data.llm as Record<string, unknown>)
+      : {};
+  data.llm = { ...prevLlm, provider };
+  await writeText(path, `${JSON.stringify(data, null, 2)}\n`);
 }

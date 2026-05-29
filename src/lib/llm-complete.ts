@@ -1,7 +1,7 @@
-import { probeCodexOAuthFile } from "./plan-codex-auth.js";
+import type { LlmProviderPreference } from "../types/config.js";
+import { resolveAvailableLlmProvider, resolveLlmProviderForUse } from "./llm-preference.js";
 import { codexOAuthTextCompletion } from "./plan-codex-responses.js";
 import { cursorAgentPrint, extractAgentAssistantText } from "./plan-llm-cursor-agent.js";
-import { probeCursorAgentCli, probeOpenAiApiKey } from "./plan-llm-detect.js";
 import type { OpenAiChatMessage } from "./plan-llm-openai.js";
 import {
   extractJsonObject,
@@ -9,19 +9,6 @@ import {
   openAiChatCompletionText,
 } from "./plan-llm-openai.js";
 import type { PlanLlmProviderId } from "./plan-llm-types.js";
-
-/** Non-interactive: Codex OAuth → Cursor Agent → OpenAI API key (same sources as `vibeops plan`). */
-export async function resolveAvailableLlmProvider(
-  cwd: string,
-): Promise<PlanLlmProviderId | null> {
-  const codex = await probeCodexOAuthFile();
-  if (codex.ok) return "codex-oauth";
-  const cursor = await probeCursorAgentCli(cwd);
-  if (cursor.ok) return "cursor-agent";
-  const openai = await probeOpenAiApiKey();
-  if (openai.ok) return "openai";
-  return null;
-}
 
 function formatMessagesForCursor(messages: readonly OpenAiChatMessage[]): string {
   return messages
@@ -34,14 +21,30 @@ export interface LlmCompleteResult {
   readonly provider: PlanLlmProviderId;
 }
 
+export interface LlmCompleteOpts {
+  readonly cwd: string;
+  /** Force a specific provider (overrides project preference). */
+  readonly provider?: PlanLlmProviderId;
+  readonly model?: string;
+  /** From `.vibeops.json` — `auto` picks first available. */
+  readonly preference?: LlmProviderPreference;
+}
+
 export async function llmCompleteText(
   messages: readonly OpenAiChatMessage[],
-  opts: { readonly cwd: string; readonly provider?: PlanLlmProviderId; readonly model?: string },
+  opts: LlmCompleteOpts,
 ): Promise<LlmCompleteResult> {
-  const provider = opts.provider ?? (await resolveAvailableLlmProvider(opts.cwd));
+  const pref = opts.preference ?? "auto";
+  const provider =
+    opts.provider ?? (await resolveLlmProviderForUse(opts.cwd, pref));
   if (provider === null) {
+    if (pref !== "auto") {
+      throw new Error(
+        `Preferred LLM "${pref}" is not available (not installed or not authenticated). Run \`vibeops llm connect\` or \`vibeops llm use auto\`.`,
+      );
+    }
     throw new Error(
-      "No LLM provider available. Use Codex OAuth (~/.codex/auth.json), Cursor Agent CLI (`agent login`), or OPENAI_API_KEY.",
+      "No LLM provider available. Run `vibeops llm connect` or set Codex OAuth, Cursor Agent CLI (`agent login`), or OPENAI_API_KEY.",
     );
   }
 
@@ -65,12 +68,19 @@ export async function llmCompleteText(
 
 export async function llmCompleteJson(
   messages: readonly OpenAiChatMessage[],
-  opts: { readonly cwd: string; readonly provider?: PlanLlmProviderId; readonly model?: string },
+  opts: LlmCompleteOpts,
 ): Promise<LlmCompleteResult> {
-  const provider = opts.provider ?? (await resolveAvailableLlmProvider(opts.cwd));
+  const pref = opts.preference ?? "auto";
+  const provider =
+    opts.provider ?? (await resolveLlmProviderForUse(opts.cwd, pref));
   if (provider === null) {
+    if (pref !== "auto") {
+      throw new Error(
+        `Preferred LLM "${pref}" is not available (not installed or not authenticated). Run \`vibeops llm connect\` or \`vibeops llm use auto\`.`,
+      );
+    }
     throw new Error(
-      "No LLM provider available. Use Codex OAuth (~/.codex/auth.json), Cursor Agent CLI (`agent login`), or OPENAI_API_KEY.",
+      "No LLM provider available. Run `vibeops llm connect` or set Codex OAuth, Cursor Agent CLI (`agent login`), or OPENAI_API_KEY.",
     );
   }
 
@@ -89,4 +99,11 @@ export async function llmCompleteJson(
 
   const { text: raw } = await llmCompleteText(jsonMessages, { ...opts, provider });
   return { text: extractJsonObject(raw), provider };
+}
+
+export { resolveAvailableLlmProvider } from "./llm-preference.js";
+
+/** True if any provider can run completions (ignores project preference). */
+export async function anyLlmProviderAvailable(cwd: string): Promise<boolean> {
+  return (await resolveAvailableLlmProvider(cwd)) !== null;
 }

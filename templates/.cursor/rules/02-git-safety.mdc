@@ -1,0 +1,12 @@
+---
+description: Git safety for task branches and merge requests
+alwaysApply: true
+---
+
+# Git safety
+
+- Branch policy lives in `.vibeops.json` (`integrationBranch`, `productionBranch`).
+- `vibeops task add` creates `task/*` from the **integration** branch (e.g. `develop`).
+- Include the TASK id in commit messages, e.g. `feat(task-015): short title`.
+- **`vibeops task done`** pushes the branch and opens an MR/PR — it does **not** merge locally.
+- Merge on GitHub/GitLab; CI deploys after merge. No force-push to shared branches.

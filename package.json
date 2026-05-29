@@ -1,7 +1,7 @@
 {
   "name": "@goodtek/vibeops",
-  "version": "0.7.22",
-  "description": "Workflow rails for Cursor-based vibe coding projects.",
+  "version": "1.1.1",
+  "description": "Minimal CLI rails for Cursor-based TASK-driven vibe coding.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "author": "VibeOps contributors",
@@ -36,7 +36,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/cli.js",
     "smoke": "pnpm typecheck && pnpm build && node scripts/smoke.mjs",
-    "prepack": "pnpm build",
+    "clean": "rm -rf dist",
+    "prepack": "pnpm clean && pnpm build",
     "publish:dry": "pnpm publish --dry-run --no-git-checks"
   },
   "keywords": [
@@ -45,14 +46,11 @@
     "coding",
     "cli",
     "task",
-    "notion",
     "vibeops",
     "workflow"
   ],
   "dependencies": {
-    "@goodtek/vibeops": "^0.3.0",
     "@inquirer/prompts": "^8.4.3",
-    "@notionhq/client": "^5.20.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3"
   },

@@ -124,6 +124,47 @@ export async function gitBranchExists(cwd: string, name: string): Promise<boolea
   return res !== null;
 }
 
+export async function gitRemoteBranchExists(
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<boolean> {
+  const res = await tryGit(cwd, [
+    "show-ref",
+    "--verify",
+    "--quiet",
+    `refs/remotes/${remote}/${branch}`,
+  ]);
+  return res !== null;
+}
+
+/**
+ * Checkout local `branch`, creating it from `remote/branch` when only the remote ref exists.
+ */
+export async function gitSwitchToBranch(
+  cwd: string,
+  branch: string,
+  remote = "origin",
+): Promise<boolean> {
+  if (await gitBranchExists(cwd, branch)) {
+    await gitCheckout(cwd, branch);
+    return true;
+  }
+
+  if ((await gitRemoteUrl(cwd, remote)) === null) return false;
+
+  try {
+    await gitFetch(cwd, remote, branch);
+  } catch {
+    // branch may not exist on remote yet
+  }
+
+  if (!(await gitRemoteBranchExists(cwd, remote, branch))) return false;
+
+  await gitCheckoutNewBranch(cwd, branch, `${remote}/${branch}`);
+  return true;
+}
+
 export async function gitCreateBranch(
   cwd: string,
   name: string,
@@ -445,7 +486,7 @@ export async function gitAddPaths(cwd: string, paths: readonly string[]): Promis
 /**
  * When the index/worktree is dirty, classify whether every changed path is
  * limited to governance docs and VibeOps metadata (`.vibeops/**`, docs/tasks, etc.).
- * Used by `vibeops task start` so `task done --finalize` on main does not
+ * Used when switching task branches so governance paths are not left off-disk after switch.
  * block the next TASK unless application code is also dirty.
  */
 export async function gitGovernanceOnlyDirty(cwd: string): Promise<{
@@ -575,4 +616,28 @@ export async function gitRemoteUrl(cwd: string, name = "origin"): Promise<string
   if (!res) return null;
   const url = res.stdout.trim();
   return url.length > 0 ? url : null;
+}
+
+export async function gitFetch(cwd: string, remote: string, ref?: string): Promise<void> {
+  const args = ["fetch", remote];
+  if (typeof ref === "string" && ref.length > 0) args.push(ref);
+  await runGit(cwd, args);
+}
+
+export async function gitPullFastForwardOnly(
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<void> {
+  await runGit(cwd, ["pull", "--ff-only", remote, branch]);
+}
+
+export async function gitPush(
+  cwd: string,
+  remote: string,
+  branch: string,
+  setUpstream = true,
+): Promise<void> {
+  const args = setUpstream ? ["push", "-u", remote, branch] : ["push", remote, branch];
+  await runGit(cwd, args);
 }
