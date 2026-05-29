@@ -4,6 +4,57 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Removed dead `task-merge.ts` (local merge no longer used).
+- `task add` checks out integration branch from `origin/<branch>` when only remote exists.
+- `task done` sets Status **Done** only after push/MR succeed; skips duplicate PR when URL exists.
+- Re-init creates missing integration branch on existing repos.
+- `status` shows branch policy and MR/PR URL.
+
+## 1.1.0 - 2026-05-27
+
+### Breaking
+
+- **`task done` no longer merges locally.** It pushes the task branch and opens a **pull/merge request** to the integration branch (`gh` / `glab`). Merge and deploy happen on the host (CI).
+- **`init` requires a git remote** (`origin`) unless `--allow-no-remote` (smoke/CI).
+- **`.vibeops.json` gains a `git` block** (integration/production branches, host). Re-run `vibeops init` on older projects.
+
+### Added
+
+- **Branch policy at init:** GitFlow lite (`develop` + `main`) or trunk (`main` only); `--git-policy`, `--integration-branch`, `--production-branch`.
+- **`task add`** branches from the configured **integration** branch, not arbitrary HEAD.
+- **LLM-generated MR/PR** title and body on `task done`; URL stored in TASK **Git Context**.
+- **`--no-pr`** on `task done` to push only.
+
+## 1.0.0 - 2026-05-27
+
+### Added
+
+- **`vibeops init --clients`**: choose **cursor**, **claude**, **codex** (≥1 required). Installs core + per-client rules/skills (`CLAUDE.md`, `.agents/skills/`, etc.).
+- **Re-init guard**: existing projects prompt before overwriting templates; `docs/tasks/TASK-*.md` are preserved. Use `--yes` for non-interactive re-init.
+- **`vibeops llm`**: `connect`, `status`, `use` for task add/done LLM providers.
+
+### Breaking
+
+- **Four commands only:** `init`, `task add`, `task done`, `status`.
+- **Removed:** `plan`, `start`, `next`, `rollback`, `notion`, `github`, `task generate`, `task check`, `task prompt`, `task pull`, `agent`, and separate `task status`.
+- **Removed Notion:** no `@notionhq/client`, no Notion config in `.vibeops.json`.
+- **Single TASK model:** `TASK-NNN-<slug>.md` only (no `TASK-mvp` workflow).
+- **`task add`:** if a TASK is In Progress, **guide only** and exit 1 — no auto `task done`.
+- **Templates:** no `.vibeops/agents`, workflows, or prompts; slim `docs/project/` set.
+
+### Added
+
+- **`task add`** creates TASK file, task branch, and In Progress status in one step (replaces `start`).
+- **`task done`** LLM assist for Result/Test Result and patches to `05-current-state`, `06-decisions`, `03-architecture`, daily log.
+- **Unified `status`** briefing without Notion/GitHub sections.
+- v3 Cursor rules (3) and optional skills (`plan-task`, `implement-task`).
+
+### Fixed
+
+- Governance stash **pop** after branch switch so new TASK files stay on disk.
+
 ## 0.7.22 - 2026-05-16
 
 ### Fixed

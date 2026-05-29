@@ -45,8 +45,6 @@ export function statusDisplay(status: TaskStatus): string {
 
 function extractIdFromFilename(file: string): string {
   const name = basename(file);
-  const mvp = /^TASK-mvp/i.exec(name);
-  if (mvp) return "TASK-mvp";
   const m = /^(TASK-\d+)/i.exec(name);
   return m ? m[1]!.toUpperCase() : basename(file, ".md");
 }
@@ -120,7 +118,7 @@ export async function scanTasks(tasksDir: string): Promise<TaskMeta[]> {
   const files = entries
     .filter(
       (e) =>
-        e.isFile() && e.name.endsWith(".md") && /^TASK-(?:\d+|mvp)/i.test(e.name),
+        e.isFile() && e.name.endsWith(".md") && /^TASK-\d+/i.test(e.name),
     )
     .map((e) => join(tasksDir, e.name))
     .sort();
@@ -158,8 +156,7 @@ export function pickNextTask(tasks: TaskMeta[]): TaskMeta | null {
   const review = tasks.find((t) => t.status === "review");
   if (review) return review;
   const planned = tasks.filter((t) => t.status === "planned");
-  const mvp = planned.find((t) => t.id.toUpperCase() === "TASK-MVP");
-  return mvp ?? planned[0] ?? null;
+  return planned[0] ?? null;
 }
 
 const TEMPLATE_TASK_ID = "TASK-000";
@@ -168,12 +165,7 @@ export function filterActionableTasks(tasks: readonly TaskMeta[]): TaskMeta[] {
   return tasks.filter((t) => t.id.toUpperCase() !== TEMPLATE_TASK_ID);
 }
 
-export function isMvpTaskId(id: string): boolean {
-  return id.toUpperCase() === "TASK-MVP";
-}
-
 function taskSortKey(id: string): number {
-  if (isMvpTaskId(id)) return 1_000_000;
   const m = /^TASK-(\d+)$/i.exec(id.trim());
   return m ? Number.parseInt(m[1]!, 10) : 0;
 }
@@ -227,19 +219,19 @@ export async function findTaskFile(
   taskId: string,
 ): Promise<string | null> {
   const all = await scanTasks(tasksDir);
-  const normalized = taskId.trim();
-  const target =
-    /^mvp$/i.test(normalized) || /^task-mvp$/i.test(normalized)
-      ? "TASK-MVP"
-      : normalized.toUpperCase();
+  const target = normalizeTaskRef(taskId);
   for (const t of all) {
     if (t.id.toUpperCase() === target) return t.filePath;
   }
   return null;
 }
 
+function normalizeTaskRef(ref: string): string {
+  const t = ref.trim().toUpperCase();
+  return t.startsWith("TASK-") ? t : `TASK-${t}`;
+}
+
 const TASK_FILENAME_RE = /^TASK-(\d+)(?:-(.+))?$/i;
-const TASK_MVP_FILENAME_RE = /^TASK-mvp(?:-(.+))?$/i;
 
 export interface TaskNameParts {
   id: string;
@@ -249,12 +241,6 @@ export interface TaskNameParts {
 
 export function parseTaskFilename(filePath: string): TaskNameParts {
   const stem = basename(filePath, extname(filePath));
-  const mvp = TASK_MVP_FILENAME_RE.exec(stem);
-  if (mvp) {
-    const tail = (mvp[1] ?? "").trim().toLowerCase();
-    const slug = tail.length > 0 ? `mvp-${tail}` : "mvp";
-    return { id: "TASK-mvp", number: "mvp", slug };
-  }
   const m = TASK_FILENAME_RE.exec(stem);
   if (!m) {
     return { id: stem.toUpperCase(), number: "000", slug: stem.toLowerCase() };
@@ -430,6 +416,12 @@ function renderGitContextBlock(ctx: GitContext): string {
   if (typeof ctx.doneAt === "string" && ctx.doneAt.length > 0) {
     lines.push(`- Done At: \`${ctx.doneAt}\``);
   }
+  if (typeof ctx.mergeRequestUrl === "string" && ctx.mergeRequestUrl.length > 0) {
+    lines.push(`- Merge Request: ${ctx.mergeRequestUrl}`);
+  }
+  if (typeof ctx.pushedAt === "string" && ctx.pushedAt.length > 0) {
+    lines.push(`- Pushed At: \`${ctx.pushedAt}\``);
+  }
   return lines.join("\n");
 }
 
@@ -442,8 +434,8 @@ export async function upsertGitContext(
   let updated: string;
   if (locateSection(raw, "Git Context")) {
     updated = replaceSectionContent(raw, "Git Context", block);
-  } else if (locateSection(raw, "MVP Phase")) {
-    updated = insertSectionAfter(raw, "MVP Phase", "Git Context", block);
+  } else if (locateSection(raw, "Test Plan")) {
+    updated = insertSectionAfter(raw, "Test Plan", "Git Context", block);
   } else if (locateSection(raw, "Status")) {
     updated = insertSectionAfter(raw, "Status", "Git Context", block);
   } else {
@@ -460,7 +452,15 @@ const GIT_CTX_RE: Record<keyof GitContext, RegExp> = {
   taskBranch: /^-\s+Task Branch:\s*`([^`]+)`/m,
   startedAt: /^-\s+Started At:\s*`([^`]+)`/m,
   doneAt: /^-\s+Done At:\s*`([^`]+)`/m,
+  mergeRequestUrl: /^-\s+Merge Request:\s*(.+)$/m,
+  pushedAt: /^-\s+Pushed At:\s*`([^`]+)`/m,
 };
+
+export async function markGitContextDone(filePath: string): Promise<void> {
+  const ctx = await readGitContext(filePath);
+  if (ctx === null) return;
+  await upsertGitContext(filePath, { ...ctx, doneAt: new Date().toISOString() });
+}
 
 export async function readGitContext(filePath: string): Promise<GitContext | null> {
   const raw = await readText(filePath);
@@ -472,7 +472,13 @@ export async function readGitContext(filePath: string): Promise<GitContext | nul
   const startedAt = content.match(GIT_CTX_RE.startedAt)?.[1];
   if (!baseBranch || !baseCommit || !taskBranch || !startedAt) return null;
   const doneAt = content.match(GIT_CTX_RE.doneAt)?.[1];
+  const mergeRequestUrl = content.match(GIT_CTX_RE.mergeRequestUrl)?.[1]?.trim();
+  const pushedAt = content.match(GIT_CTX_RE.pushedAt)?.[1];
   const ctx: GitContext = { baseBranch, baseCommit, taskBranch, startedAt };
   if (typeof doneAt === "string" && doneAt.length > 0) ctx.doneAt = doneAt;
+  if (typeof mergeRequestUrl === "string" && mergeRequestUrl.length > 0) {
+    ctx.mergeRequestUrl = mergeRequestUrl;
+  }
+  if (typeof pushedAt === "string" && pushedAt.length > 0) ctx.pushedAt = pushedAt;
   return ctx;
 }

@@ -15,10 +15,25 @@ const tmpRoot = mkdtempSync(join(tmpdir(), "vibeops-smoke-"));
 try {
   const cases = [
     ["--help"],
-    ["init", "--cwd", tmpRoot, "--no-git", "--no-initial-commit", "--name", "smoke"],
+    [
+      "init",
+      "--cwd",
+      tmpRoot,
+      "--git",
+      "--initial-commit",
+      "--name",
+      "smoke",
+      "--clients",
+      "cursor",
+      "--allow-no-remote",
+      "--git-policy",
+      "gitflow",
+    ],
     ["init", "--dry-run"],
-    ["status"],
-    ["plan", "--non-interactive", "--idea", "Smoke: test app", "--cwd", tmpRoot],
+    ["status", "--cwd", tmpRoot],
+    ["status", "--json", "--cwd", tmpRoot],
+    ["llm", "status", "--cwd", tmpRoot],
+    ["llm", "use", "auto", "--cwd", tmpRoot],
     [
       "task",
       "add",
@@ -28,13 +43,8 @@ try {
       "--cwd",
       tmpRoot,
     ],
-    ["task", "status", "--cwd", tmpRoot],
-    ["task", "status", "--json", "--cwd", tmpRoot],
-    ["start", "--dry-run", "--cwd", tmpRoot],
-    ["next", "--non-interactive", "--cwd", tmpRoot],
-    ["notion", "init", "--dry-run"],
-    ["github", "status"],
-    ["rollback", "--dry-run", "--cwd", tmpRoot],
+    ["task", "done", "--dry-run", "--cwd", tmpRoot],
+    ["status", "--cwd", tmpRoot],
   ];
 
   for (const args of cases) {

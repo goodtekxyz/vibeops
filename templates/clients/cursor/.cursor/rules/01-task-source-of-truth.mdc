@@ -1,0 +1,12 @@
+---
+description: TASK markdown is the execution source of truth; one TASK at a time
+alwaysApply: true
+---
+
+# TASK-driven work
+
+- Implement **one TASK** only (`docs/tasks/TASK-NNN-*.md`).
+- Read the **entire** current TASK file before changing code or docs.
+- Work only inside **Scope** and **Acceptance Criteria**.
+- Do not start another TASK id unless the human asks.
+- If chat and TASK docs disagree, **fix the docs first**, then implement.

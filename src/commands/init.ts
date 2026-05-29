@@ -1,32 +1,53 @@
 import { basename, resolve } from "node:path";
 
 import { install, printReport } from "../bootstrap/installer.js";
-import { buildConfig } from "../lib/config.js";
+import { buildConfig, isVibeopsProject, readConfig, writeConfig } from "../lib/config.js";
 import {
-  currentBranchOrUnborn,
   gitAddAll,
+  gitBranchExists,
+  gitCheckout,
   gitCommit,
+  gitCreateBranch,
   gitInit,
+  gitPullFastForwardOnly,
+  gitPush,
+  gitRemoteBranchExists,
+  gitRemoteUrl,
   gitSetDefaultBranch,
   gitStatusPorcelain,
   hasAnyCommit,
   isGitRepository,
 } from "../lib/git.js";
+import { formatGitPolicySummary, askGitPolicy, parseGitPolicyArg, resolvePreset } from "../lib/git-policy.js";
+import { ensureOriginRemote } from "../lib/git-remote.js";
+import {
+  askInitClients,
+  formatClientsList,
+  parseClientsArg,
+} from "../lib/init-clients.js";
 import { askInput, askYesNo } from "../lib/inquirer-helpers.js";
 import { cyan, dim, green, log, yellow } from "../lib/logger.js";
+import type { GitHost, VibeopsClientId, VibeopsGitConfig } from "../types/config.js";
 
 export interface InitOptions {
   dryRun?: boolean;
   force?: boolean;
+  yes?: boolean;
   cwd?: string;
   name?: string;
+  clients?: string;
+  /** @deprecated Git is always initialized; kept for CLI compatibility. */
   git?: boolean;
   initialCommit?: boolean;
   defaultBranch?: string;
   commitMessage?: string;
+  allowNoRemote?: boolean;
+  gitPolicy?: string;
+  integrationBranch?: string;
+  productionBranch?: string;
+  gitHost?: string;
 }
 
-const DEFAULT_BRANCH = "main";
 const DEFAULT_COMMIT_MESSAGE = "chore: initialize vibeops project";
 
 function deriveProjectName(root: string, explicit: string | undefined): string {
@@ -36,157 +57,352 @@ function deriveProjectName(root: string, explicit: string | undefined): string {
   return "untitled-project";
 }
 
+function parseGitHostArg(raw: string | undefined): GitHost | null {
+  if (raw === undefined || raw.trim().length === 0) return null;
+  const t = raw.trim().toLowerCase();
+  if (t === "github" || t === "gitlab") return t;
+  return null;
+}
+
+async function confirmReinitIfNeeded(
+  projectRoot: string,
+  options: InitOptions,
+): Promise<boolean> {
+  const existing = await isVibeopsProject(projectRoot);
+  if (!existing) return true;
+
+  if (options.dryRun) {
+    log.info(dim("(dry-run) would re-initialize existing VibeOps project templates"));
+    return true;
+  }
+
+  if (options.yes === true || options.force === true) {
+    log.warn("Re-initializing existing VibeOps project (templates will be overwritten).");
+    return true;
+  }
+
+  if (process.stdin.isTTY !== true) {
+    log.error(
+      "This directory is already a VibeOps project. Use --yes to re-run init, or --force.",
+    );
+    process.exitCode = 1;
+    return false;
+  }
+
+  log.warn(yellow("This directory is already a VibeOps project."));
+  log.info(
+    dim(
+      "Re-running init overwrites AGENTS.md, client rules/skills, and project doc stubs. docs/tasks/TASK-*.md are kept.",
+    ),
+  );
+  log.blank();
+
+  const proceed = await askYesNo({
+    message: "Continue and overwrite template files?",
+    nonInteractive: false,
+    defaultValue: false,
+  });
+  if (!proceed) {
+    log.info(dim("Stopped — no files changed."));
+    process.exitCode = 1;
+    return false;
+  }
+  return true;
+}
+
+async function resolveClients(
+  options: InitOptions,
+  interactive: boolean,
+): Promise<VibeopsClientId[] | null> {
+  const fromFlag = parseClientsArg(options.clients);
+  if (options.clients !== undefined && fromFlag === null) {
+    log.error(
+      'Invalid --clients. Use comma-separated: cursor, claude, codex (e.g. --clients cursor,claude)',
+    );
+    process.exitCode = 1;
+    return null;
+  }
+  if (fromFlag !== null) return fromFlag;
+
+  if (interactive) {
+    log.blank();
+    log.info("Agent clients");
+    return askInitClients();
+  }
+
+  if (options.dryRun) {
+    return ["cursor"];
+  }
+
+  log.error(
+    "Select at least one agent: --clients cursor,claude,codex (non-interactive mode).",
+  );
+  process.exitCode = 1;
+  return null;
+}
+
+async function resolveBranchPolicy(
+  options: InitOptions,
+  interactive: boolean,
+): Promise<{ integrationBranch: string; productionBranch: string } | null> {
+  const presetId = parseGitPolicyArg(options.gitPolicy);
+  if (options.gitPolicy !== undefined && presetId === null) {
+    log.error("Invalid --git-policy. Use: gitflow, trunk, or custom");
+    process.exitCode = 1;
+    return null;
+  }
+
+  if (
+    typeof options.integrationBranch === "string" &&
+    typeof options.productionBranch === "string"
+  ) {
+    return {
+      integrationBranch: options.integrationBranch.trim(),
+      productionBranch: options.productionBranch.trim(),
+    };
+  }
+
+  if (presetId !== null && presetId !== "custom") {
+    const p = resolvePreset(presetId)!;
+    return {
+      integrationBranch: p.integrationBranch,
+      productionBranch: p.productionBranch,
+    };
+  }
+
+  if (interactive) {
+    log.blank();
+    log.info("Branch policy");
+    return askGitPolicy();
+  }
+
+  if (options.dryRun) {
+    return { integrationBranch: "develop", productionBranch: "main" };
+  }
+
+  return { integrationBranch: "develop", productionBranch: "main" };
+}
+
+function printNextSteps(clients: readonly VibeopsClientId[], git: VibeopsGitConfig): void {
+  log.blank();
+  log.info("Next steps:");
+  log.info("  1. Read AGENTS.md");
+  if (clients.includes("cursor")) {
+    log.info("  2. Cursor: @docs/tasks/TASK-001-….md in Ask, then Agent (+ /plan-task, /implement-task)");
+  }
+  if (clients.includes("claude")) {
+    log.info("  2. Claude Code: open TASK file; use /plan-task then /implement-task");
+  }
+  if (clients.includes("codex")) {
+    log.info("  2. Codex: open TASK file; use $plan-task / $implement-task when needed");
+  }
+  if (!clients.includes("cursor") && !clients.includes("claude") && !clients.includes("codex")) {
+    log.info("  2. Open the current TASK file in your agent before coding");
+  }
+  log.info(`  3. ${cyan("vibeops llm connect")} — LLM for task add / task done`);
+  log.info("  4. Push branches to origin (first time only):");
+  log.info(`     ${dim(`git push -u ${git.remote} ${git.productionBranch}`)}`);
+  if (git.integrationBranch !== git.productionBranch) {
+    log.info(`     ${dim(`git push -u ${git.remote} ${git.integrationBranch}`)}`);
+  }
+  log.info(`  5. ${cyan("vibeops task add")} — branches from ${git.integrationBranch} (pulls latest first)`);
+  log.info(`  6. ${cyan("vibeops task done")} — push + open MR/PR; merge on ${git.host} (CI deploys)`);
+}
+
 export async function initCommand(options: InitOptions = {}): Promise<void> {
   const dryRun = options.dryRun === true;
-  const force = options.force === true;
   const projectRoot = resolve(options.cwd ?? process.cwd());
-  const interactive = !dryRun && process.stdin.isTTY === true && options.git === undefined;
+  const interactive =
+    !dryRun &&
+    process.stdin.isTTY === true &&
+    options.clients === undefined &&
+    options.gitPolicy === undefined;
 
-  const name = deriveProjectName(projectRoot, options.name);
-  const config = buildConfig(name);
+  const proceed = await confirmReinitIfNeeded(projectRoot, options);
+  if (!proceed) return;
+
+  const existingConfig = await readConfig(projectRoot);
+  const reinit = existingConfig !== null || (await isVibeopsProject(projectRoot));
+  const force = options.force === true || reinit;
+
+  const clients = await resolveClients(options, interactive);
+  if (clients === null) return;
+
+  const branchPolicy = await resolveBranchPolicy(options, interactive);
+  if (branchPolicy === null) return;
+
+  const hostFromFlag = parseGitHostArg(options.gitHost);
+  if (options.gitHost !== undefined && hostFromFlag === null) {
+    log.error("Invalid --git-host. Use: github or gitlab");
+    process.exitCode = 1;
+    return;
+  }
+
+  let gitConfig: VibeopsGitConfig = {
+    remote: "origin",
+    host: hostFromFlag ?? existingConfig?.git?.host ?? "github",
+    integrationBranch: branchPolicy.integrationBranch,
+    productionBranch: branchPolicy.productionBranch,
+  };
+
+  const name =
+    options.name?.trim() ||
+    existingConfig?.name ||
+    deriveProjectName(projectRoot, options.name);
+
+  const config = buildConfig(name, clients, gitConfig, existingConfig);
 
   log.step(`vibeops init ${dryRun ? "(dry-run) " : ""}→ ${projectRoot}`);
   log.info(`  project: ${name}`);
   log.info(`  vibeops: ${config.vibeopsVersion}`);
-  if (force) log.warn("--force is on — existing files will be overwritten.");
+  log.info(`  clients: ${formatClientsList(clients)}`);
+  log.info(`  git:     ${formatGitPolicySummary(gitConfig)}`);
+  if (force && reinit) log.warn("Template files will be overwritten where they already exist.");
   log.blank();
 
-  const report = await install({ projectRoot, config, dryRun, force });
+  const report = await install({
+    projectRoot,
+    config,
+    clients,
+    dryRun,
+    force,
+  });
   printReport(report, dryRun);
 
-  const gitPlan = await resolveGitPlan(options, interactive);
-  await runGitSetup(projectRoot, gitPlan, dryRun);
-
-  if (!dryRun) {
-    log.blank();
-    log.info("Next steps:");
-    log.info("  1. Open AGENTS.md and confirm the project name.");
-    log.info("  2. Run `vibeops status` to verify installation.");
-    log.info(
-      "  3. Run `vibeops plan` to populate docs/project/* (or fill them by hand).",
-    );
-  }
-}
-
-interface GitInitPlan {
-  shouldInitGit: boolean;
-  shouldSetDefaultBranch: boolean;
-  defaultBranch: string;
-  shouldInitialCommit: boolean;
-  commitMessage: string;
-}
-
-async function resolveGitPlan(
-  options: InitOptions,
-  interactive: boolean,
-): Promise<GitInitPlan> {
-  const defaultBranch =
-    typeof options.defaultBranch === "string" && options.defaultBranch.trim().length > 0
-      ? options.defaultBranch.trim()
-      : DEFAULT_BRANCH;
   const commitMessage =
     typeof options.commitMessage === "string" && options.commitMessage.trim().length > 0
       ? options.commitMessage.trim()
       : DEFAULT_COMMIT_MESSAGE;
 
-  if (interactive) {
+  let shouldInitialCommit =
+    options.initialCommit !== false &&
+    (options.initialCommit === true || options.git === true);
+
+  let finalCommitMessage = commitMessage;
+  if (interactive && !dryRun) {
     log.blank();
-    log.info("Git setup");
-    const shouldInitGit = await askYesNo({
-      message: "Initialize Git repository?",
-      nonInteractive: false,
-      defaultValue: true,
-    });
-    if (!shouldInitGit) {
-      return {
-        shouldInitGit: false,
-        shouldSetDefaultBranch: false,
-        defaultBranch,
-        shouldInitialCommit: false,
-        commitMessage,
-      };
-    }
-    const useMain = await askYesNo({
-      message: "Use `main` as default branch?",
-      nonInteractive: false,
-      defaultValue: true,
-    });
-    const shouldInitialCommit = await askYesNo({
+    log.info("Git repository");
+    shouldInitialCommit = await askYesNo({
       message: "Create initial commit?",
       nonInteractive: false,
       defaultValue: true,
     });
-    const finalMessage = shouldInitialCommit
-      ? await askInput({
-          message: "Initial commit message",
-          nonInteractive: false,
-          default: commitMessage,
-          required: true,
-        })
-      : commitMessage;
-    return {
-      shouldInitGit: true,
-      shouldSetDefaultBranch: useMain,
-      defaultBranch,
+    if (shouldInitialCommit) {
+      finalCommitMessage = await askInput({
+        message: "Initial commit message",
+        nonInteractive: false,
+        default: commitMessage,
+        required: true,
+      });
+    }
+  } else if (!dryRun && !shouldInitialCommit && options.initialCommit === undefined) {
+    shouldInitialCommit = true;
+  }
+
+  await runGitSetup(
+    projectRoot,
+    {
+      productionBranch: gitConfig.productionBranch,
+      integrationBranch: gitConfig.integrationBranch,
       shouldInitialCommit,
-      commitMessage: finalMessage.length > 0 ? finalMessage : commitMessage,
+      commitMessage: finalCommitMessage,
+    },
+    dryRun,
+  );
+
+  const hadRemoteBefore = (await gitRemoteUrl(projectRoot, gitConfig.remote)) !== null;
+  const remote = await ensureOriginRemote({
+    cwd: projectRoot,
+    remoteName: gitConfig.remote,
+    dryRun,
+    nonInteractive: !interactive,
+    allowMissing: options.allowNoRemote === true,
+    defaultBranch: gitConfig.productionBranch,
+  });
+
+  if (remote !== null) {
+    gitConfig = {
+      ...gitConfig,
+      remote: remote.remote,
+      host: remote.host,
     };
   }
 
-  const shouldInitGit = options.git !== false && (options.git === true || options.initialCommit === true);
-  if (!shouldInitGit) {
-    return {
-      shouldInitGit: false,
-      shouldSetDefaultBranch: false,
-      defaultBranch,
-      shouldInitialCommit: false,
-      commitMessage,
-    };
+  // If we created/configured a new remote during init, push baseline branches so
+  // `task add` can always pull latest integration before branching.
+  if (!dryRun && options.allowNoRemote !== true && !hadRemoteBefore) {
+    const remoteName = gitConfig.remote;
+    log.blank();
+    log.info("Remote bootstrap:");
+    try {
+      // Ensure local branches are up-to-date with origin if they already exist remotely.
+      const prodRemoteExists = await gitRemoteBranchExists(projectRoot, remoteName, gitConfig.productionBranch);
+      if (prodRemoteExists) {
+        await gitCheckout(projectRoot, gitConfig.productionBranch);
+        await gitPullFastForwardOnly(projectRoot, remoteName, gitConfig.productionBranch);
+      }
+      await gitCheckout(projectRoot, gitConfig.productionBranch);
+      await gitPush(projectRoot, remoteName, gitConfig.productionBranch, true);
+      log.ok(`pushed ${gitConfig.productionBranch} → ${remoteName}`);
+
+      if (gitConfig.integrationBranch !== gitConfig.productionBranch) {
+        const intRemoteExists = await gitRemoteBranchExists(projectRoot, remoteName, gitConfig.integrationBranch);
+        if (intRemoteExists) {
+          await gitCheckout(projectRoot, gitConfig.integrationBranch);
+          await gitPullFastForwardOnly(projectRoot, remoteName, gitConfig.integrationBranch);
+        }
+        await gitCheckout(projectRoot, gitConfig.integrationBranch);
+        await gitPush(projectRoot, remoteName, gitConfig.integrationBranch, true);
+        log.ok(`pushed ${gitConfig.integrationBranch} → ${remoteName}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.warn(`Automatic push failed: ${msg}`);
+      log.info(dim("Run these manually:"));
+      log.info(dim(`  git push -u ${remoteName} ${gitConfig.productionBranch}`));
+      if (gitConfig.integrationBranch !== gitConfig.productionBranch) {
+        log.info(dim(`  git push -u ${remoteName} ${gitConfig.integrationBranch}`));
+      }
+    }
   }
-  return {
-    shouldInitGit: true,
-    shouldSetDefaultBranch: true,
-    defaultBranch,
-    shouldInitialCommit: options.initialCommit !== false,
-    commitMessage,
-  };
+
+  if (!dryRun) {
+    await writeConfig(projectRoot, buildConfig(name, clients, gitConfig, existingConfig));
+    if (options.allowNoRemote === true && remote === null) {
+      log.warn("No git remote configured (--allow-no-remote). task done push/MR will fail until origin exists.");
+    }
+    printNextSteps(clients, gitConfig);
+  }
+}
+
+interface GitSetupPlan {
+  productionBranch: string;
+  integrationBranch: string;
+  shouldInitialCommit: boolean;
+  commitMessage: string;
 }
 
 async function runGitSetup(
   projectRoot: string,
-  plan: GitInitPlan,
+  plan: GitSetupPlan,
   dryRun: boolean,
 ): Promise<void> {
   log.blank();
   log.info("Git setup:");
 
-  if (!plan.shouldInitGit) {
-    log.info(`  ${dim("skipped")} Git initialization`);
-    if (dryRun) {
-      log.info(
-        `  ${dim("hint")} use ${cyan("vibeops init --git --initial-commit")} to include Git setup in non-interactive mode`,
-      );
-    }
-    return;
-  }
-
   const alreadyRepo = await isGitRepository(projectRoot);
   const hasCommitsBefore = alreadyRepo ? await hasAnyCommit(projectRoot) : false;
 
   if (dryRun) {
-    log.info(
-      `  ${alreadyRepo ? dim("would skip") : green("would run")} git init`,
-    );
-    if (plan.shouldSetDefaultBranch) {
-      log.info(`  ${green("would set")} default branch ${cyan(plan.defaultBranch)}`);
+    log.info(`  ${alreadyRepo ? dim("would skip") : green("would run")} git init`);
+    log.info(`  ${green("would set")} production branch ${cyan(plan.productionBranch)}`);
+    if (plan.integrationBranch !== plan.productionBranch) {
+      log.info(`  ${green("would create")} integration branch ${cyan(plan.integrationBranch)}`);
     }
     if (plan.shouldInitialCommit) {
-      log.info(`  ${green("would run")} git add .`);
-      log.info(`  ${green("would run")} git commit -m ${JSON.stringify(plan.commitMessage)}`);
-    } else {
-      log.info(`  ${dim("would skip")} initial commit`);
+      log.info(`  ${green("would run")} git add . && git commit`);
     }
-    log.info(`  ${dim("dry-run")} no git commands executed`);
+    log.info(`  ${dim("would require")} remote origin (unless --allow-no-remote)`);
     return;
   }
 
@@ -197,49 +413,46 @@ async function runGitSetup(
     log.ok("git init");
   }
 
-  if (plan.shouldSetDefaultBranch) {
-    const hasCommitsNow = await hasAnyCommit(projectRoot);
-    if (alreadyRepo && hasCommitsNow) {
-      log.info(
-        `  ${yellow("skipped")} default branch change (repository already has commits)`,
-      );
+  const hasCommitsNow = await hasAnyCommit(projectRoot);
+  if (!hasCommitsNow) {
+    await gitSetDefaultBranch(projectRoot, plan.productionBranch);
+    log.ok(`production branch ${plan.productionBranch}`);
+  } else {
+    log.info(`  ${yellow("skipped")} default branch change (repository already has commits)`);
+  }
+
+  if (plan.shouldInitialCommit && !hasCommitsBefore && !hasCommitsNow) {
+    const changedFiles = await gitStatusPorcelain(projectRoot);
+    if (changedFiles.length > 0) {
+      await gitAddAll(projectRoot);
+      await gitCommit(projectRoot, plan.commitMessage);
+      log.ok(`initial commit on ${plan.productionBranch}`);
     } else {
-      await gitSetDefaultBranch(projectRoot, plan.defaultBranch);
-      log.ok(`default branch ${plan.defaultBranch}`);
+      log.info(`  ${dim("skipped")} initial commit (nothing to commit)`);
     }
+  } else if (hasCommitsNow || hasCommitsBefore) {
+    log.info(`  ${dim("skipped")} initial commit (repository already has commits)`);
   }
 
-  if (!plan.shouldInitialCommit) {
-    log.info(`  ${dim("skipped")} initial commit`);
-    return;
-  }
+  await ensureIntegrationBranch(projectRoot, plan);
+}
 
-  if (hasCommitsBefore || (await hasAnyCommit(projectRoot))) {
-    log.info(`  ${yellow("skipped")} initial commit (repository already has commits)`);
-    return;
-  }
+/** Create integration branch when missing (including re-init on existing repos). */
+async function ensureIntegrationBranch(
+  projectRoot: string,
+  plan: GitSetupPlan,
+): Promise<void> {
+  if (plan.integrationBranch === plan.productionBranch) return;
+  if (await gitBranchExists(projectRoot, plan.integrationBranch)) return;
+  if (!(await hasAnyCommit(projectRoot))) return;
 
-  const changedFiles = await gitStatusPorcelain(projectRoot);
-  log.info(
-    `  ${dim("initial commit files")} ${changedFiles.length} file${changedFiles.length === 1 ? "" : "s"} will be included`,
-  );
-  if (changedFiles.length === 0) {
-    log.info(`  ${dim("skipped")} initial commit (nothing to commit)`);
-    return;
-  }
-
-  try {
-    await gitAddAll(projectRoot);
-    await gitCommit(projectRoot, plan.commitMessage);
-    const branch = await currentBranchOrUnborn(projectRoot);
-    log.ok(
-      `initial commit created${branch.branch !== null ? ` on ${branch.branch}` : ""}`,
-    );
-  } catch (err) {
-    log.error(`initial commit failed: ${(err as Error).message}`);
-    log.info(
-      `  ${dim("hint")} check Git user.name/user.email, then run ${cyan(`git commit -m ${JSON.stringify(plan.commitMessage)}`)} manually.`,
-    );
-    process.exitCode = 1;
+  const start =
+    (await gitBranchExists(projectRoot, plan.productionBranch))
+      ? plan.productionBranch
+      : "HEAD";
+  await gitCreateBranch(projectRoot, plan.integrationBranch, start);
+  log.ok(`integration branch ${plan.integrationBranch}`);
+  if (await gitBranchExists(projectRoot, plan.productionBranch)) {
+    await gitCheckout(projectRoot, plan.productionBranch);
   }
 }

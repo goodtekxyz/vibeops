@@ -16,13 +16,11 @@ export interface ProjectPaths {
   envExample: string;
   agentsMd: string;
   cursorRules: string;
+  cursorSkills: string;
   docsProject: string;
   docsTasks: string;
   docsLogs: string;
   vibeopsDir: string;
-  vibeopsAgents: string;
-  vibeopsPrompts: string;
-  vibeopsWorkflows: string;
   gitignore: string;
 }
 
@@ -34,13 +32,18 @@ export function projectPaths(root: string): ProjectPaths {
     envExample: join(abs, VIBEOPS_ENV_EXAMPLE_FILE),
     agentsMd: join(abs, "AGENTS.md"),
     cursorRules: join(abs, ".cursor", "rules"),
+    cursorSkills: join(abs, ".cursor", "skills"),
     docsProject: join(abs, "docs", "project"),
     docsTasks: join(abs, "docs", "tasks"),
     docsLogs: join(abs, "docs", "logs"),
     vibeopsDir: join(abs, ".vibeops"),
-    vibeopsAgents: join(abs, ".vibeops", "agents"),
-    vibeopsPrompts: join(abs, ".vibeops", "prompts"),
-    vibeopsWorkflows: join(abs, ".vibeops", "workflows"),
     gitignore: join(abs, ".gitignore"),
   };
 }
+
+/** Project memory files updated by `vibeops task done`. */
+export const PROJECT_MEMORY_FILES = {
+  currentState: "docs/project/05-current-state.md",
+  architecture: "docs/project/03-architecture.md",
+  decisions: "docs/project/06-decisions.md",
+} as const;

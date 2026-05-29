@@ -31,4 +31,7 @@ export interface GitContext {
   taskBranch: string;
   startedAt: string;
   doneAt?: string;
+  /** Set by `task done` after push + MR/PR creation. */
+  mergeRequestUrl?: string;
+  pushedAt?: string;
 }

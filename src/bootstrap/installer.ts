@@ -1,10 +1,18 @@
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { ensureDir, pathExists, readText, readTextOrNull, writeText } from "../lib/filesystem.js";
+import {
+  ensureDir,
+  pathExists,
+  readText,
+  readTextOrNull,
+  writeText,
+} from "../lib/filesystem.js";
+import { CLIENT_SKILL_ROOT } from "../lib/init-clients.js";
 import { dim, green, log, yellow } from "../lib/logger.js";
-import { projectPaths, VIBEOPS_ENV_FILE } from "../lib/paths.js";
+import { projectPaths, TEMPLATES_ROOT, VIBEOPS_ENV_FILE } from "../lib/paths.js";
 
-import { type ManifestEntry, loadManifest, resolveDestination } from "./manifest.js";
+import { type ManifestEntry, loadInstallManifest, resolveDestination } from "./manifest.js";
 import {
   applySubstitutions,
   buildSubstitutions,
@@ -14,6 +22,7 @@ import {
 
 import { configToJson } from "../lib/config.js";
 import { type VibeopsConfig } from "../types/config.js";
+import type { VibeopsClientId } from "../types/config.js";
 
 export type FileAction = "created" | "overwritten" | "skipped" | "would-create" | "would-overwrite";
 
@@ -25,6 +34,7 @@ export interface FileOutcome {
 export interface InstallOptions {
   projectRoot: string;
   config: VibeopsConfig;
+  clients: readonly VibeopsClientId[];
   dryRun: boolean;
   force: boolean;
 }
@@ -37,24 +47,12 @@ export interface InstallReport {
 }
 
 function envExampleContents(): string {
-  // Modern VibeOps reads exactly one Notion secret: NOTION_TOKEN.
-  // Notion Projects / Tasks target IDs live in `.vibeops.json` under
-  // `notion.projectsTargetId` / `notion.tasksTargetId` (configured by
-  // `vibeops notion init`), so they are NOT environment variables.
-  //
-  // We intentionally do NOT seed GITHUB_TOKEN / OPENAI_* here:
-  //   - GitHub integration uses `gh` CLI auth.
-  //   - VibeOps' default runner is prompt mode and does not call LLM APIs.
   return [
-    "# VibeOps · environment example",
-    "# Copy this file to .vibeops.env and fill in the value.",
-    "# Never commit .vibeops.env — it is added to .gitignore by `vibeops init`.",
+    "# VibeOps · optional environment",
+    "# Copy to .vibeops.env (gitignored). Never commit secrets.",
     "#",
-    "# NOTION_TOKEN is the only secret VibeOps reads. Get it from",
-    "# https://www.notion.so/profile/integrations after creating an internal",
-    "# integration and sharing the target databases with it.",
-    "",
-    "NOTION_TOKEN=",
+    "# LLM for task add / task done (optional — Codex OAuth and Cursor Agent CLI also work):",
+    "# OPENAI_API_KEY=",
     "",
   ].join("\n");
 }
@@ -137,6 +135,38 @@ async function ensureGitignoreEntry(
   };
 }
 
+async function listSharedSkillNames(): Promise<string[]> {
+  const sharedRoot = join(TEMPLATES_ROOT, "skills-shared");
+  if (!(await pathExists(sharedRoot))) return [];
+  const entries = await readdir(sharedRoot, { withFileTypes: true });
+  return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+}
+
+async function installSharedSkills(
+  options: InstallOptions,
+  subs: Substitutions,
+): Promise<FileOutcome[]> {
+  const outcomes: FileOutcome[] = [];
+  const skillNames = await listSharedSkillNames();
+  const sharedRoot = join(TEMPLATES_ROOT, "skills-shared");
+
+  for (const client of options.clients) {
+    const skillRoot = CLIENT_SKILL_ROOT[client];
+    for (const skillName of skillNames) {
+      const sourceAbs = join(sharedRoot, skillName, "SKILL.md");
+      if (!(await pathExists(sourceAbs))) continue;
+      const relativePath = join(skillRoot, skillName, "SKILL.md");
+      const dest = join(options.projectRoot, relativePath);
+      const entry: ManifestEntry = { relativePath, sourceAbs };
+      if (!options.dryRun) {
+        await ensureDir(join(dest, ".."));
+      }
+      outcomes.push(await copyOne(entry, dest, subs, options));
+    }
+  }
+  return outcomes;
+}
+
 export async function install(options: InstallOptions): Promise<InstallReport> {
   const paths = projectPaths(options.projectRoot);
   const subs = buildSubstitutions(options.config);
@@ -145,14 +175,19 @@ export async function install(options: InstallOptions): Promise<InstallReport> {
     await ensureDir(paths.root);
   }
 
-  const manifest = await loadManifest();
+  const manifest = await loadInstallManifest(options.clients);
   const outcomes: FileOutcome[] = [];
 
   for (const entry of manifest) {
     const dest = resolveDestination(entry, paths.root);
+    if (!options.dryRun) {
+      await ensureDir(join(dest, ".."));
+    }
     const outcome = await copyOne(entry, dest, subs, options);
     outcomes.push(outcome);
   }
+
+  outcomes.push(...(await installSharedSkills(options, subs)));
 
   const configOutcome = await writeBlobIfNeeded(
     paths.config,

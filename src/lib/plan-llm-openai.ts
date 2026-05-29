@@ -1,5 +1,3 @@
-import type { PlanLlmAssistantTurn, PlanLlmDoneTurn } from "./plan-llm-types.js";
-
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export interface OpenAiChatMessage {
@@ -43,7 +41,6 @@ export async function openAiChatCompletionJson(params: {
   return content.trim();
 }
 
-/** Plain assistant text (no `response_format`) — used for planner markdown apply. */
 export async function openAiChatCompletionText(params: {
   readonly messages: readonly OpenAiChatMessage[];
   readonly model?: string;
@@ -87,65 +84,4 @@ export function extractJsonObject(text: string): string {
   const end = trimmed.lastIndexOf("}");
   if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
   return trimmed;
-}
-
-export function parsePlanLlmTurn(jsonText: string): PlanLlmAssistantTurn {
-  const raw = JSON.parse(jsonText) as Record<string, unknown>;
-  const turn = raw.turn;
-  if (turn === "done") {
-    const pb = raw.projectBrief;
-    if (!pb || typeof pb !== "object" || Array.isArray(pb)) {
-      throw new Error('Invalid JSON: "done" turn requires object "projectBrief".');
-    }
-    const plannerAssumptions = raw.plannerAssumptions;
-    const pa =
-      Array.isArray(plannerAssumptions) && plannerAssumptions.every((x) => typeof x === "string")
-        ? (plannerAssumptions as string[])
-        : undefined;
-    return {
-      turn: "done",
-      projectBrief: pb as PlanLlmDoneTurn["projectBrief"],
-      plannerAssumptions: pa,
-    };
-  }
-  if (turn === "confirm") {
-    const readableSummary = typeof raw.readableSummary === "string" ? raw.readableSummary.trim() : "";
-    if (readableSummary.length === 0) {
-      throw new Error('Invalid JSON: "confirm" turn needs non-empty "readableSummary" (markdown).');
-    }
-    const plannerNote = typeof raw.plannerNote === "string" ? raw.plannerNote.trim() : undefined;
-    return {
-      turn: "confirm",
-      readableSummary,
-      plannerNote: plannerNote && plannerNote.length > 0 ? plannerNote : undefined,
-    };
-  }
-  if (turn === "question") {
-    const message = typeof raw.message === "string" ? raw.message : "";
-    if (message.length === 0) {
-      throw new Error('Invalid JSON: "question" turn needs non-empty "message".');
-    }
-    const options = Array.isArray(raw.options)
-      ? raw.options.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
-      : [];
-    const rawQt = raw.questionType;
-    let questionType: "single" | "multi" | "text";
-    if (rawQt === "single" || rawQt === "multi" || rawQt === "text") {
-      questionType = rawQt;
-    } else if (options.length >= 2) {
-      /** Model often omits or mistypes questionType — multi is the safer default when lists are offered. */
-      questionType = "multi";
-    } else if (options.length === 1) {
-      questionType = "single";
-    } else {
-      questionType = "text";
-    }
-    return {
-      turn: "question",
-      message,
-      questionType,
-      options: options.length > 0 ? options : undefined,
-    };
-  }
-  throw new Error('Invalid JSON: "turn" must be "question", "confirm", or "done".');
 }

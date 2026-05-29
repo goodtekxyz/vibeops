@@ -3,6 +3,18 @@ import { basename, join } from "node:path";
 import type { TaskMeta } from "../types/task.js";
 import { statusDisplay } from "./task.js";
 
+export const V3_TASK_SECTIONS = [
+  "Status",
+  "Goal",
+  "Scope",
+  "Out of Scope",
+  "Acceptance Criteria",
+  "Test Plan",
+  "Git Context",
+  "Result",
+  "Test Result",
+] as const;
+
 export function allocateNextTaskNumber(tasks: readonly TaskMeta[]): number {
   let max = 0;
   for (const t of tasks) {
@@ -16,36 +28,22 @@ export function formatTaskId(number: number): string {
   return `TASK-${String(number).padStart(3, "0")}`;
 }
 
-export interface WorkNowTaskDraft {
+export interface TaskDraft {
   id: string;
   title: string;
   idea: string;
-  mvpPhase: string;
-  spawnedFrom?: string;
 }
 
-export function buildWorkNowTaskMarkdown(draft: WorkNowTaskDraft): string {
-  const spawnedNote = draft.spawnedFrom
-    ? `\n\nWork-now slice while **${draft.spawnedFrom}** is still open — not a pre-planned backlog item scheduled after later TASK numbers.`
-    : "";
-
+export function buildMinimalTaskMarkdown(draft: TaskDraft): string {
   return `# ${draft.id}: ${draft.title}
 
 ## Status
 
 ${statusDisplay("planned")}
 
-## MVP Phase
-
-${draft.mvpPhase}
-
 ## Goal
 
 ${draft.idea.trim()}
-
-## Background
-
-${draft.idea.trim()}${spawnedNote}
 
 ## Scope
 
@@ -53,39 +51,20 @@ ${draft.idea.trim()}${spawnedNote}
 
 ## Out of Scope
 
-- Unrelated backlog items and broad refactors not required for this slice.
+- Unrelated refactors and features outside this slice.
 
 ## Acceptance Criteria
 
-1. Goal and Scope are met and verifiable from the repo or commands in Test Plan.
-2. Result and Test Result sections are filled before \`vibeops done\`.
-
-## Files to Inspect First
-
-- (add paths before implementation)
-
-## Expected Files to Change
-
-- (list as you implement)
-
-## Risks
-
-- Scope creep from the parent TASK — keep this slice narrow.
+1. Goal and Scope are met and verifiable via Test Plan.
+2. Result and Test Result are filled before \`vibeops task done\`.
 
 ## Test Plan
 
-- \`vibeops task check ${draft.id}\`
-- Project-specific checks for the change
+- Project-specific checks for this change
 
-## Rollback Plan
+## Git Context
 
-- \`vibeops rollback ${draft.id}\` (advisory) or revert the task branch commits.
-
-## Implementation Plan
-
-1. Confirm Scope with the open parent TASK (if any).
-2. Implement on \`vibeops start ${draft.id}\`.
-3. Fill Result and Test Result, then \`vibeops done ${draft.id}\`.
+(populated by \`vibeops task add\`)
 
 ## Result
 
@@ -119,11 +98,29 @@ export function uniqueTaskPath(
   return { slug, filePath: join(tasksDir, name) };
 }
 
-export function titleFromIdea(idea: string, explicitTitle?: string): string {
-  const t = explicitTitle?.trim();
-  if (t && t.length > 0) return t;
+export function titleFromIdea(idea: string): string {
   const oneLine = idea.replace(/\s+/g, " ").trim();
   if (oneLine.length <= 80) return oneLine;
-  const cut = oneLine.slice(0, 77).trimEnd();
-  return `${cut}...`;
+  return `${oneLine.slice(0, 77).trimEnd()}...`;
+}
+
+export function ensureV3Sections(markdown: string): string {
+  let body = markdown;
+  for (const section of V3_TASK_SECTIONS) {
+    const re = new RegExp(`^##\\s+${section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "im");
+    if (!re.test(body)) {
+      body = `${body.trimEnd()}\n\n## ${section}\n\n(not yet)\n`;
+    }
+  }
+  return body;
+}
+
+export function normalizeTaskHeader(markdown: string, taskId: string, title: string): string {
+  const lines = markdown.split("\n");
+  const header = `# ${taskId}: ${title}`;
+  if (lines.length > 0 && /^#\s+/.test(lines[0]!)) {
+    lines[0] = header;
+    return lines.join("\n");
+  }
+  return `${header}\n\n${markdown}`;
 }
