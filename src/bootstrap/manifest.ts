@@ -34,14 +34,3 @@ export async function loadInstallManifest(
 export function resolveDestination(entry: ManifestEntry, projectRoot: string): string {
   return join(projectRoot, entry.relativePath);
 }
-
-/** @deprecated Use loadInstallManifest — walks entire templates/ (legacy). */
-export async function loadManifest(): Promise<ManifestEntry[]> {
-  const files = await walk(TEMPLATES_ROOT);
-  return files
-    .map((abs) => ({
-      relativePath: relative(TEMPLATES_ROOT, abs),
-      sourceAbs: abs,
-    }))
-    .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-}

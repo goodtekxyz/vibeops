@@ -237,8 +237,7 @@ Documented in `AGENTS.md` + rules:
 
 ### Templates
 
-- Remove from `templates/`: `.vibeops/agents/*`, `.vibeops/workflows/*`, most `.vibeops/prompts/*`
-- Trim `templates/docs/project/*` to v3 set or stop shipping unused stubs
+- **Done (2026-05-29):** v3 tree only — `templates/core/`, `templates/clients/{cursor,claude}/`, `templates/skills-shared/`. Removed legacy `templates/AGENTS.md`, `templates/.cursor/`, and deprecated `loadManifest()` in `manifest.ts`. (v1 `.vibeops/*`, full `templates/docs/project/*` were not tracked on `main`.)
 
 ### Installed project docs
 
