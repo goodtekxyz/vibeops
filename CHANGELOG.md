@@ -4,6 +4,14 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 1.1.2 - 2026-06-03
+
+### Fixed
+
+- **`task done` two-phase close:** after push/MR, writes Status Done and Git Context (`doneAt`, MR URL from the prior step), commits closure metadata (`docs(task-nnn): close task metadata`), and pushes again so the remote task branch matches the TASK file instead of leaving governance changes uncommitted locally.
+
+## 1.1.1 - 2026-05-27
+
 ### Fixed
 
 - Removed dead `task-merge.ts` (local merge no longer used).

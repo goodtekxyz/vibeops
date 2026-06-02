@@ -21,7 +21,8 @@ alwaysApply: true
 - `vibeops task rollback` gives **guidance only** by default. Destructive Git work runs only with `--confirm`.
 - **No force-push**, especially on shared branches.
 - No automatic merge or automatic push. A human does those explicitly.
-- `task start` refuses a dirty working tree unless every changed path is under governance docs (`docs/tasks/`, `docs/project/`, `docs/logs/`, `.vibeops/state/`). In that docs-only case it proceeds with a warning so a prior `task done --finalize` does not force a commit before the next start. `--allow-dirty` still bypasses the check for any dirty path.
+- `vibeops task done` uses two commits when needed: implementation (`feat(task-nnn): …`), then after push/MR a closure commit (`docs(task-nnn): close task metadata`) with Status Done and Git Context, pushed again so the remote branch matches the TASK file.
+- `task add` allows a dirty tree when switching branches (`--allow-dirty` internally); prefer a clean tree after `task done` completes both pushes.
 
 ## Forbidden
 

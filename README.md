@@ -87,7 +87,7 @@ pnpm install && pnpm build && pnpm smoke
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
 - **`task add`**: branch `task/<slug>` from the **integration** branch (e.g. `develop`).
-- **`task done`**: commit if needed → `git push` → `gh pr create` / `glab mr create` (LLM title/body). **You merge on GitHub/GitLab**; CI deploys.
+- **`task done`**: commit implementation → `git push` → `gh pr create` / `glab mr create` → commit TASK closure (Status Done, Git Context) → push again. **You merge on GitHub/GitLab**; CI deploys.
 - Commit messages: `feat(task-nnn): …`
 - No force-push to shared branches
 
