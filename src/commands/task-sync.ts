@@ -14,22 +14,16 @@ import {
   readGitInfo,
 } from "../lib/git.js";
 import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
-import { getMergeRequestState, probeMergeRequestCli } from "../lib/pr-create.js";
+import { probeMergeRequestCli } from "../lib/pr-create.js";
 import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
 import { relPath } from "../lib/task-context.js";
 import {
-  commitDirtyWorkingTree,
-  docsCommitMessageFor,
-  pushBranch,
-} from "../lib/task-git-commit.js";
+  getMergeRequestStateForTask,
+  isMergeRequestMerged,
+} from "../lib/task-effective-status.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
-import {
-  markGitContextDone,
-  readGitContext,
-  readTaskFile,
-  updateInlineStatus,
-} from "../lib/task.js";
+import { readGitContext, readTaskFile } from "../lib/task.js";
 
 export interface TaskSyncCommandOptions {
   dryRun?: boolean;
@@ -89,17 +83,18 @@ export async function taskSyncCommand(
   log.info(`  ${dim("task branch")}  ${cyan(taskBranch)}`);
   log.info(`  ${dim("integration")}  ${integrationBranch}`);
   log.info(`  ${dim("file")}          ${relPath(cwd, taskFile)}`);
+  log.info(`  ${dim("note")}        ${dim("Git cleanup only — TASK md stays Shipped")}`);
   log.blank();
 
   const meta = await readTaskFile(taskFile);
   if (ctx?.mergeRequestUrl && !dryRun) {
-    const remoteUrl = await gitRemoteUrl(cwd, remote);
-    const host =
-      remoteUrl !== null && detectGitHost(remoteUrl) !== null
-        ? detectGitHost(remoteUrl)!
-        : gitCfg.host;
-    if (await probeMergeRequestCli(host)) {
-      const state = await getMergeRequestState(cwd, host, ctx.mergeRequestUrl);
+    const state = await getMergeRequestStateForTask(cwd, taskFile);
+    if (state !== null) {
+      const remoteUrl = await gitRemoteUrl(cwd, remote);
+      const host =
+        remoteUrl !== null && detectGitHost(remoteUrl) !== null
+          ? detectGitHost(remoteUrl)!
+          : gitCfg.host;
       const label = mergeRequestLabel(host);
       if (state === "open") {
         log.warn(
@@ -108,10 +103,12 @@ export async function taskSyncCommand(
       } else if (state === "merged") {
         log.ok(`${label} merged.`);
       }
+    } else if (await probeMergeRequestCli(gitCfg.host)) {
+      log.warn("Could not read MR state — continuing with branch cleanup.");
     }
-  } else if (meta.status === "review") {
+  } else if (meta.status === "shipped" && !(await isMergeRequestMerged(cwd, meta))) {
     log.warn(
-      `${yellow("Status")} is Review — merge the MR first, then rerun task sync.`,
+      `${yellow("MR")} not merged yet — merge on the host or \`task merge\`, then rerun task sync.`,
     );
   }
 
@@ -120,13 +117,11 @@ export async function taskSyncCommand(
     log.info(`  · git fetch ${remote} --prune`);
     log.info(`  · git switch ${integrationBranch}`);
     log.info(`  · git pull --ff-only ${remote} ${integrationBranch}`);
-    if (meta.status !== "done") {
-      log.info("  · Status → Done on integration branch; commit; push");
-    }
     log.info(`  · git branch ${options.force === true ? "-D" : "-d"} ${taskBranch}`);
     if (options.noRemoteDelete !== true) {
       log.info(`  · git push ${remote} --delete ${taskBranch} (if exists)`);
     }
+    log.info(dim("  · no edits to docs/tasks/*.md"));
     log.blank();
     log.info(`Next: ${cyan("vibeops task add")}`);
     return;
@@ -175,27 +170,6 @@ export async function taskSyncCommand(
     }
   } else {
     log.warn(`No ${remote}/${integrationBranch} — skipped pull.`);
-  }
-
-  const metaOnIntegration = await readTaskFile(taskFile);
-  if (metaOnIntegration.status !== "done") {
-    await updateInlineStatus(taskFile, "done");
-    await markGitContextDone(taskFile);
-    log.ok("Status → Done");
-    const committed = await commitDirtyWorkingTree(
-      cwd,
-      docsCommitMessageFor(taskId, "mark done"),
-      false,
-    );
-    if (committed) {
-      try {
-        await pushBranch(cwd, remote, integrationBranch, false);
-        log.ok(`Pushed done metadata → ${remote}/${integrationBranch}`);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        log.warn(`Could not push done metadata: ${msg}`);
-      }
-    }
   }
 
   if (await gitBranchExists(cwd, taskBranch)) {

@@ -3,7 +3,7 @@ import { readGitInfo } from "./git.js";
 import {
   isOnTaskBranch,
   loadActionableTasks,
-  pickLatestReviewTask,
+  pickLatestShippedTask,
   readGitContext,
 } from "./task.js";
 import { resolveTask } from "./resolve-task.js";
@@ -44,13 +44,13 @@ export async function resolveLifecycleTarget(
     }
   }
 
-  const review = pickLatestReviewTask(await loadActionableTasks(paths.docsTasks));
-  if (review === null) return null;
-  const ctx = await readGitContext(review.filePath);
+  const shipped = pickLatestShippedTask(await loadActionableTasks(paths.docsTasks));
+  if (shipped === null) return null;
+  const ctx = await readGitContext(shipped.filePath);
   if (ctx === null) return null;
   return {
-    taskId: review.id,
+    taskId: shipped.id,
     taskBranch: ctx.taskBranch,
-    taskFile: review.filePath,
+    taskFile: shipped.filePath,
   };
 }

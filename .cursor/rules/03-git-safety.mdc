@@ -18,7 +18,7 @@ alwaysApply: true
 
 - **`task ship`**: implementation commit + push + MR/PR; Status **Review** on task branch.
 - **`task merge`**: merge MR into integration (e.g. `develop`).
-- **`task sync`**: integration pull; Status **Done**; delete task branch.
+- **`task sync`**: integration pull; delete task branch (TASK md stays **Shipped**).
 - **`task release`**: integration → production (separate from a TASK slice).
 
 ## Safeguards

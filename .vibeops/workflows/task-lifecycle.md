@@ -43,7 +43,7 @@ vibeops task sync TASK-NNN
 ```
 
 - Fetches, checks out integration, fast-forward pull.
-- Status → **Done** on integration; deletes local/remote `task/*` branch.
+- Deletes local/remote `task/*` branch; TASK md stays **Shipped** (merge is Git/host only).
 
 ## 6. Next slice
 

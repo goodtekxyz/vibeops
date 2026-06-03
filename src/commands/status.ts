@@ -16,10 +16,18 @@ import {
   relPath,
   taskBranchExistsFor,
 } from "../lib/task-context.js";
-import { countTasks, hasNonEmptySection, isOnTaskBranch, loadActionableTasks, readGitContext, statusDisplay } from "../lib/task.js";
+import { isMergeRequestMerged, taskNeedsSync } from "../lib/task-effective-status.js";
+import {
+  countTasks,
+  hasNonEmptySection,
+  isOnTaskBranch,
+  loadActionableTasks,
+  readGitContext,
+  statusDisplay,
+} from "../lib/task.js";
 import { summarizeGoal } from "../lib/task-summary.js";
 import type { LlmStatusReport } from "../lib/llm-status.js";
-import type { TaskMeta } from "../types/task.js";
+import type { TaskCounts, TaskMeta } from "../types/task.js";
 
 export interface StatusCommandOptions {
   json?: boolean;
@@ -37,7 +45,7 @@ export interface StatusReport {
     dirty: boolean | null;
     policy: string | null;
   };
-  counts: ReturnType<typeof countTasks> | null;
+  counts: TaskCounts | null;
   inProgress: Array<{ id: string; title: string; file: string }>;
   focus: {
     id: string;
@@ -62,7 +70,7 @@ async function buildReport(cwd: string): Promise<StatusReport> {
   const git = await readGitInfo(cwd);
   const isVibeopsProject = config !== null;
 
-  let counts = null as ReturnType<typeof countTasks> | null;
+  let counts: TaskCounts | null = null;
   let inProgress: TaskMeta[] = [];
   let focus: TaskMeta | null = null;
 
@@ -81,6 +89,8 @@ async function buildReport(cwd: string): Promise<StatusReport> {
   let branchExists: boolean | null = null;
   let goalExcerpt = "";
   let mergeRequestUrl: string | null = null;
+  let mergeRequestMerged = false;
+  let needsSync = false;
 
   if (focus !== null) {
     const body = await readText(focus.filePath);
@@ -92,6 +102,8 @@ async function buildReport(cwd: string): Promise<StatusReport> {
     mergeRequestUrl = ctx?.mergeRequestUrl ?? null;
     onTaskBranch = isOnTaskBranch(git.branch, ctx);
     branchExists = await taskBranchExistsFor(cwd, focus);
+    mergeRequestMerged = await isMergeRequestMerged(cwd, focus);
+    needsSync = await taskNeedsSync(cwd, focus);
     focusBlock = {
       id: focus.id,
       title: focus.title,
@@ -115,6 +127,8 @@ async function buildReport(cwd: string): Promise<StatusReport> {
     onTaskBranch,
     hasMergeRequest:
       typeof mergeRequestUrl === "string" && mergeRequestUrl.length > 0,
+    mergeRequestMerged,
+    needsSync,
   });
 
   const llm = isVibeopsProject ? await buildLlmStatusReport(cwd) : null;
@@ -164,7 +178,7 @@ function printHuman(report: StatusReport): void {
   if (report.counts) {
     const c = report.counts;
     log.info(
-      `  ${dim("Tasks")}    ${c.total} total · ${cyan(String(c.in_progress))} in progress · ${c.done} done`,
+      `  ${dim("Tasks")}    ${c.total} total · ${cyan(String(c.in_progress))} in progress · ${c.shipped} shipped`,
     );
   }
 

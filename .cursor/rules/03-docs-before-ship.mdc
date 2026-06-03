@@ -10,4 +10,4 @@ Before `vibeops task ship`:
 1. Fill **Result** and **Test Result** in the TASK file.
 2. `task ship` may update `docs/project/*` via LLM.
 
-After `task sync`, ensure `05-current-state.md` and logs are current.
+After MR merge, ensure `05-current-state.md` and logs are current (`task sync` does not edit docs).

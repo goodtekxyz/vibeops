@@ -39,7 +39,7 @@ export async function resolveTask(
   }
 
   const onBranch = await pickActiveTask(paths.docsTasks, cwd);
-  if (onBranch !== null && onBranch.status !== "done") {
+  if (onBranch !== null && onBranch.status === "in_progress") {
     return { taskId: onBranch.id, taskFile: onBranch.filePath };
   }
 

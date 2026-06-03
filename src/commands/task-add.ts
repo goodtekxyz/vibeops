@@ -65,7 +65,7 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
     }
     log.info(`  ${dim("file")}   ${relPath(root, blocking.filePath)}`);
     log.blank();
-    log.info(`Finish it first: ${cyan(`vibeops task sync ${blocking.id}`)} (after ship + merge)`);
+    log.info(`Finish it first: ${cyan(`vibeops task ship ${blocking.id}`)}.`);
     log.info(`Then run ${cyan("vibeops task add")} again.`);
     process.exitCode = 1;
     return;

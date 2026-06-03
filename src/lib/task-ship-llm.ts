@@ -60,7 +60,7 @@ export async function llmCompleteTaskShip(params: {
   const messages: OpenAiChatMessage[] = [
     {
       role: "system",
-      content: `You ship a VibeOps TASK for review. Reply with JSON only:
+      content: `You ship a VibeOps TASK (Status → Shipped). Reply with JSON only:
 {
   "result": "markdown for TASK Result section — facts, paths, commands",
   "testResult": "markdown for Test Result — commands and outcomes",
@@ -124,7 +124,7 @@ Be factual. Do not invent files not in the diff.`,
       logLine:
         typeof parsed.logLine === "string" && parsed.logLine.trim().length > 0
           ? parsed.logLine.trim()
-          : `${params.taskId} shipped for review.`,
+          : `${params.taskId} shipped.`,
       provider,
     };
   } catch {
@@ -196,7 +196,7 @@ export async function fallbackResultSections(
   const body = await readText(taskFile);
   const goal = readSection(body, "Goal").slice(0, 200);
   const result = [
-    `Shipped ${taskId} for review.`,
+    `Shipped ${taskId}.`,
     goal.length > 0 ? `Goal: ${goal}` : "",
     names.length > 0 ? `Paths: ${names.slice(0, 15).join(", ")}` : "",
   ]

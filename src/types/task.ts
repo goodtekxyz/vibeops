@@ -1,4 +1,5 @@
-export type TaskStatus = "planned" | "in_progress" | "review" | "blocked" | "done";
+/** TASK markdown lifecycle — only two states (merge/sync are Git-only). */
+export type TaskStatus = "in_progress" | "shipped";
 
 export interface TaskMeta {
   id: string;
@@ -11,11 +12,8 @@ export interface TaskMeta {
 
 export interface TaskCounts {
   total: number;
-  planned: number;
   in_progress: number;
-  review: number;
-  blocked: number;
-  done: number;
+  shipped: number;
 }
 
 export interface AgentMeta {
@@ -30,7 +28,7 @@ export interface GitContext {
   baseCommit: string;
   taskBranch: string;
   startedAt: string;
-  /** Set by `task sync` when the slice is closed on the integration branch. */
+  /** Optional timestamp when the slice finished (legacy `Done At` in TASK md). */
   doneAt?: string;
   /** Set by `task ship` after push + MR/PR creation. */
   mergeRequestUrl?: string;

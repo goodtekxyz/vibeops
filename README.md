@@ -13,9 +13,9 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 |---------|---------|
 | `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
-| `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → Review) |
+| `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → **Shipped**) |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
-| `vibeops task sync` | After merge: update integration branch, mark Done, delete task branch |
+| `vibeops task sync` | After merge: ff-only integration pull, delete task branches (no TASK md edits) |
 | `vibeops task release` | Release PR: integration → production (GitFlow) |
 | `vibeops status` | Briefing: TASK, Git, LLM, clients |
 | `vibeops llm` | Connect LLM providers (`connect` · `status` · `use`) |
@@ -62,7 +62,7 @@ Occasionally (GitFlow release to production):
 vibeops task release
 ```
 
-If a TASK is **In Progress** or **Review**, `task add` exits with a guide.
+Only one TASK **In Progress** at a time (`task add` blocks otherwise). **Shipped** slices do not block the next add; merge on the host or with `task merge`, then optional `task sync`.
 
 ## LLM (optional)
 
@@ -101,9 +101,9 @@ pnpm install && pnpm build && pnpm smoke
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
-- **`task ship`**: commit → push → MR/PR → Status **Review** on task branch.
-- **`task merge`**: merge MR/PR into integration (CLI default: squash).
-- **`task sync`**: integration ff-only pull → Status **Done** → delete `task/*` branches.
+- **`task ship`**: commit → push → MR/PR → Status **Shipped** on task branch.
+- **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
+- **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
 - **`task release`**: integration → production PR + merge (skipped on trunk policy).
 - No force-push to shared branches.
 

@@ -57,7 +57,7 @@ function systemPrompt(): string {
 }
 
 markdown must include sections: Status, Goal, Scope, Out of Scope, Acceptance Criteria, Test Plan, Git Context, Result, Test Result.
-Status body: ${statusDisplay("planned")}
+Status body: ${statusDisplay("in_progress")}
 Result and Test Result: (not yet)
 Git Context: (populated by vibeops task add)
 Use the exact TASK id given in the user message for the # heading.`;

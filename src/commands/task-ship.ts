@@ -41,26 +41,26 @@ async function commitShipMetadataAndPush(opts: {
   readonly push: { readonly remote: string; readonly branch: string } | null;
 }): Promise<boolean> {
   if (opts.dryRun) {
-    log.info(dim("  would set Status → Review"));
+    log.info(dim("  would set Status → Shipped"));
     log.info(dim("  would commit ship metadata"));
     if (opts.push !== null) {
       log.info(
-        dim(`  would git push ${opts.push.remote} ${opts.push.branch} (review metadata)`),
+        dim(`  would git push ${opts.push.remote} ${opts.push.branch} (ship metadata)`),
       );
     }
     return true;
   }
 
-  await updateInlineStatus(opts.taskFile, "review");
-  log.ok("Status → Review");
+  await updateInlineStatus(opts.taskFile, "shipped");
+  log.ok("Status → Shipped");
 
   const committed = await commitDirtyWorkingTree(
     opts.cwd,
-    docsCommitMessageFor(opts.taskId, "ready for review"),
+    docsCommitMessageFor(opts.taskId, "mark shipped"),
     false,
   );
   if (!committed) {
-    log.warn("No file changes for review metadata commit — check TASK Status on the remote branch.");
+    log.warn("No file changes for ship metadata commit — check TASK Status on the remote branch.");
     return true;
   }
 
@@ -68,11 +68,11 @@ async function commitShipMetadataAndPush(opts: {
 
   try {
     await pushBranch(opts.cwd, opts.push.remote, opts.push.branch, false);
-    log.ok(`Pushed review metadata → ${opts.push.remote}/${opts.push.branch}`);
+    log.ok(`Pushed ship metadata → ${opts.push.remote}/${opts.push.branch}`);
     return true;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log.error(`Review metadata push failed: ${msg}`);
+    log.error(`Ship metadata push failed: ${msg}`);
     log.info(
       dim(`Fix auth/remote, then: git push ${opts.push.remote} ${opts.push.branch}`),
     );
@@ -153,7 +153,7 @@ export async function taskShipCommand(
       log.info("  · LLM fill Result / Test Result + patch docs/project/*");
     }
     log.info("  · commit implementation, push task branch, open MR/PR (unless --no-pr)");
-    log.info("  · Status → Review; commit metadata; push again");
+    log.info("  · Status → Shipped; commit metadata; push again");
     await finishTaskWithPullRequest({
       cwd,
       taskFile,
@@ -217,7 +217,7 @@ export async function taskShipCommand(
     push: pushTarget,
   });
   if (!shipped) {
-    log.error("Review metadata push failed — fix manually, then run task merge.");
+    log.error("Ship metadata push failed — fix manually, then merge the MR.");
     process.exitCode = 1;
     return;
   }

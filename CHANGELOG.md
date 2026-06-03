@@ -4,6 +4,13 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Changed
+
+- **TASK md status:** only **In Progress** → **Shipped** (`task ship`). Merge (CLI/UI) and **`task sync`** do not edit the TASK file.
+- **`task sync`**: Git cleanup only (integration pull, delete `task/*` branches).
+- **`task add`**: blocks only another **In Progress** TASK (not **Shipped**).
+- Legacy statuses (Review, Done, Merged, Planned, …) normalize to **In Progress** or **Shipped** when read.
+
 ## 2.0.0 - 2026-06-03
 
 ### Breaking
@@ -18,7 +25,7 @@ All notable changes to VibeOps are documented here.
 
 ### Changed
 
-- **`task ship`** replaces `task done`: Done status and `doneAt` are set on **`task sync`** on the integration branch, not at ship time.
+- **`task ship`** replaces `task done`: Review on the task branch at ship; **Done** is derived from merged MR (see Unreleased — sync no longer writes TASK md).
 - **`status`** next hints: ship → merge → sync.
 - Templates and Cursor rules reference ship / merge / sync (rule file `03-docs-before-ship.mdc`).
 

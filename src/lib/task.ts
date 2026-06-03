@@ -12,34 +12,30 @@ import {
   type TaskStatus,
 } from "../types/task.js";
 
-const KNOWN_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>([
-  "planned",
-  "in_progress",
+const SHIPPED_ALIASES = new Set([
   "review",
-  "blocked",
+  "merged",
   "done",
+  "shipped",
+  "ready_for_review",
 ]);
 
 export function normalizeStatus(value: unknown): TaskStatus {
   if (typeof value === "string") {
     const s = value.toLowerCase().replace(/\s+/g, "_");
-    if (KNOWN_STATUSES.has(s as TaskStatus)) return s as TaskStatus;
+    if (s === "in_progress" || s === "inprogress") return "in_progress";
+    if (SHIPPED_ALIASES.has(s)) return "shipped";
+    if (s === "planned" || s === "blocked") return "in_progress";
   }
-  return "planned";
+  return "in_progress";
 }
 
 export function statusDisplay(status: TaskStatus): string {
   switch (status) {
-    case "planned":
-      return "Planned";
     case "in_progress":
       return "In Progress";
-    case "review":
-      return "Review";
-    case "blocked":
-      return "Blocked";
-    case "done":
-      return "Done";
+    case "shipped":
+      return "Shipped";
   }
 }
 
@@ -101,7 +97,7 @@ export async function readTaskFile(filePath: string): Promise<TaskMeta> {
   const status: TaskStatus =
     data["status"] !== undefined
       ? normalizeStatus(data["status"])
-      : (extractInlineStatus(body) ?? "planned");
+      : (extractInlineStatus(body) ?? "in_progress");
 
   const mvpPhaseFromFm =
     typeof data["mvpPhase"] === "string" ? (data["mvpPhase"] as string) : undefined;
@@ -136,11 +132,8 @@ export async function scanTasks(tasksDir: string): Promise<TaskMeta[]> {
 export function countTasks(tasks: TaskMeta[]): TaskCounts {
   const counts: TaskCounts = {
     total: tasks.length,
-    planned: 0,
     in_progress: 0,
-    review: 0,
-    blocked: 0,
-    done: 0,
+    shipped: 0,
   };
   for (const t of tasks) counts[t.status]++;
   return counts;
@@ -151,12 +144,7 @@ export function pickInProgressTask(tasks: readonly TaskMeta[]): TaskMeta | null 
 }
 
 export function pickNextTask(tasks: TaskMeta[]): TaskMeta | null {
-  const inProgress = pickInProgressTask(tasks);
-  if (inProgress) return inProgress;
-  const review = tasks.find((t) => t.status === "review");
-  if (review) return review;
-  const planned = tasks.filter((t) => t.status === "planned");
-  return planned[0] ?? null;
+  return pickInProgressTask(tasks);
 }
 
 const TEMPLATE_TASK_ID = "TASK-000";
@@ -170,18 +158,11 @@ function taskSortKey(id: string): number {
   return m ? Number.parseInt(m[1]!, 10) : 0;
 }
 
-/** Latest finished TASK by numeric id (TASK-mvp sorts after numbered tasks). */
-export function pickLatestDoneTask(tasks: readonly TaskMeta[]): TaskMeta | null {
-  const done = filterActionableTasks(tasks).filter((t) => t.status === "done");
-  if (done.length === 0) return null;
-  return [...done].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
-}
-
-/** Latest TASK in Review (awaiting merge / sync). */
-export function pickLatestReviewTask(tasks: readonly TaskMeta[]): TaskMeta | null {
-  const review = filterActionableTasks(tasks).filter((t) => t.status === "review");
-  if (review.length === 0) return null;
-  return [...review].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
+/** Latest **Shipped** TASK (for merge / sync targeting). */
+export function pickLatestShippedTask(tasks: readonly TaskMeta[]): TaskMeta | null {
+  const shipped = filterActionableTasks(tasks).filter((t) => t.status === "shipped");
+  if (shipped.length === 0) return null;
+  return [...shipped].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
 }
 
 export async function loadActionableTasks(tasksDir: string): Promise<TaskMeta[]> {
@@ -218,7 +199,7 @@ export async function pickActiveTask(
     }
   }
 
-  return pickNextTask(actionable);
+  return pickNextTask(actionable.filter((t) => t.status === "in_progress"));
 }
 
 export async function findTaskFile(

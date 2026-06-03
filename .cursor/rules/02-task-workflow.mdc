@@ -23,4 +23,4 @@ alwaysApply: true
 ## Completion
 
 - Fill **Result** and **Test Result** before `task ship`.
-- After `task sync`, update docs if the human or docs agent has not already.
+- After MR merge (before or after optional `task sync`), update `05-current-state.md` and logs if not already done.

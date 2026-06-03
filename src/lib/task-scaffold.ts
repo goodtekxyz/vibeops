@@ -39,7 +39,7 @@ export function buildMinimalTaskMarkdown(draft: TaskDraft): string {
 
 ## Status
 
-${statusDisplay("planned")}
+${statusDisplay("in_progress")}
 
 ## Goal
 

@@ -128,7 +128,7 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
 
   if (branchExists) {
     await gitCheckout(cwd, taskBranch);
-    if (meta.status === "planned") {
+    if (meta.status !== "shipped") {
       await updateInlineStatus(taskFile, "in_progress");
     }
     if (existingCtx === null) {
