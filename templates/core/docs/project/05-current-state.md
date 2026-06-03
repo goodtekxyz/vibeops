@@ -1,6 +1,6 @@
 # Current state
 
-> Facts only. Updated by `vibeops task done` and humans.
+> Facts only. Updated by `vibeops task ship` / humans; stage changes on `task sync`.
 
 ## Stage
 

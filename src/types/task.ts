@@ -30,8 +30,10 @@ export interface GitContext {
   baseCommit: string;
   taskBranch: string;
   startedAt: string;
+  /** Set by `task sync` when the slice is closed on the integration branch. */
   doneAt?: string;
-  /** Set by `task done` after push + MR/PR creation. */
+  /** Set by `task ship` after push + MR/PR creation. */
   mergeRequestUrl?: string;
+  /** Set by `task ship` after push. */
   pushedAt?: string;
 }

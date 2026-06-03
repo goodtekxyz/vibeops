@@ -1,0 +1,13 @@
+---
+description: Update TASK Result and project memory before shipping
+alwaysApply: true
+---
+
+# Docs before task ship
+
+Before `vibeops task ship`:
+
+1. Fill **Result** and **Test Result** in the TASK file (paths, commands, outcomes — facts only).
+2. If architecture or decisions changed, note them in the TASK; `task ship` can update `docs/project/*` via LLM.
+
+Do not ship with placeholder `(not yet)` sections.

@@ -56,7 +56,7 @@ ${draft.idea.trim()}
 ## Acceptance Criteria
 
 1. Goal and Scope are met and verifiable via Test Plan.
-2. Result and Test Result are filled before \`vibeops task done\`.
+2. Result and Test Result are filled before \`vibeops task ship\`.
 
 ## Test Plan
 

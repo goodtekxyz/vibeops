@@ -1,0 +1,156 @@
+import { resolve } from "node:path";
+
+import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
+import { gitRemoteUrl } from "../lib/git.js";
+import { bold, cyan, dim, log } from "../lib/logger.js";
+import { projectPaths } from "../lib/paths.js";
+import { taskNotFoundMessage } from "../lib/resolve-task.js";
+import {
+  getMergeRequestState,
+  mergeMergeRequest,
+  probeMergeRequestCli,
+  type MergeRequestMergeMethod,
+} from "../lib/pr-create.js";
+import { relPath } from "../lib/task-context.js";
+import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
+import { readGitContext } from "../lib/task.js";
+
+export interface TaskMergeCommandOptions {
+  dryRun?: boolean;
+  cwd?: string;
+  /** Use merge commit (default is squash). */
+  merge?: boolean;
+  rebase?: boolean;
+}
+
+function resolveMergeMethod(opts: TaskMergeCommandOptions): MergeRequestMergeMethod {
+  if (opts.rebase === true) return "rebase";
+  if (opts.merge === true) return "merge";
+  return "squash";
+}
+
+export async function taskMergeCommand(
+  taskRef: string | undefined,
+  options: TaskMergeCommandOptions = {},
+): Promise<void> {
+  const cwd = resolve(options.cwd ?? process.cwd());
+  const dryRun = options.dryRun === true;
+  const paths = projectPaths(cwd);
+
+  let gitCfg;
+  try {
+    gitCfg = await requireGitConfig(cwd);
+  } catch (e) {
+    if (e instanceof GitConfigError) {
+      log.error(e.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+
+  const target = await resolveLifecycleTarget(paths, cwd, taskRef);
+  if (target === null) {
+    if (taskRef?.trim()) {
+      log.error(taskNotFoundMessage(taskRef));
+    } else {
+      log.error(
+        "No TASK to merge. Pass TASK-NNN, checkout a task/* branch, or run task ship first.",
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const ctx = await readGitContext(target.taskFile);
+  if (ctx === null) {
+    log.error("No Git Context on TASK — run task add first.");
+    process.exitCode = 1;
+    return;
+  }
+  if (!ctx.mergeRequestUrl) {
+    if (dryRun) {
+      log.info(dim(`would merge ${ctx.taskBranch} → ${ctx.baseBranch} after MR exists (run task ship)`));
+      log.blank();
+      log.info(`Next: ${cyan("vibeops task sync")}`);
+      return;
+    }
+    log.error("No Merge Request URL on TASK — run task ship first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const remoteUrl = await gitRemoteUrl(cwd, gitCfg.remote);
+  const host =
+    remoteUrl !== null && detectGitHost(remoteUrl) !== null
+      ? detectGitHost(remoteUrl)!
+      : gitCfg.host;
+  const method = resolveMergeMethod(options);
+  const label = mergeRequestLabel(host);
+
+  log.info(bold(`vibeops task merge ${target.taskId}`));
+  log.info(`  ${dim("file")}       ${relPath(cwd, target.taskFile)}`);
+  log.info(`  ${dim("MR/PR")}      ${ctx.mergeRequestUrl}`);
+  log.info(`  ${dim("target")}     ${ctx.baseBranch} (${gitCfg.integrationBranch})`);
+  log.info(`  ${dim("method")}     ${method}`);
+  log.blank();
+
+  if (dryRun) {
+    await mergeMergeRequest({
+      cwd,
+      host,
+      url: ctx.mergeRequestUrl,
+      method,
+      dryRun: true,
+    });
+    log.blank();
+    log.info(`Next: ${cyan("vibeops task sync")}`);
+    return;
+  }
+
+  const state = await getMergeRequestState(cwd, host, ctx.mergeRequestUrl);
+  if (state === "merged") {
+    log.ok(`${label} already merged.`);
+    log.blank();
+    log.info(`Next: ${cyan("vibeops task sync")}`);
+    return;
+  }
+  if (state === "open") {
+    const cliOk = await probeMergeRequestCli(host);
+    if (!cliOk) {
+      const tool = host === "gitlab" ? "glab" : "gh";
+      log.error(`${tool} CLI not found — merge in the host UI, then task sync.`);
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      await mergeMergeRequest({ cwd, host, url: ctx.mergeRequestUrl, method });
+      log.ok(`${label} merged into ${ctx.baseBranch}.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error(`Merge failed: ${msg}`);
+      log.info(dim("Merge in the host UI if branch protection blocks CLI merge."));
+      process.exitCode = 1;
+      return;
+    }
+  } else if (state === "closed") {
+    log.warn(`${label} is closed but not merged — resolve manually.`);
+    process.exitCode = 1;
+    return;
+  } else {
+    log.warn(`Could not read ${label} state — attempting merge anyway.`);
+    try {
+      await mergeMergeRequest({ cwd, host, url: ctx.mergeRequestUrl, method });
+      log.ok(`${label} merge command completed.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error(`Merge failed: ${msg}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  log.blank();
+  log.info(`Next: ${cyan("vibeops task sync")}`);
+}

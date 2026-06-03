@@ -624,6 +624,19 @@ export async function gitFetch(cwd: string, remote: string, ref?: string): Promi
   await runGit(cwd, args);
 }
 
+/** Fetch all refs from `remote` and prune deleted remote-tracking branches. */
+export async function gitFetchRemote(cwd: string, remote: string): Promise<void> {
+  await runGit(cwd, ["fetch", remote, "--prune"]);
+}
+
+export async function gitDeleteRemoteBranch(
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<void> {
+  await runGit(cwd, ["push", remote, "--delete", branch]);
+}
+
 export async function gitPullFastForwardOnly(
   cwd: string,
   remote: string,

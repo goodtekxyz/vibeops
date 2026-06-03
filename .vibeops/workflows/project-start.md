@@ -51,7 +51,7 @@ vibeops task start TASK-001
 vibeops task prompt TASK-001 --agent builder
 # paste into Cursor and let it work
 vibeops task check TASK-001
-vibeops task done TASK-001
+vibeops task ship TASK-001
 ```
 
 Read the merge guidance, then merge and push manually.

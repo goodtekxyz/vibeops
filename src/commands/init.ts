@@ -199,14 +199,14 @@ function printNextSteps(clients: readonly VibeopsClientId[], git: VibeopsGitConf
   if (!clients.includes("cursor") && !clients.includes("claude") && !clients.includes("codex")) {
     log.info("  2. Open the current TASK file in your agent before coding");
   }
-  log.info(`  3. ${cyan("vibeops llm connect")} — LLM for task add / task done`);
+  log.info(`  3. ${cyan("vibeops llm connect")} — LLM for task add / task ship`);
   log.info("  4. Push branches to origin (first time only):");
   log.info(`     ${dim(`git push -u ${git.remote} ${git.productionBranch}`)}`);
   if (git.integrationBranch !== git.productionBranch) {
     log.info(`     ${dim(`git push -u ${git.remote} ${git.integrationBranch}`)}`);
   }
   log.info(`  5. ${cyan("vibeops task add")} — branches from ${git.integrationBranch} (pulls latest first)`);
-  log.info(`  6. ${cyan("vibeops task done")} — push + open MR/PR; merge on ${git.host} (CI deploys)`);
+  log.info(`  6. ${cyan("vibeops task ship")} → merge → sync — TASK lifecycle on ${git.host}`);
 }
 
 export async function initCommand(options: InitOptions = {}): Promise<void> {
@@ -369,7 +369,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   if (!dryRun) {
     await writeConfig(projectRoot, buildConfig(name, clients, gitConfig, existingConfig));
     if (options.allowNoRemote === true && remote === null) {
-      log.warn("No git remote configured (--allow-no-remote). task done push/MR will fail until origin exists.");
+      log.warn("No git remote configured (--allow-no-remote). task ship push/MR will fail until origin exists.");
     }
     printNextSteps(clients, gitConfig);
   }

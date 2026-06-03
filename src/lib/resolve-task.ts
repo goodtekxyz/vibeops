@@ -50,5 +50,5 @@ export function taskNotFoundMessage(taskRef: string | undefined): string {
   if (taskRef?.trim()) {
     return `TASK not found: ${normalizeTaskRef(taskRef)}. Check docs/tasks/.`;
   }
-  return "No open TASK found. Run `vibeops task add` or pass `vibeops task done TASK-NNN`.";
+  return "No open TASK found. Run `vibeops task add` or pass `vibeops task ship TASK-NNN`.";
 }

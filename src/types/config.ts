@@ -19,7 +19,7 @@ export interface VibeopsGitConfig {
 }
 
 export interface VibeopsLlmConfig {
-  /** Default provider for `task add` / `task done`. `auto` = first available (Codex → Cursor → OpenAI). */
+  /** Default provider for `task add` / `task ship`. `auto` = first available (Codex → Cursor → OpenAI). */
   provider?: LlmProviderPreference;
 }
 

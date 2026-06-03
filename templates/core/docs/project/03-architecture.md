@@ -1,6 +1,6 @@
 # Architecture
 
-> Living overview. Update when structure or major paths change (often via `vibeops task done`).
+> Living overview. Update when structure or major paths change (often via `vibeops task ship`).
 
 ## System
 

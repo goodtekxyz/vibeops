@@ -1,0 +1,13 @@
+---
+description: Fill TASK Result before ship
+alwaysApply: true
+---
+
+# Docs before task ship
+
+Before `vibeops task ship`:
+
+1. Fill **Result** and **Test Result** in the TASK file.
+2. `task ship` may update `docs/project/*` via LLM.
+
+After `task sync`, ensure `05-current-state.md` and logs are current.

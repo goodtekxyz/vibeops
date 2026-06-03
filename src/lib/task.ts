@@ -177,6 +177,13 @@ export function pickLatestDoneTask(tasks: readonly TaskMeta[]): TaskMeta | null 
   return [...done].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
 }
 
+/** Latest TASK in Review (awaiting merge / sync). */
+export function pickLatestReviewTask(tasks: readonly TaskMeta[]): TaskMeta | null {
+  const review = filterActionableTasks(tasks).filter((t) => t.status === "review");
+  if (review.length === 0) return null;
+  return [...review].sort((a, b) => taskSortKey(b.id) - taskSortKey(a.id))[0]!;
+}
+
 export async function loadActionableTasks(tasksDir: string): Promise<TaskMeta[]> {
   return filterActionableTasks(await scanTasks(tasksDir));
 }

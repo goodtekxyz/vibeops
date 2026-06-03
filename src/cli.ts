@@ -5,7 +5,10 @@ import { initCommand } from "./commands/init.js";
 import { llmConnectCommand, llmStatusCommand, llmUseCommand } from "./commands/llm.js";
 import { statusCommand } from "./commands/status.js";
 import { taskAddCommand } from "./commands/task-add.js";
-import { taskDoneCommand } from "./commands/task-done.js";
+import { taskMergeCommand } from "./commands/task-merge.js";
+import { taskReleaseCommand } from "./commands/task-release.js";
+import { taskShipCommand } from "./commands/task-ship.js";
+import { taskSyncCommand } from "./commands/task-sync.js";
 import { loadVibeopsEnv } from "./lib/env.js";
 import { VERSION } from "./version.js";
 
@@ -14,7 +17,7 @@ const program = new Command();
 program
   .name("vibeops")
   .description(
-    "VibeOps v3 — Cursor-friendly TASK workflow (init · task · status · llm)",
+    "VibeOps — TASK workflow (init · task add/ship/merge/sync · status · llm)",
   )
   .version(VERSION, "-v, --version", "Print the VibeOps version");
 
@@ -67,11 +70,11 @@ program
     });
   });
 
-const task = program.command("task").description("TASK lifecycle");
+const task = program.command("task").description("TASK lifecycle (add · ship · merge · sync · release)");
 
 task
   .command("add")
-  .description("Create next TASK-NNN, task branch, In Progress (guide-only if one is open)")
+  .description("Create next TASK-NNN, task branch, In Progress")
   .option("--dry-run", "Plan only")
   .option("--non-interactive", "CI: minimal scaffold (optional --idea)")
   .option("--idea <text>", "Short description (CI)")
@@ -86,15 +89,65 @@ task
   });
 
 task
-  .command("done [taskRef]")
-  .description("Close TASK: LLM summary, push branch, open MR/PR (no local merge)")
+  .command("ship [taskRef]")
+  .description("Submit TASK: LLM summary, commit, push, open MR/PR (Status → Review)")
   .option("--dry-run", "Plan only")
   .option("--no-pr", "Push only; skip creating MR/PR")
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
-    await taskDoneCommand(taskRef, {
+    await taskShipCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
       noPr: Boolean(opts.noPr),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+task
+  .command("merge [taskRef]")
+  .description("Merge TASK MR/PR into integration branch (default: squash)")
+  .option("--dry-run", "Plan only")
+  .option("--merge", "Merge commit (instead of squash)")
+  .option("--rebase", "Rebase merge")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await taskMergeCommand(taskRef, {
+      dryRun: Boolean(opts.dryRun),
+      merge: Boolean(opts.merge),
+      rebase: Boolean(opts.rebase),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+task
+  .command("sync [taskRef]")
+  .description("After MR merge: update integration branch, mark Done, delete task branch")
+  .option("--dry-run", "Plan only")
+  .option("--no-remote-delete", "Keep the task branch on the remote")
+  .option("--force", "Delete local task branch with -D if not fully merged")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await taskSyncCommand(taskRef, {
+      dryRun: Boolean(opts.dryRun),
+      noRemoteDelete: Boolean(opts.noRemoteDelete),
+      force: Boolean(opts.force),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+task
+  .command("release")
+  .description("Open (and merge) release MR/PR: integration branch → production")
+  .option("--dry-run", "Plan only")
+  .option("--no-merge", "Create release PR only")
+  .option("--merge", "Merge commit (instead of squash)")
+  .option("--rebase", "Rebase merge")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await taskReleaseCommand({
+      dryRun: Boolean(opts.dryRun),
+      noMerge: Boolean(opts.noMerge),
+      merge: Boolean(opts.merge),
+      rebase: Boolean(opts.rebase),
       cwd: opts.cwd as string | undefined,
     });
   });
@@ -111,7 +164,7 @@ program
     });
   });
 
-const llm = program.command("llm").description("LLM providers for task add / task done");
+const llm = program.command("llm").description("LLM providers for task add / task ship");
 
 llm
   .command("connect")

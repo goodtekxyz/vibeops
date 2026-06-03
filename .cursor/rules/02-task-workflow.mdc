@@ -1,5 +1,5 @@
 ---
-description: Task workflow — start, prompt, check, done lifecycle and dry-run discipline.
+description: One-TASK workflow — add, ship, merge, sync.
 alwaysApply: true
 ---
 
@@ -7,32 +7,20 @@ alwaysApply: true
 
 ## Before starting
 
-1. Read `docs/project/05-current-state.md` and confirm the next TASK.
-2. Read the **entire** `docs/tasks/TASK-NNN-*.md` file.
-3. Keep Scope / Out of Scope / Acceptance Criteria in mind.
-4. **Search** existing code for similar implementations or patterns before adding anything new; avoid duplication.
+1. Read `docs/project/05-current-state.md` and the full current TASK file.
+2. One TASK at a time.
 
-## During implementation
+## Lifecycle
 
-- Work on **one TASK at a time**.
-- Search existing implementation one more time before adding a new file, function, or pattern.
-- **Every CLI command should support `--dry-run` (or equivalent) where possible** so it can show the plan without file, Git, or remote mutations.
-- Do not touch the next TASK file before the current TASK finishes.
+| Stage | Command |
+| ----- | ------- |
+| Start | `vibeops task add` |
+| Build | Cursor (no CLI) |
+| Submit | `vibeops task ship TASK-NNN` |
+| Integrate | `vibeops task merge TASK-NNN` (or host UI) |
+| Cleanup | `vibeops task sync TASK-NNN` |
 
-## Lifecycle commands
+## Completion
 
-| Stage    | Command                                                         |
-| -------- | --------------------------------------------------------------- |
-| Start    | `vibeops task start TASK-NNN`                                   |
-| Work     | `vibeops task prompt TASK-NNN --agent builder` → paste into Cursor |
-| Check    | `vibeops task check TASK-NNN`                                   |
-| Complete | `vibeops task done TASK-NNN` (no automatic merge)               |
-| Rollback | `vibeops task rollback TASK-NNN` (guidance by default; destructive work requires `--confirm`) |
-
-## Completion criteria
-
-- All Acceptance Criteria pass.
-- **Result** and **Test Result** in the TASK file are not empty.
-- `docs/project/05-current-state.md` and `docs/logs/YYYY-MM-DD.md` are updated.
-
-The TASK is not complete until all three are reflected.
+- Fill **Result** and **Test Result** before `task ship`.
+- After `task sync`, update docs if the human or docs agent has not already.

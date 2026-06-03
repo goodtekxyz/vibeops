@@ -41,7 +41,7 @@ export function projectPaths(root: string): ProjectPaths {
   };
 }
 
-/** Project memory files updated by `vibeops task done`. */
+/** Project memory files updated by `vibeops task ship`. */
 export const PROJECT_MEMORY_FILES = {
   currentState: "docs/project/05-current-state.md",
   architecture: "docs/project/03-architecture.md",

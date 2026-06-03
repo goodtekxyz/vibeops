@@ -1,44 +1,26 @@
-# {{PROJECT_NAME}} — AI agent guide
+# Project — AI Agent Guide
 
-> Installed by **VibeOps**. Agents read this repo and `docs/tasks/`, not chat history.
+> Installed by VibeOps. Read before coding.
 
-## Source of truth
-
-| What | Where |
-|------|--------|
-| Current work | `docs/tasks/TASK-NNN-*.md` |
-| Project memory | `docs/project/05-current-state.md`, `03-architecture.md`, `06-decisions.md` |
-| Change history | Git commits on task branches |
-| **Not** trusted | Chat history, Slack |
-
-## Before you code
-
-1. `docs/project/05-current-state.md`
-2. `docs/project/03-architecture.md` and `06-decisions.md` when relevant
-3. **The full current TASK file** under `docs/tasks/`
-
-## Workflow (human + CLI)
+## TASK workflow
 
 ```bash
-vibeops init              # once (pick Cursor / Claude Code / Codex packs)
-vibeops task add          # new TASK + branch
-# Plan: refine TASK file with your agent (see client skills below)
-# Build: implement per TASK Scope / Acceptance Criteria
-vibeops task done         # close TASK, update project docs, merge
-vibeops status            # briefing
-vibeops llm connect       # LLM for task add / task done
+vibeops task add
+# Plan / build in your agent (@docs/tasks/TASK-NNN-*.md)
+
+vibeops task ship
+vibeops task merge
+vibeops task sync
 ```
 
-## Client packs (installed at init)
+Optional release to production: `vibeops task release`.
 
-| Tool | Rules / guide | Skills |
-|------|----------------|--------|
-| **Cursor** | `.cursor/rules/` | `.cursor/skills/` (`plan-task`, `implement-task`) |
-| **Claude Code** | `CLAUDE.md` | `.claude/skills/` |
-| **Codex CLI** | `AGENTS.md` (this file) | `.agents/skills/` |
+```bash
+vibeops llm connect   # optional — task add / task ship
+```
 
-## Rules (all agents)
+## Rules
 
-- **One TASK at a time** — stay inside Scope and Acceptance Criteria.
-- **Search** before adding files; reuse existing patterns.
-- Fill **Result** and **Test Result** before `vibeops task done`.
+- One TASK at a time; scope from `docs/tasks/TASK-NNN-*.md`.
+- Fill **Result** and **Test Result** before `vibeops task ship`.
+- Agents do not merge or sync unless the human asks.

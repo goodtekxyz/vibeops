@@ -1,8 +1,8 @@
 # VibeOps v3 — Product Scope
 
-> **Status:** Implemented in `@goodtek/vibeops@1.1.0` (Git/PR workflow).  
+> **Status:** Implemented in `@goodtek/vibeops@2.0.0` (ship · merge · sync · release).  
 > **Replaces:** v1 multi-command surface + v2 `TASK-mvp` / `plan` / Notion / `next` as the default product.  
-> **Package:** `@goodtek/vibeops` — **1.1.x** (`task done` = push + MR/PR, no local merge).
+> **Package:** `@goodtek/vibeops` — **2.x** (`task ship` → `task merge` → `task sync`; optional `task release`).
 
 ## One-line definition
 
@@ -14,7 +14,7 @@ Cursor plans and implements. VibeOps does **files + Git + short LLM assists**. *
 
 ## Design principles
 
-1. **Four commands only** for daily use: `init`, `task add`, `task done`, `status`.
+1. **Daily commands:** `init`, `task add`, `task ship`, `task merge`, `task sync`, `status` (+ optional `task release`).
 2. **Files are the API** between CLI and Cursor — no “copy prompt from terminal” workflow.
 3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on done.
 4. **Planning and coding happen in Cursor** (Ask / Agent + `@docs/tasks/TASK-NNN.md`).

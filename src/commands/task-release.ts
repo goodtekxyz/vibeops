@@ -1,0 +1,132 @@
+import { resolve } from "node:path";
+
+import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
+import { gitRemoteUrl } from "../lib/git.js";
+import { bold, dim, log } from "../lib/logger.js";
+import {
+  createMergeRequest,
+  getMergeRequestState,
+  mergeMergeRequest,
+  probeMergeRequestCli,
+  type MergeRequestMergeMethod,
+} from "../lib/pr-create.js";
+
+export interface TaskReleaseCommandOptions {
+  dryRun?: boolean;
+  cwd?: string;
+  noMerge?: boolean;
+  merge?: boolean;
+  squash?: boolean;
+  rebase?: boolean;
+}
+
+function resolveMergeMethod(opts: TaskReleaseCommandOptions): MergeRequestMergeMethod {
+  if (opts.rebase === true) return "rebase";
+  if (opts.merge === true) return "merge";
+  return "squash";
+}
+
+export async function taskReleaseCommand(
+  options: TaskReleaseCommandOptions = {},
+): Promise<void> {
+  const cwd = resolve(options.cwd ?? process.cwd());
+  const dryRun = options.dryRun === true;
+
+  let gitCfg;
+  try {
+    gitCfg = await requireGitConfig(cwd);
+  } catch (e) {
+    if (e instanceof GitConfigError) {
+      log.error(e.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+
+  const { integrationBranch, productionBranch, remote } = gitCfg;
+
+  if (integrationBranch === productionBranch) {
+    log.info(
+      "Trunk policy: integration and production are the same branch — no release PR step.",
+    );
+    return;
+  }
+
+  const remoteUrl = await gitRemoteUrl(cwd, remote);
+  const host =
+    remoteUrl !== null && detectGitHost(remoteUrl) !== null
+      ? detectGitHost(remoteUrl)!
+      : gitCfg.host;
+  const label = mergeRequestLabel(host);
+  const title = `Release: ${integrationBranch} → ${productionBranch}`;
+  const body = [
+    `Integrate \`${integrationBranch}\` into \`${productionBranch}\`.`,
+    "",
+    "Opened by `vibeops task release`.",
+  ].join("\n");
+
+  log.info(bold("vibeops task release"));
+  log.info(`  ${dim("head")}   ${integrationBranch}`);
+  log.info(`  ${dim("base")}   ${productionBranch}`);
+  log.blank();
+
+  if (dryRun) {
+    log.info(bold("dry-run — would:"));
+    log.info(`  · ${label}: ${integrationBranch} → ${productionBranch}`);
+    if (options.noMerge !== true) {
+      log.info(`  · merge ${label} (${resolveMergeMethod(options)})`);
+    }
+    return;
+  }
+
+  const cliOk = await probeMergeRequestCli(host);
+  if (!cliOk) {
+    const tool = host === "gitlab" ? "glab" : "gh";
+    log.error(`${tool} CLI not found — create the release ${label} manually.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  let releaseUrl: string;
+  try {
+    const { url } = await createMergeRequest({
+      cwd,
+      host,
+      baseBranch: productionBranch,
+      headBranch: integrationBranch,
+      title,
+      body,
+    });
+    releaseUrl = url;
+    log.ok(`${label}: ${url}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.error(`Could not create release ${label}: ${msg}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (options.noMerge === true) {
+    log.info(dim("Merge skipped (--no-merge)."));
+    return;
+  }
+
+  const state = await getMergeRequestState(cwd, host, releaseUrl);
+  if (state === "merged") {
+    log.ok(`Release ${label} already merged.`);
+    return;
+  }
+
+  const method = resolveMergeMethod(options);
+  try {
+    await mergeMergeRequest({ cwd, host, url: releaseUrl, method });
+    log.ok(`Release ${label} merged into ${productionBranch}.`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.error(`Release merge failed: ${msg}`);
+    log.info(dim(`Complete merge in the host UI: ${releaseUrl}`));
+    process.exitCode = 1;
+  }
+}

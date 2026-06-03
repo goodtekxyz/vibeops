@@ -11,7 +11,7 @@ import {
   pickInProgressTask,
 } from "./task.js";
 
-/** TASK that blocks `task add` — in progress or open on current task branch. */
+/** TASK that blocks `task add` — in progress, in review, or open on current task branch. */
 export async function findBlockingTask(
   paths: ProjectPaths,
   cwd: string,
@@ -19,6 +19,9 @@ export async function findBlockingTask(
   const tasks = await loadActionableTasks(paths.docsTasks);
   const inProgress = pickInProgressTask(tasks);
   if (inProgress !== null) return inProgress;
+
+  const review = tasks.find((t) => t.status === "review");
+  if (review !== undefined) return review;
 
   const git = await readGitInfo(cwd);
   if (git.isRepo && typeof git.branch === "string" && git.branch.startsWith("task/")) {
@@ -45,7 +48,9 @@ export function relPath(cwd: string, filePath: string): string {
 
 export type NextHint =
   | "task-add"
-  | "task-done"
+  | "task-ship"
+  | "task-merge"
+  | "task-sync"
   | "cursor-plan"
   | "cursor-implement"
   | "init";
@@ -56,14 +61,20 @@ export function computeNextHint(input: {
   readonly resultFilled: boolean;
   readonly testFilled: boolean;
   readonly onTaskBranch: boolean | null;
+  readonly hasMergeRequest: boolean;
 }): NextHint {
   if (!input.isVibeopsProject) return "init";
   if (input.focus === null) return "task-add";
-  if (input.focus.status === "done") return "task-add";
+  if (input.focus.status === "done") {
+    return input.onTaskBranch === true ? "task-sync" : "task-add";
+  }
+  if (input.focus.status === "review") {
+    return input.hasMergeRequest ? "task-merge" : "task-ship";
+  }
   if (!input.resultFilled || !input.testFilled) {
     return input.onTaskBranch === true ? "cursor-implement" : "cursor-plan";
   }
-  return "task-done";
+  return input.hasMergeRequest ? "task-merge" : "task-ship";
 }
 
 export function hintToText(hint: NextHint, cwd: string, task: TaskMeta | null): string {
@@ -72,15 +83,23 @@ export function hintToText(hint: NextHint, cwd: string, task: TaskMeta | null): 
       return "Run `vibeops init` in this directory.";
     case "task-add":
       return "Run `vibeops task add` to start the next slice.";
-    case "task-done":
-      return task ? `Run \`vibeops task done ${task.id}\`.` : "Run `vibeops task done`.";
+    case "task-ship":
+      return task ? `Run \`vibeops task ship ${task.id}\`.` : "Run `vibeops task ship`.";
+    case "task-merge":
+      return task
+        ? `Run \`vibeops task merge ${task.id}\`, then task sync.`
+        : "Run `vibeops task merge` after the MR is ready.";
+    case "task-sync":
+      return task
+        ? `MR merged? Run \`vibeops task sync ${task.id}\`, then task add.`
+        : "Run `vibeops task sync` after merging the MR.";
     case "cursor-plan":
       return task
         ? `In Cursor Ask: @${relPath(cwd, task.filePath)} — refine Scope / AC.`
         : "Open the TASK file in Cursor Ask.";
     case "cursor-implement":
       return task
-        ? `In Cursor Agent: @${relPath(cwd, task.filePath)} — implement, then task done.`
+        ? `In Cursor Agent: @${relPath(cwd, task.filePath)} — implement, then task ship.`
         : "Implement per the TASK file in Cursor.";
   }
 }

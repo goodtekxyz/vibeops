@@ -1,5 +1,5 @@
 ---
-description: Git safety — branch per TASK, rollback safety, never force-push.
+description: Git safety — branch per TASK, no force-push.
 alwaysApply: true
 ---
 
@@ -7,25 +7,21 @@ alwaysApply: true
 
 ## Branch policy
 
-- Separate branch per TASK: `task/<task-id>-<slug>`, for example `task/002-init-command`.
-- When a TASK starts, record base branch / base commit / task branch in `.vibeops/state/tasks/TASK-NNN.json` automatically.
-- After merge, delete the task branch by default (`git branch -d`). Discarding unmerged work is a separate rollback flow.
+- Separate branch per TASK: `task/<task-id>-<slug>`.
+- Record base branch / task branch in the TASK file **Git Context** section.
 
 ## Commit messages
 
-- Include the TASK ID, for example `feat(TASK-002): vibeops init` or `docs(TASK-006): plan command spec`.
-- Each commit covers the scope of one TASK only.
+- Include the TASK ID: `feat(task-nnn): …`, `docs(task-nnn): …`.
+
+## Lifecycle (v4)
+
+- **`task ship`**: implementation commit + push + MR/PR; Status **Review** on task branch.
+- **`task merge`**: merge MR into integration (e.g. `develop`).
+- **`task sync`**: integration pull; Status **Done**; delete task branch.
+- **`task release`**: integration → production (separate from a TASK slice).
 
 ## Safeguards
 
-- `vibeops task rollback` gives **guidance only** by default. Destructive Git work runs only with `--confirm`.
-- **No force-push**, especially on shared branches.
-- No automatic merge or automatic push. A human does those explicitly.
-- `vibeops task done` uses two commits when needed: implementation (`feat(task-nnn): …`), then after push/MR a closure commit (`docs(task-nnn): close task metadata`) with Status Done and Git Context, pushed again so the remote branch matches the TASK file.
-- `task add` allows a dirty tree when switching branches (`--allow-dirty` internally); prefer a clean tree after `task done` completes both pushes.
-
-## Forbidden
-
-- Handling multiple TASKs on one branch.
-- Omitting the TASK ID from commit messages.
-- Committing directly to shared branches such as main / master; go through a TASK branch.
+- No force-push to shared branches.
+- No automatic merge into production from a task branch — use `task merge` then `task release` when needed.

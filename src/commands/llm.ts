@@ -102,7 +102,7 @@ export async function llmUseCommand(providerArg: string | undefined, opts: LlmUs
       })),
     ];
     preference = await select({
-      message: "Default LLM for task add / task done",
+      message: "Default LLM for task add / task ship",
       choices,
       loop: false,
     });
@@ -140,7 +140,7 @@ export async function llmConnectCommand(opts: LlmCommandOptions = {}): Promise<v
   }
 
   log.info(bold("vibeops llm connect"));
-  log.info(dim("Set up providers, then pick which one task add / task done use."));
+  log.info(dim("Set up providers, then pick which one task add / task ship use."));
   log.blank();
 
   let done = false;
@@ -160,7 +160,7 @@ export async function llmConnectCommand(opts: LlmCommandOptions = {}): Promise<v
     const action = await select<ConnectAction>({
       message: "LLM setup",
       choices: [
-        { name: "Choose default provider (task add / task done)", value: "pick" },
+        { name: "Choose default provider (task add / task ship)", value: "pick" },
         { name: "Set up Cursor Agent CLI (`agent login`)", value: "setup-cursor" },
         { name: "Show Codex OAuth setup (`codex login`)", value: "setup-codex" },
         { name: "Set up OpenAI API key (.vibeops.env)", value: "setup-openai" },

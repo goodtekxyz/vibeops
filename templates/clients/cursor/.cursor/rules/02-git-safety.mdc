@@ -1,11 +1,11 @@
 ---
-description: Git safety for task branches and commits
+description: Git safety for TASK branches
 alwaysApply: true
 ---
 
 # Git safety
 
-- Use branch pattern `task/*` created by `vibeops task add`.
-- Include the TASK id in commit messages, e.g. `feat(task-015): short title`.
-- **No force-push** to shared branches (`main`, `master`).
-- Do not merge or push unless the human runs `vibeops task done` or asks explicitly.
+- Use branch pattern `task/*` from `vibeops task add`.
+- Include TASK id in commits: `feat(task-nnn): …`.
+- No force-push to shared branches.
+- Run `vibeops task ship`, `task merge`, `task sync` when the human asks — do not merge locally in the IDE unless requested.

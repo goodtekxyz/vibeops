@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@goodtek/vibeops.svg)](https://www.npmjs.com/package/@goodtek/vibeops)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on Git branches, and closes them while updating **project memory** in Git. You plan and implement in your chosen agent; the CLI handles files, Git, and short LLM assists.
+VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on Git branches, and runs a clear GitFlow lifecycle. You plan and implement in your chosen agent; the CLI handles files, Git, and short LLM assists.
 
 ## Commands
 
@@ -13,7 +13,10 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 |---------|---------|
 | `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
-| `vibeops task done` | LLM summary, push branch, open MR/PR (no local merge) |
+| `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → Review) |
+| `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
+| `vibeops task sync` | After merge: update integration branch, mark Done, delete task branch |
+| `vibeops task release` | Release PR: integration → production (GitFlow) |
 | `vibeops status` | Briefing: TASK, Git, LLM, clients |
 | `vibeops llm` | Connect LLM providers (`connect` · `status` · `use`) |
 
@@ -45,17 +48,25 @@ Re-init **overwrites** templates (rules, skills, doc stubs). **`docs/tasks/TASK-
 vibeops init --clients cursor --git --initial-commit
 
 vibeops task add
-# Plan / build using your agent and the current TASK file
+# Plan / build in Cursor (@docs/tasks/TASK-NNN-*.md)
 
-vibeops task done
-vibeops status
+vibeops task ship
+vibeops task merge
+vibeops task sync
+vibeops task add
 ```
 
-If a TASK is **In Progress**, `task add` exits with a guide — it does not auto-run `task done`.
+Occasionally (GitFlow release to production):
+
+```bash
+vibeops task release
+```
+
+If a TASK is **In Progress** or **Review**, `task add` exits with a guide.
 
 ## LLM (optional)
 
-For **`task add`** / **`task done`** only (not for coding in the IDE):
+For **`task add`** / **`task ship`** only (not for coding in the IDE):
 
 ```bash
 vibeops llm connect
@@ -80,16 +91,21 @@ pnpm install && pnpm build && pnpm smoke
 
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--allow-no-remote`, `--cwd`
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
-- **`task done`**: `--dry-run`, `--no-pr` (push only)
+- **`task ship`**: `--dry-run`, `--no-pr`
+- **`task merge`**: `--dry-run`, `--merge`, `--rebase`
+- **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
+- **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
 - **`status`**: `--json`
 
 ## Git
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
-- **`task add`**: branch `task/<slug>` from the **integration** branch (e.g. `develop`).
-- **`task done`**: commit implementation → `git push` → `gh pr create` / `glab mr create` → commit TASK closure (Status Done, Git Context) → push again. **You merge on GitHub/GitLab**; CI deploys.
-- Commit messages: `feat(task-nnn): …`
-- No force-push to shared branches
+- **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
+- **`task ship`**: commit → push → MR/PR → Status **Review** on task branch.
+- **`task merge`**: merge MR/PR into integration (CLI default: squash).
+- **`task sync`**: integration ff-only pull → Status **Done** → delete `task/*` branches.
+- **`task release`**: integration → production PR + merge (skipped on trunk policy).
+- No force-push to shared branches.
 
 ## License
 

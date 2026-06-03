@@ -43,7 +43,7 @@ TASK order and definition of done. Proceed top to bottom. Do not start the next 
 - `vibeops task start TASK-NNN` records base branch, base commit, and task branch into `.vibeops/state/tasks/TASK-NNN.json` and creates the task branch.
 - `vibeops task prompt TASK-NNN --agent builder` prints a Cursor paste prompt from agent + TASK + docs context.
 - `vibeops task check TASK-NNN` compares Acceptance Criteria / Test Plan against the Git state and reports.
-- `vibeops task done TASK-NNN` verifies Status / Result / Test Result and prints merge guidance (no auto-merge).
+- `vibeops task ship` / `merge` / `sync` — TASK lifecycle (no `task done`).
 - `vibeops task rollback TASK-NNN` only prints guidance by default; destructive Git operations run only with `--confirm`.
 
 ## MVP 4 · Notion Dashboard Sync

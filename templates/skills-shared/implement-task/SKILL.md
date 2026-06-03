@@ -1,22 +1,13 @@
 ---
 name: implement-task
-description: Implements the current VibeOps TASK per Scope and Acceptance Criteria. Use when building features for docs/tasks/TASK-NNN.md.
-disable-model-invocation: true
+description: Implement the current VibeOps TASK file in the repo.
 ---
 
-# Implement a TASK
+# Implement TASK
 
-## Read first
+1. Read the full `docs/tasks/TASK-NNN-*.md` (Scope, Acceptance Criteria, Test Plan).
+2. Search the codebase before adding new patterns.
+3. Implement only within the TASK scope.
+4. Do not run `vibeops task ship`, `merge`, or `sync` — the human runs the CLI lifecycle.
 
-1. `AGENTS.md` and your agent rules (e.g. `.cursor/rules/`, `CLAUDE.md`)
-2. `docs/project/05-current-state.md`, `03-architecture.md`, `06-decisions.md`
-3. The TASK file referenced by the human
-
-## Instructions
-
-1. Work **only** within Scope and Acceptance Criteria.
-2. Search the repo before adding files; match existing patterns.
-3. Fill **Result** and **Test Result** with facts when done.
-4. Do not run `vibeops task done` or merge — the human closes the TASK.
-
-Tell the human to run `vibeops task done TASK-NNN` when ready.
+When implementation is ready, tell the human to run `vibeops task ship TASK-NNN`.

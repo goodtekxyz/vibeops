@@ -51,7 +51,7 @@ function envExampleContents(): string {
     "# VibeOps · optional environment",
     "# Copy to .vibeops.env (gitignored). Never commit secrets.",
     "#",
-    "# LLM for task add / task done (optional — Codex OAuth and Cursor Agent CLI also work):",
+    "# LLM for task add / task ship (optional — Codex OAuth and Cursor Agent CLI also work):",
     "# OPENAI_API_KEY=",
     "",
   ].join("\n");

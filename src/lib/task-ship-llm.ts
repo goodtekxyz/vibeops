@@ -11,7 +11,7 @@ import type { OpenAiChatMessage } from "./plan-llm-openai.js";
 import type { PlanLlmProviderId } from "./plan-llm-types.js";
 import { readSection, updateTaskSection } from "./task.js";
 
-export interface TaskDoneLlmPatch {
+export interface TaskShipLlmPatch {
   readonly result: string;
   readonly testResult: string;
   readonly currentStateMarkdown: string | null;
@@ -38,13 +38,13 @@ async function readOptional(path: string): Promise<string | null> {
   return readTextOrNull(path);
 }
 
-export async function llmCompleteTaskDone(params: {
+export async function llmCompleteTaskShip(params: {
   readonly cwd: string;
   readonly taskId: string;
   readonly taskTitle: string;
   readonly taskBody: string;
   readonly taskFileRel: string;
-}): Promise<TaskDoneLlmPatch | null> {
+}): Promise<TaskShipLlmPatch | null> {
   const git = await readGitInfo(params.cwd);
   let diffSummary = "";
   if (git.isRepo) {
@@ -60,7 +60,7 @@ export async function llmCompleteTaskDone(params: {
   const messages: OpenAiChatMessage[] = [
     {
       role: "system",
-      content: `You close a VibeOps TASK. Reply with JSON only:
+      content: `You ship a VibeOps TASK for review. Reply with JSON only:
 {
   "result": "markdown for TASK Result section — facts, paths, commands",
   "testResult": "markdown for Test Result — commands and outcomes",
@@ -124,7 +124,7 @@ Be factual. Do not invent files not in the diff.`,
       logLine:
         typeof parsed.logLine === "string" && parsed.logLine.trim().length > 0
           ? parsed.logLine.trim()
-          : `${params.taskId} done.`,
+          : `${params.taskId} shipped for review.`,
       provider,
     };
   } catch {
@@ -132,9 +132,9 @@ Be factual. Do not invent files not in the diff.`,
   }
 }
 
-export async function applyTaskDoneMemory(
+export async function applyTaskShipMemory(
   cwd: string,
-  patch: TaskDoneLlmPatch,
+  patch: TaskShipLlmPatch,
 ): Promise<ApplyMemoryResult> {
   const paths = projectPaths(cwd);
   const updated: string[] = [];
@@ -187,7 +187,6 @@ export async function writeTaskResultSections(
   await updateTaskSection(taskFile, "Test Result", testResult);
 }
 
-/** Minimal fallback when LLM unavailable — git-only sections from diff. */
 export async function fallbackResultSections(
   cwd: string,
   taskId: string,
@@ -196,7 +195,11 @@ export async function fallbackResultSections(
   const names = await gitDiffNameOnly(cwd);
   const body = await readText(taskFile);
   const goal = readSection(body, "Goal").slice(0, 200);
-  const result = [`Completed ${taskId}.`, goal.length > 0 ? `Goal: ${goal}` : "", names.length > 0 ? `Paths: ${names.slice(0, 15).join(", ")}` : ""]
+  const result = [
+    `Shipped ${taskId} for review.`,
+    goal.length > 0 ? `Goal: ${goal}` : "",
+    names.length > 0 ? `Paths: ${names.slice(0, 15).join(", ")}` : "",
+  ]
     .filter((l) => l.length > 0)
     .join("\n");
   const testResult = names.length > 0 ? `Changed: ${names.join(", ")}` : "Manual verification required.";

@@ -65,7 +65,7 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
     }
     log.info(`  ${dim("file")}   ${relPath(root, blocking.filePath)}`);
     log.blank();
-    log.info(`Finish it first: ${cyan(`vibeops task done ${blocking.id}`)}`);
+    log.info(`Finish it first: ${cyan(`vibeops task sync ${blocking.id}`)} (after ship + merge)`);
     log.info(`Then run ${cyan("vibeops task add")} again.`);
     process.exitCode = 1;
     return;
@@ -157,5 +157,5 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
   log.info(bold("Next in Cursor"));
   log.info(`  Ask:  @${relFile} — plan Scope / Acceptance Criteria`);
   log.info(`  Agent: same file — implement`);
-  log.info(`  Done: ${cyan(`vibeops task done ${taskId}`)}`);
+  log.info(`  Ship: ${cyan(`vibeops task ship ${taskId}`)}`);
 }

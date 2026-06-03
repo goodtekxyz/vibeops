@@ -4,6 +4,30 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.0.0 - 2026-06-03
+
+### Breaking
+
+- **TASK lifecycle commands renamed and split:** `task done` removed. Use **`task ship`** (submit: commit, push, PR, Status → Review), **`task merge`** (merge PR into integration), **`task sync`** (integration pull, Status → Done, branch cleanup), **`task release`** (integration → production PR).
+- Daily commands: `init`, `task add`, `task ship`, `task merge`, `task sync`, `status`, `llm`. Optional: `task release`.
+
+### Added
+
+- **`vibeops task merge`** — default `gh pr merge` / `glab mr merge` (squash unless `--merge` / `--rebase`); `--dry-run`.
+- **`vibeops task release`** — develop → main (or configured branches) release PR + merge; noop when trunk policy.
+
+### Changed
+
+- **`task ship`** replaces `task done`: Done status and `doneAt` are set on **`task sync`** on the integration branch, not at ship time.
+- **`status`** next hints: ship → merge → sync.
+- Templates and Cursor rules reference ship / merge / sync (rule file `03-docs-before-ship.mdc`).
+
+## 1.1.3 - 2026-06-03
+
+### Added
+
+- **`vibeops task sync [TASK-NNN]`** — after the MR is merged on the host: `git fetch --prune`, fast-forward the integration branch (e.g. `develop`), delete the local task branch (`-d`, or `-D` with `--force`), and optionally delete the remote task branch (`--no-remote-delete` to skip). Resolves the task branch from the current `task/*` checkout, the latest Done TASK, or an explicit ref.
+
 ## 1.1.2 - 2026-06-03
 
 ### Fixed

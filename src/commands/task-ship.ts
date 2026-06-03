@@ -1,76 +1,39 @@
 import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
+import { requireGitConfig } from "../lib/git-config.js";
 import { bold, cyan, dim, green, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { resolveTask, taskNotFoundMessage } from "../lib/resolve-task.js";
-import {
-  applyTaskDoneMemory,
-  fallbackResultSections,
-  llmCompleteTaskDone,
-  writeTaskResultSections,
-} from "../lib/task-done-llm.js";
 import { relPath } from "../lib/task-context.js";
-import { requireGitConfig } from "../lib/git-config.js";
 import {
-  gitAddPaths,
-  gitPush,
-  listWorkingTreeRelPaths,
-  partitionPathsForAutoCommit,
-  readGitInfo,
-  runGit,
-} from "../lib/git.js";
+  commitDirtyWorkingTree,
+  docsCommitMessageFor,
+  featCommitMessageFor,
+  pushBranch,
+} from "../lib/task-git-commit.js";
+import {
+  applyTaskShipMemory,
+  fallbackResultSections,
+  llmCompleteTaskShip,
+  writeTaskResultSections,
+} from "../lib/task-ship-llm.js";
+import { finishTaskWithPullRequest } from "../lib/task-push-pr.js";
 import {
   hasNonEmptySection,
-  markGitContextDone,
   parseTaskFilename,
   readGitContext,
   readTaskFile,
   updateInlineStatus,
 } from "../lib/task.js";
-import { finishTaskWithPullRequest } from "../lib/task-push-pr.js";
 
-export interface TaskDoneCommandOptions {
+export interface TaskShipCommandOptions {
   dryRun?: boolean;
   cwd?: string;
   noPr?: boolean;
 }
 
-function commitMessageFor(taskId: string, title: string): string {
-  const slug = title.replace(/^TASK-\d+\s*[:\-]\s*/i, "").trim() || taskId;
-  return `feat(${taskId.toLowerCase()}): ${slug}`;
-}
-
-function closureCommitMessageFor(taskId: string): string {
-  return `docs(${taskId.toLowerCase()}): close task metadata`;
-}
-
-async function tryCommitDirty(cwd: string, message: string, dryRun: boolean): Promise<boolean> {
-  const git = await readGitInfo(cwd);
-  if (!git.isRepo || git.dirty !== true) return false;
-  const { committable, excluded } = partitionPathsForAutoCommit(
-    await listWorkingTreeRelPaths(cwd),
-    { unmerged: [] },
-  );
-  if (committable.length === 0) return false;
-  if (excluded.length > 0) {
-    log.warn(`Skipping ${excluded.length} build artifact path(s) from auto-commit.`);
-  }
-  if (dryRun) {
-    log.info(dim(`  would commit ${committable.length} path(s)`));
-    return true;
-  }
-  await gitAddPaths(cwd, committable);
-  await runGit(cwd, ["commit", "-q", "-m", message]);
-  log.ok(`Committed: ${message}`);
-  return true;
-}
-
-/**
- * After push/MR: write Status Done + Git Context closure, commit, push so the remote
- * branch matches local TASK metadata (canonical two-phase close).
- */
-async function commitClosureMetadataAndPush(opts: {
+async function commitShipMetadataAndPush(opts: {
   readonly cwd: string;
   readonly taskFile: string;
   readonly taskId: string;
@@ -78,37 +41,38 @@ async function commitClosureMetadataAndPush(opts: {
   readonly push: { readonly remote: string; readonly branch: string } | null;
 }): Promise<boolean> {
   if (opts.dryRun) {
-    log.info(dim("  would set Status → Done and update Git Context (doneAt)"));
-    log.info(dim("  would commit closure metadata"));
+    log.info(dim("  would set Status → Review"));
+    log.info(dim("  would commit ship metadata"));
     if (opts.push !== null) {
       log.info(
-        dim(`  would git push ${opts.push.remote} ${opts.push.branch} (closure commit)`),
+        dim(`  would git push ${opts.push.remote} ${opts.push.branch} (review metadata)`),
       );
     }
     return true;
   }
 
-  await updateInlineStatus(opts.taskFile, "done");
-  await markGitContextDone(opts.taskFile);
-  log.ok("Status → Done");
+  await updateInlineStatus(opts.taskFile, "review");
+  log.ok("Status → Review");
 
-  const committed = await tryCommitDirty(opts.cwd, closureCommitMessageFor(opts.taskId), false);
+  const committed = await commitDirtyWorkingTree(
+    opts.cwd,
+    docsCommitMessageFor(opts.taskId, "ready for review"),
+    false,
+  );
   if (!committed) {
-    log.warn(
-      "No file changes for closure commit — verify TASK Status and Git Context on the remote branch.",
-    );
+    log.warn("No file changes for review metadata commit — check TASK Status on the remote branch.");
     return true;
   }
 
   if (opts.push === null) return true;
 
   try {
-    await gitPush(opts.cwd, opts.push.remote, opts.push.branch, false);
-    log.ok(`Pushed closure commit → ${opts.push.remote}/${opts.push.branch}`);
+    await pushBranch(opts.cwd, opts.push.remote, opts.push.branch, false);
+    log.ok(`Pushed review metadata → ${opts.push.remote}/${opts.push.branch}`);
     return true;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log.error(`Closure commit push failed: ${msg}`);
+    log.error(`Review metadata push failed: ${msg}`);
     log.info(
       dim(`Fix auth/remote, then: git push ${opts.push.remote} ${opts.push.branch}`),
     );
@@ -116,9 +80,9 @@ async function commitClosureMetadataAndPush(opts: {
   }
 }
 
-export async function taskDoneCommand(
+export async function taskShipCommand(
   taskRef: string | undefined,
-  options: TaskDoneCommandOptions = {},
+  options: TaskShipCommandOptions = {},
 ): Promise<void> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const paths = projectPaths(cwd);
@@ -136,7 +100,7 @@ export async function taskDoneCommand(
   const body = await readText(taskFile);
   const relFile = relPath(cwd, taskFile);
 
-  log.info(bold(`vibeops task done ${taskId}`));
+  log.info(bold(`vibeops task ship ${taskId}`));
   log.info(`  ${dim("file")}  ${relFile}`);
   log.blank();
 
@@ -148,7 +112,7 @@ export async function taskDoneCommand(
     if (dryRun) {
       log.info(dim("  would call LLM and patch docs/project/*"));
     } else {
-      const patch = await llmCompleteTaskDone({
+      const patch = await llmCompleteTaskShip({
         cwd,
         taskId,
         taskTitle: meta.title,
@@ -158,7 +122,7 @@ export async function taskDoneCommand(
       if (patch !== null) {
         await writeTaskResultSections(taskFile, patch.result, patch.testResult);
         log.ok(`Result / Test Result updated (${patch.provider})`);
-        const memory = await applyTaskDoneMemory(cwd, patch);
+        const memory = await applyTaskShipMemory(cwd, patch);
         for (const p of memory.updated) log.ok(`Updated ${p}`);
         for (const p of memory.skipped) log.skip(`Skipped ${p}`);
       } else {
@@ -189,7 +153,7 @@ export async function taskDoneCommand(
       log.info("  · LLM fill Result / Test Result + patch docs/project/*");
     }
     log.info("  · commit implementation, push task branch, open MR/PR (unless --no-pr)");
-    log.info("  · Status → Done; commit closure metadata; push again");
+    log.info("  · Status → Review; commit metadata; push again");
     await finishTaskWithPullRequest({
       cwd,
       taskFile,
@@ -198,10 +162,8 @@ export async function taskDoneCommand(
     });
     const gitCtxDry = await readGitContext(taskFile);
     const gitCfgDry =
-      gitCtxDry !== null
-        ? await requireGitConfig(cwd).catch(() => null)
-        : null;
-    await commitClosureMetadataAndPush({
+      gitCtxDry !== null ? await requireGitConfig(cwd).catch(() => null) : null;
+    await commitShipMetadataAndPush({
       cwd,
       taskFile,
       taskId,
@@ -215,8 +177,7 @@ export async function taskDoneCommand(
   }
 
   const parts = parseTaskFilename(taskFile);
-  const commitMsg = commitMessageFor(parts.id, meta.title);
-  await tryCommitDirty(cwd, commitMsg, false);
+  await commitDirtyWorkingTree(cwd, featCommitMessageFor(parts.id, meta.title), false);
 
   const gitCtx = await readGitContext(taskFile);
   if (gitCtx !== null) {
@@ -226,13 +187,12 @@ export async function taskDoneCommand(
       skipPr: options.noPr === true,
     });
     if (!prResult.ok) {
-      log.error("TASK left In Progress — fix push/MR, then rerun task done.");
+      log.error("TASK left In Progress — fix push/MR, then rerun task ship.");
       process.exitCode = 1;
       return;
     }
     if (prResult.mergeRequestUrl) {
       log.info(`  ${dim("MR/PR")}     ${prResult.mergeRequestUrl}`);
-      log.info(dim("Merge on GitHub/GitLab — CI deploys after merge."));
     }
   } else {
     log.info(dim("No Git Context — push/MR skipped."));
@@ -249,19 +209,19 @@ export async function taskDoneCommand(
     }
   }
 
-  const closed = await commitClosureMetadataAndPush({
+  const shipped = await commitShipMetadataAndPush({
     cwd,
     taskFile,
     taskId: parts.id,
     dryRun: false,
     push: pushTarget,
   });
-  if (!closed) {
-    log.error("TASK metadata is Done locally but closure push failed — push manually, then continue.");
+  if (!shipped) {
+    log.error("Review metadata push failed — fix manually, then run task merge.");
     process.exitCode = 1;
     return;
   }
 
   log.blank();
-  log.info(`Next: ${cyan("vibeops task add")} or ${cyan("vibeops status")}`);
+  log.info(`Next: ${cyan("vibeops task merge")} (or merge in the host UI), then ${cyan("vibeops task sync")}`);
 }
