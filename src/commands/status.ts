@@ -16,7 +16,12 @@ import {
   relPath,
   taskBranchExistsFor,
 } from "../lib/task-context.js";
-import { isMergeRequestMerged, taskNeedsSync } from "../lib/task-effective-status.js";
+import {
+  hasOpenTaskMergeRequest,
+  isMergeRequestMerged,
+  resolveTaskMergeRequestUrl,
+  taskNeedsSync,
+} from "../lib/task-effective-status.js";
 import {
   countTasks,
   hasNonEmptySection,
@@ -99,7 +104,7 @@ async function buildReport(cwd: string): Promise<StatusReport> {
     testFilled = hasNonEmptySection(body, "Test Result");
     const ctx = await readGitContext(focus.filePath);
     taskBranch = ctx?.taskBranch ?? null;
-    mergeRequestUrl = ctx?.mergeRequestUrl ?? null;
+    mergeRequestUrl = await resolveTaskMergeRequestUrl(cwd, focus.filePath);
     onTaskBranch = isOnTaskBranch(git.branch, ctx);
     branchExists = await taskBranchExistsFor(cwd, focus);
     mergeRequestMerged = await isMergeRequestMerged(cwd, focus);
@@ -126,7 +131,9 @@ async function buildReport(cwd: string): Promise<StatusReport> {
     testFilled,
     onTaskBranch,
     hasMergeRequest:
-      typeof mergeRequestUrl === "string" && mergeRequestUrl.length > 0,
+      focus !== null
+        ? await hasOpenTaskMergeRequest(cwd, focus.filePath)
+        : false,
     mergeRequestMerged,
     needsSync,
     hasLocalChanges: git.dirty === true,

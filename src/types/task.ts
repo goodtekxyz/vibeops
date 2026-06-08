@@ -30,11 +30,14 @@ export interface GitContext {
   startedAt: string;
   /** Optional timestamp when the slice finished (legacy `Done At` in TASK md). */
   doneAt?: string;
-  /** Current MR/PR URL (`task ship` / `task reship`). */
+  /**
+   * Legacy: MR/PR URL stored in TASK md (pre-2.1.3).
+   * Since 2.1.3 the host resolves open PRs by `(taskBranch, baseBranch)`; ship/reship do not write this.
+   */
   mergeRequestUrl?: string;
   /** Prior MR/PR URLs archived on `task reship`. */
   previousMergeRequestUrls?: readonly string[];
-  /** Set by `task ship` / `task reship` after push. */
+  /** Legacy push timestamp in TASK md (pre-2.1.3). */
   pushedAt?: string;
   /** ISO timestamp of the latest `task reship`. */
   lastReshipAt?: string;

@@ -4,6 +4,15 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.1.3 - 2026-06-08
+
+### Changed
+
+- **MR/PR resolution:** `task merge`, `status`, and `task sync` resolve the open PR by **`(taskBranch, baseBranch)`** via `gh` / `glab` (host is source of truth).
+- **`task ship` / `task reship`:** no longer write `Merge Request` or `Pushed At` into TASK md after PR creation — **single push, clean working tree**, CI once per PR.
+- **`task reship`:** archives the current open PR URL into `Previous Merge Requests` (from host lookup) in the reship metadata commit.
+- **Legacy TASK files** that still have `Merge Request:` in Git Context remain supported as a fallback.
+
 ## 2.1.2 - 2026-06-08
 
 ### Changed

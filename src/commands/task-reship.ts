@@ -28,7 +28,6 @@ import {
   hasNonEmptySection,
   parseTaskFilename,
   readGitContext,
-  upsertGitContext,
 } from "../lib/task.js";
 import { listWorkingTreeRelPaths } from "../lib/git.js";
 
@@ -199,8 +198,7 @@ export async function taskReshipCommand(
   }
 
   gitCtx = await refreshGitContextBaseCommit(taskFile, gitCtx, cwd);
-  gitCtx = await prepareGitContextForReship(taskFile, gitCtx);
-  await upsertGitContext(taskFile, gitCtx);
+  gitCtx = await prepareGitContextForReship(cwd, taskFile, gitCtx);
 
   await commitReshipMetadata({
     cwd,

@@ -106,7 +106,7 @@ pnpm install && pnpm build && pnpm smoke
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
-- **`task ship`**: commit implementation + ship metadata (Status **Shipped**) → push once → MR/PR.
+- **`task ship`**: commit implementation + ship metadata (Status **Shipped**) → push once → MR/PR (URL on host; `task merge` resolves by branch).
 - **`task reship`**: Shipped TASK only; integrates `develop`; opens **new** PR (archives previous MR in Git Context).
 - **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
 - **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).

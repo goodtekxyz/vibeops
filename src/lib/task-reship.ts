@@ -18,10 +18,13 @@ import {
 } from "./git.js";
 import { dim, log } from "./logger.js";
 import type { ProjectPaths } from "./paths.js";
-import { getMergeRequestStateForTask } from "./task-effective-status.js";
+import { findMergeRequestByBranches } from "./pr-create.js";
 import { normalizeTaskRef } from "./resolve-task.js";
 import {
-  archiveMergeRequestForReship,
+  getTaskMergeRequestLifecycle,
+  resolveGitHostForCwd,
+} from "./task-effective-status.js";
+import {
   findTaskFile,
   loadActionableTasks,
   pickLatestShippedTask,
@@ -257,7 +260,7 @@ export async function assertMergeRequestNotOpen(
   allowOpenMr: boolean,
 ): Promise<boolean> {
   if (allowOpenMr) return true;
-  const state = await getMergeRequestStateForTask(cwd, taskFile);
+  const state = await getTaskMergeRequestLifecycle(cwd, taskFile);
   if (state !== "open") return true;
   log.error(
     "Current MR/PR is still open. Merge or close it first, or rerun with --allow-open-mr.",
@@ -276,10 +279,36 @@ export async function refreshGitContextBaseCommit(
 }
 
 export async function prepareGitContextForReship(
+  cwd: string,
   taskFile: string,
   gitCtx: GitContext,
 ): Promise<GitContext> {
-  const archived = archiveMergeRequestForReship(gitCtx);
+  const previous = [...(gitCtx.previousMergeRequestUrls ?? [])];
+  const host = await resolveGitHostForCwd(cwd);
+  if (host !== null) {
+    const open = await findMergeRequestByBranches({
+      cwd,
+      host,
+      headBranch: gitCtx.taskBranch,
+      baseBranch: gitCtx.baseBranch,
+      state: "open",
+    });
+    if (open !== null) {
+      previous.push(open.url);
+    }
+  }
+  const legacy = gitCtx.mergeRequestUrl?.trim();
+  if (legacy !== undefined && legacy.length > 0 && !previous.includes(legacy)) {
+    previous.push(legacy);
+  }
+
+  const archived: GitContext = {
+    ...gitCtx,
+    previousMergeRequestUrls: previous.length > 0 ? previous : undefined,
+    mergeRequestUrl: undefined,
+    reshipCount: (gitCtx.reshipCount ?? 0) + 1,
+    lastReshipAt: new Date().toISOString(),
+  };
   await upsertGitContext(taskFile, archived);
   return archived;
 }

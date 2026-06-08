@@ -14,6 +14,7 @@ import {
 } from "../lib/pr-create.js";
 import { relPath } from "../lib/task-context.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
+import { resolveOpenTaskMergeRequest } from "../lib/task-effective-status.js";
 import { readGitContext } from "../lib/task.js";
 
 export interface TaskMergeCommandOptions {
@@ -69,29 +70,35 @@ export async function taskMergeCommand(
     process.exitCode = 1;
     return;
   }
-  if (!ctx.mergeRequestUrl) {
-    if (dryRun) {
-      log.info(dim(`would merge ${ctx.taskBranch} → ${ctx.baseBranch} after MR exists (run task ship)`));
-      log.blank();
-      log.info(`Next: ${cyan("vibeops task sync")}`);
-      return;
-    }
-    log.error("No Merge Request URL on TASK — run task ship first.");
+  const resolvedMr = dryRun
+    ? null
+    : await resolveOpenTaskMergeRequest(cwd, target.taskFile);
+
+  if (!dryRun && resolvedMr === null) {
+    log.error(
+      `No open MR/PR for ${ctx.taskBranch} → ${ctx.baseBranch}. Run task ship or task reship first.`,
+    );
     process.exitCode = 1;
     return;
   }
 
+  const mergeRequestUrl =
+    resolvedMr?.url ??
+    `(dry-run: would resolve open MR for ${ctx.taskBranch} → ${ctx.baseBranch})`;
+
   const remoteUrl = await gitRemoteUrl(cwd, gitCfg.remote);
   const host =
-    remoteUrl !== null && detectGitHost(remoteUrl) !== null
+    resolvedMr?.host ??
+    (remoteUrl !== null && detectGitHost(remoteUrl) !== null
       ? detectGitHost(remoteUrl)!
-      : gitCfg.host;
+      : gitCfg.host);
+
   const method = resolveMergeMethod(options);
   const label = mergeRequestLabel(host);
 
   log.info(bold(`vibeops task merge ${target.taskId}`));
   log.info(`  ${dim("file")}       ${relPath(cwd, target.taskFile)}`);
-  log.info(`  ${dim("MR/PR")}      ${ctx.mergeRequestUrl}`);
+  log.info(`  ${dim("MR/PR")}      ${mergeRequestUrl}`);
   log.info(`  ${dim("target")}     ${ctx.baseBranch} (${gitCfg.integrationBranch})`);
   log.info(`  ${dim("method")}     ${method}`);
   log.blank();
@@ -100,7 +107,7 @@ export async function taskMergeCommand(
     await mergeMergeRequest({
       cwd,
       host,
-      url: ctx.mergeRequestUrl,
+      url: mergeRequestUrl,
       method,
       dryRun: true,
     });
@@ -109,7 +116,7 @@ export async function taskMergeCommand(
     return;
   }
 
-  const state = await getMergeRequestState(cwd, host, ctx.mergeRequestUrl);
+  const state = await getMergeRequestState(cwd, host, mergeRequestUrl);
   if (state === "merged") {
     log.ok(`${label} already merged.`);
     log.blank();
@@ -125,7 +132,7 @@ export async function taskMergeCommand(
       return;
     }
     try {
-      await mergeMergeRequest({ cwd, host, url: ctx.mergeRequestUrl, method });
+      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method });
       log.ok(`${label} merged into ${ctx.baseBranch}.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -141,7 +148,7 @@ export async function taskMergeCommand(
   } else {
     log.warn(`Could not read ${label} state — attempting merge anyway.`);
     try {
-      await mergeMergeRequest({ cwd, host, url: ctx.mergeRequestUrl, method });
+      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method });
       log.ok(`${label} merge command completed.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

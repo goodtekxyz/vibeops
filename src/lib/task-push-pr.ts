@@ -11,9 +11,13 @@ import {
   readGitInfo,
 } from "./git.js";
 import { dim, log } from "./logger.js";
-import { createMergeRequest, probeMergeRequestCli } from "./pr-create.js";
+import {
+  createMergeRequest,
+  findMergeRequestByBranches,
+  probeMergeRequestCli,
+} from "./pr-create.js";
 import { fallbackTaskPr, generateTaskPrWithLlm } from "./task-pr-llm.js";
-import { readGitContext, readTaskFile, upsertGitContext } from "./task.js";
+import { readGitContext, readTaskFile } from "./task.js";
 import type { GitContext } from "../types/task.js";
 import type { LlmProviderPreference } from "../types/config.js";
 
@@ -22,7 +26,7 @@ export interface FinishTaskPullRequestOptions {
   readonly taskFile: string;
   readonly dryRun?: boolean;
   readonly skipPr?: boolean;
-  /** Open a new MR/PR even when Git Context already has a URL (`task reship`). */
+  /** Open a new MR/PR even when an open one exists for the task branch (`task reship`). */
   readonly forceNewMergeRequest?: boolean;
 }
 
@@ -51,12 +55,7 @@ async function buildDiffSummary(cwd: string, gitCtx: GitContext): Promise<string
   return lines.join("\n") || "(no commits since task start)";
 }
 
-function isExistingMergeRequestUrl(url: string | undefined): boolean {
-  if (typeof url !== "string" || url.length === 0) return false;
-  return url.startsWith("http://") || url.startsWith("https://");
-}
-
-/** Push task branch and open MR/PR (idempotent when URL already in Git Context). */
+/** Push task branch and open MR/PR. Does not write MR URL into TASK md (host is source of truth). */
 export async function finishTaskWithPullRequest(
   opts: FinishTaskPullRequestOptions,
 ): Promise<FinishTaskPullRequestResult> {
@@ -67,10 +66,12 @@ export async function finishTaskWithPullRequest(
     return { ok: true };
   }
 
+  const label = mergeRequestLabel(gitCfg.host);
+
   if (opts.dryRun) {
     log.info(
       dim(
-        `would git push -u ${gitCfg.remote} ${gitCtx.taskBranch} and open ${mergeRequestLabel(gitCfg.host)} → ${gitCtx.baseBranch}`,
+        `would git push -u ${gitCfg.remote} ${gitCtx.taskBranch} and open ${label} → ${gitCtx.baseBranch}`,
       ),
     );
     return { ok: true, mergeRequestUrl: "(dry-run)" };
@@ -99,12 +100,18 @@ export async function finishTaskWithPullRequest(
     );
   }
 
-  if (
-    isExistingMergeRequestUrl(gitCtx.mergeRequestUrl) &&
-    opts.forceNewMergeRequest !== true
-  ) {
-    log.info(dim(`Merge request already recorded: ${gitCtx.mergeRequestUrl}`));
-    return { ok: true, mergeRequestUrl: gitCtx.mergeRequestUrl, pushed: true };
+  if (opts.skipPr !== true && opts.forceNewMergeRequest !== true) {
+    const existing = await findMergeRequestByBranches({
+      cwd: opts.cwd,
+      host: gitCfg.host,
+      headBranch: gitCtx.taskBranch,
+      baseBranch: gitCtx.baseBranch,
+      state: "open",
+    });
+    if (existing !== null) {
+      log.info(dim(`Open ${label} already exists: ${existing.url}`));
+      return { ok: true, mergeRequestUrl: existing.url, pushed: true };
+    }
   }
 
   const ahead = await gitCommitsAhead(opts.cwd, gitCtx.baseCommit, "HEAD");
@@ -121,10 +128,7 @@ export async function finishTaskWithPullRequest(
     return { ok: false };
   }
 
-  const pushedAt = new Date().toISOString();
-
   if (opts.skipPr === true) {
-    await upsertGitContext(opts.taskFile, { ...gitCtx, pushedAt });
     log.info(dim("Merge request creation skipped (--no-pr)."));
     return { ok: true, pushed: true };
   }
@@ -132,9 +136,8 @@ export async function finishTaskWithPullRequest(
   const cliOk = await probeMergeRequestCli(gitCfg.host);
   if (!cliOk) {
     const tool = gitCfg.host === "gitlab" ? "glab" : "gh";
-    await upsertGitContext(opts.taskFile, { ...gitCtx, pushedAt });
     log.warn(
-      `${tool} CLI not found — create the ${mergeRequestLabel(gitCfg.host)} manually: ${gitCtx.taskBranch} → ${gitCtx.baseBranch}`,
+      `${tool} CLI not found — create the ${label} manually: ${gitCtx.taskBranch} → ${gitCtx.baseBranch}`,
     );
     return { ok: true, pushed: true };
   }
@@ -166,17 +169,12 @@ export async function finishTaskWithPullRequest(
       title: prTitle,
       body: prBody,
     });
-    log.ok(`${mergeRequestLabel(gitCfg.host)}: ${url}`);
-    await upsertGitContext(opts.taskFile, {
-      ...gitCtx,
-      mergeRequestUrl: url,
-      pushedAt,
-    });
+    log.ok(`${label}: ${url}`);
+    log.info(dim("MR/PR URL is on the host — not written to TASK md (use task merge)."));
     return { ok: true, mergeRequestUrl: url, pushed: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Could not create merge request: ${msg}`);
-    await upsertGitContext(opts.taskFile, { ...gitCtx, pushedAt });
     log.info(
       dim(
         `Branch was pushed. Create MR manually: ${gitCtx.taskBranch} → ${gitCtx.baseBranch}`,

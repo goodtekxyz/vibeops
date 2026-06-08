@@ -19,11 +19,11 @@ import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
 import { relPath } from "../lib/task-context.js";
 import {
-  getMergeRequestStateForTask,
+  getTaskMergeRequestLifecycle,
   isMergeRequestMerged,
 } from "../lib/task-effective-status.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
-import { readGitContext, readTaskFile } from "../lib/task.js";
+import { readTaskFile } from "../lib/task.js";
 
 export interface TaskSyncCommandOptions {
   dryRun?: boolean;
@@ -71,7 +71,6 @@ export async function taskSyncCommand(
 
   const { integrationBranch, productionBranch, remote } = gitCfg;
   const { taskId, taskBranch, taskFile } = target;
-  const ctx = await readGitContext(taskFile);
 
   if (isProtectedBranch(taskBranch, integrationBranch, productionBranch)) {
     log.error(`Refusing to delete protected branch: ${taskBranch}`);
@@ -87,20 +86,20 @@ export async function taskSyncCommand(
   log.blank();
 
   const meta = await readTaskFile(taskFile);
-  if (ctx?.mergeRequestUrl && !dryRun) {
-    const state = await getMergeRequestStateForTask(cwd, taskFile);
-    if (state !== null) {
+  if (!dryRun) {
+    const lifecycle = await getTaskMergeRequestLifecycle(cwd, taskFile);
+    if (lifecycle !== "none") {
       const remoteUrl = await gitRemoteUrl(cwd, remote);
       const host =
         remoteUrl !== null && detectGitHost(remoteUrl) !== null
           ? detectGitHost(remoteUrl)!
           : gitCfg.host;
       const label = mergeRequestLabel(host);
-      if (state === "open") {
+      if (lifecycle === "open") {
         log.warn(
           `${yellow(label)} still open — merge with task merge or the host UI before sync.`,
         );
-      } else if (state === "merged") {
+      } else if (lifecycle === "merged") {
         log.ok(`${label} merged.`);
       }
     } else if (await probeMergeRequestCli(gitCfg.host)) {

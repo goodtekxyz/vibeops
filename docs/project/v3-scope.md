@@ -160,7 +160,7 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
    - Commit safe paths on task branch (`feat(task-nnn): …`).
    - Set Status **Shipped**; commit ship metadata (`docs(task-nnn): mark shipped`).
    - `git push` task branch **once**; open **MR/PR** to integration via `gh` / `glab` (LLM title/body).
-   - Record MR/PR URL in Git Context. **No local merge** — human merges on host or via `task merge`.
+   - **Do not** write MR/PR URL into TASK md (2.1.3+). `task merge` resolves the open PR by `(taskBranch, baseBranch)`. **No local merge** — human merges on host or via `task merge`.
 
 4. **No Notion sync.**
 

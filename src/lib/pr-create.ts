@@ -98,6 +98,122 @@ export type MergeRequestMergeMethod = "merge" | "squash" | "rebase";
 
 export type MergeRequestState = "merged" | "open" | "closed" | "unknown";
 
+export type MergeRequestListState = "open" | "merged" | "closed" | "all";
+
+export interface FindMergeRequestByBranchesOptions {
+  readonly cwd: string;
+  readonly host: GitHost;
+  readonly headBranch: string;
+  readonly baseBranch: string;
+  readonly state?: MergeRequestListState;
+}
+
+export interface MergeRequestRef {
+  readonly url: string;
+  readonly state: MergeRequestState;
+}
+
+function normalizeGhMergeRequestState(raw: string): MergeRequestState {
+  const state = raw.trim().toUpperCase();
+  if (state === "MERGED") return "merged";
+  if (state === "OPEN") return "open";
+  if (state === "CLOSED") return "closed";
+  return "unknown";
+}
+
+function normalizeGlabMergeRequestState(raw: string): MergeRequestState {
+  const state = raw.trim().toLowerCase();
+  if (state === "merged") return "merged";
+  if (state === "opened" || state === "open") return "open";
+  if (state === "closed") return "closed";
+  return "unknown";
+}
+
+async function ghFindMergeRequestByBranches(
+  opts: FindMergeRequestByBranchesOptions,
+): Promise<MergeRequestRef | null> {
+  const state = opts.state ?? "open";
+  const { stdout } = await execFileAsync(
+    "gh",
+    [
+      "pr",
+      "list",
+      "--head",
+      opts.headBranch,
+      "--base",
+      opts.baseBranch,
+      "--state",
+      state,
+      "--limit",
+      "1",
+      "--json",
+      "url,state",
+    ],
+    { cwd: opts.cwd, maxBuffer: 1024 * 1024 },
+  );
+  const trimmed = stdout.trim();
+  if (trimmed.length === 0 || trimmed === "[]") return null;
+  const rows = JSON.parse(trimmed) as Array<{ url?: string; state?: string }>;
+  const row = rows[0];
+  if (row?.url === undefined || row.url.length === 0) return null;
+  return {
+    url: row.url,
+    state: normalizeGhMergeRequestState(row.state ?? ""),
+  };
+}
+
+async function glabFindMergeRequestByBranches(
+  opts: FindMergeRequestByBranchesOptions,
+): Promise<MergeRequestRef | null> {
+  const state = opts.state ?? "open";
+  const glabState =
+    state === "open" ? "opened" : state === "merged" ? "merged" : state === "closed" ? "closed" : "all";
+  const { stdout } = await execFileAsync(
+    "glab",
+    [
+      "mr",
+      "list",
+      "--source-branch",
+      opts.headBranch,
+      "--target-branch",
+      opts.baseBranch,
+      "-S",
+      glabState,
+      "-P",
+      "1",
+      "--output",
+      "json",
+      "web_url,state",
+    ],
+    { cwd: opts.cwd, maxBuffer: 1024 * 1024 },
+  );
+  const trimmed = stdout.trim();
+  if (trimmed.length === 0 || trimmed === "[]") return null;
+  const rows = JSON.parse(trimmed) as Array<{ web_url?: string; state?: string }>;
+  const row = rows[0];
+  const url = row?.web_url?.trim();
+  if (url === undefined || url.length === 0) return null;
+  return {
+    url,
+    state: normalizeGlabMergeRequestState(row.state ?? ""),
+  };
+}
+
+/** Resolve MR/PR by `(headBranch, baseBranch)` — source of truth for ship/reship (no TASK URL). */
+export async function findMergeRequestByBranches(
+  opts: FindMergeRequestByBranchesOptions,
+): Promise<MergeRequestRef | null> {
+  try {
+    if (!(await probeMergeRequestCli(opts.host))) return null;
+    if (opts.host === "gitlab") {
+      return glabFindMergeRequestByBranches(opts);
+    }
+    return ghFindMergeRequestByBranches(opts);
+  } catch {
+    return null;
+  }
+}
+
 function prRefFromUrl(url: string): string {
   const trimmed = url.trim();
   const pullMatch = /\/pull\/(\d+)/i.exec(trimmed);
