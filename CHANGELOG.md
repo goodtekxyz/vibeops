@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.1.2 - 2026-06-08
+
+### Changed
+
+- **`task ship`** / **`task reship`**: commit ship/reship metadata **before** push and MR/PR creation so the branch is pushed once (avoids duplicate `pull_request` CI runs on `opened` + `synchronize`).
+
 ## 2.1.1 - 2026-06-08
 
 ### Added
@@ -12,7 +18,6 @@ All notable changes to VibeOps are documented here.
 
 ### Changed
 
-- **`task ship`** / **`task reship`**: commit ship/reship metadata **before** push and MR/PR creation so the branch is pushed once (avoids duplicate `pull_request` CI runs on `opened` + `synchronize`).
 - **Docs:** living markdown, templates, and Cursor rules aligned with 2.1 lifecycle (`task reship`, two-status model, sync does not edit TASK md).
 - **`task sync` CLI help:** description no longer says "mark Done".
 
