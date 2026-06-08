@@ -5,5 +5,5 @@
 ## D-001 · VibeOps workflow
 
 - **Date:** {{CREATED_AT}}
-- **Decision:** TASK-driven development with `vibeops task add` / `task ship` / `merge` / `sync` and Cursor for plan/build.
+- **Decision:** TASK-driven development with `vibeops task add` / `task ship` / `task reship` / `merge` / `sync` and Cursor for plan/build. TASK status: **In Progress** → **Shipped** only.
 - **Why:** Git `docs/tasks` beats chat as source of truth.

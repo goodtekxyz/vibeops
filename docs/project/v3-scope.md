@@ -1,8 +1,8 @@
 # VibeOps v3 — Product Scope
 
-> **Status:** Implemented in `@goodtek/vibeops@2.0.0` (ship · merge · sync · release).  
+> **Status:** Implemented in `@goodtek/vibeops@2.1.x` (ship · reship · merge · sync · release).  
 > **Replaces:** v1 multi-command surface + v2 `TASK-mvp` / `plan` / Notion / `next` as the default product.  
-> **Package:** `@goodtek/vibeops` — **2.x** (`task ship` → `task merge` → `task sync`; optional `task release`).
+> **Package:** `@goodtek/vibeops` — **2.x** (`task ship` → `task merge` → optional `task sync`; **`task reship`** for Shipped follow-up; optional `task release`).
 
 ## One-line definition
 
@@ -14,12 +14,13 @@ Cursor plans and implements. VibeOps does **files + Git + short LLM assists**. *
 
 ## Design principles
 
-1. **Daily commands:** `init`, `task add`, `task ship`, `task merge`, `task sync`, `status` (+ optional `task release`).
+1. **Daily commands:** `init`, `task add`, `task ship`, `task reship`, `task merge`, `task sync`, `status` (+ optional `task release`).
 2. **Files are the API** between CLI and Cursor — no “copy prompt from terminal” workflow.
-3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on done.
+3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on ship/reship.
 4. **Planning and coding happen in Cursor** (Ask / Agent + `@docs/tasks/TASK-NNN.md`).
-5. **In-progress TASK handoff is guide-only** — CLI does not auto-run `task done` during `task add`.
+5. **In-progress TASK handoff is guide-only** — CLI does not auto-run `task ship` during `task add`. **Shipped** does not block `task add`.
 6. **One TASK model:** `TASK-NNN-<slug>.md` only (no `TASK-mvp`, no dual `resolveCommandTask` paths).
+7. **TASK md status:** **In Progress** → **Shipped** only. Merge, sync, and reship follow-up do not rewrite Status.
 
 ---
 
@@ -28,12 +29,18 @@ Cursor plans and implements. VibeOps does **files + Git + short LLM assists**. *
 ```text
 vibeops init                    # once per repo
 
-vibeops task add                # interactive: check state → guide if busy → new TASK + branch
+vibeops task add                # interactive: guide if In Progress → new TASK + branch
 
   Cursor (Ask)                  # refine TASK md: Goal, Scope, AC, Test Plan
   Cursor (Agent)                # implement per TASK md
 
-vibeops task done [TASK-NNN]    # LLM fills Result/Test + push + MR/PR (merge on host)
+vibeops task ship [TASK-NNN]    # LLM fills Result/Test + commit + push + MR/PR (Status → Shipped)
+vibeops task merge [TASK-NNN]   # merge MR into integration (CLI or host UI)
+vibeops task sync [TASK-NNN]    # optional — integration pull + delete task branch (no md edits)
+
+# Same TASK follow-up after merge:
+vibeops task reship TASK-NNN
+vibeops task merge TASK-NNN
 
 vibeops status                  # briefing: active TASK, branch, doc health, next hint
 ```
@@ -46,8 +53,11 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 | 2 Task add | CLI | See [task add](#vibeops-task-add). Ends on task branch, **In Progress**. |
 | 3 Plan | Cursor | User opens `@docs/tasks/TASK-NNN-*.md` in **Ask**; edits sections in place. |
 | 4 Build | Cursor | **Agent** (or Agent + optional project Skill) implements; no CLI `start`. |
-| 5 Task done | CLI | See [task done](#vibeops-task-done). |
-| 6 Status | CLI | Anytime snapshot; no interactive menu. |
+| 5 Task ship | CLI | See [task ship](#vibeops-task-ship-taskref). Status → **Shipped**. |
+| 6 Task merge | CLI / host | Merge MR into integration. Does not edit TASK md. |
+| 7 Task sync | CLI | Optional branch cleanup + integration pull. Does not edit TASK md. |
+| 8 Task reship | CLI | Optional Shipped follow-up — new MR; Status stays **Shipped**. |
+| 9 Status | CLI | Anytime snapshot; no interactive menu. |
 
 ---
 
@@ -92,14 +102,14 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 1. **Current state**
    - Load actionable tasks from `docs/tasks/`.
    - If any TASK is **In Progress** (or HEAD is on a `task/*` branch with matching open TASK — same briefing rules as today’s `pickActiveTask`):
-     - **Do not** auto-run `task done`.
-     - **Guide only:** print TASK id, title, branch; tell user to run `vibeops task done <id>` (or finish manually), then run `task add` again.
+     - **Do not** auto-run `task ship`.
+     - **Guide only:** print TASK id, title, branch; tell user to run `vibeops task ship <id>` (or finish manually), then run `task add` again.
      - **Exit non-zero** (or exit 0 with clear “aborted” — implementer choice; prefer **exit 1** so scripts fail loud).
    - If clean → continue.
 
 2. **What are you doing?**
    - Single short prompt (one line idea).
-   - **LLM (required provider):** derive `title`, `slug`, minimal TASK markdown (Status: Planned → will become In Progress at end of command).
+   - **LLM (required provider):** derive `title`, `slug`, minimal TASK markdown (Status: **In Progress** at end of command).
    - If LLM unavailable: minimal template from idea (warn once).
 
 3. **Allocate number**
@@ -117,7 +127,7 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
    - Set TASK **In Progress** + **Git Context** in file.
 
 6. **End message**
-   - “Open `@docs/tasks/TASK-NNN-….md` in Cursor Ask to plan, then Agent to build. Run `vibeops task done` when finished.”
+   - “Open `@docs/tasks/TASK-NNN-….md` in Cursor Ask to plan, then Agent to build. Run `vibeops task ship` when finished.”
 
 **Removed from add (vs 0.7.x):**
 
@@ -129,9 +139,9 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 
 ---
 
-### `vibeops task done [taskRef]`
+### `vibeops task ship [taskRef]`
 
-**Purpose:** Close one TASK and refresh **project memory** so the next Cursor session sees current facts.
+**Purpose:** Submit one TASK — refresh **project memory**, commit, push, open MR/PR. Status → **Shipped**.
 
 **Default task ref:** Only TASK in **In Progress**, else TASK on current `task/*` branch, else error with hint.
 
@@ -141,26 +151,53 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
    - TASK file exists; on correct branch (warn if not).
    - **Result** and **Test Result** must be non-placeholder (LLM may fill first).
 
-2. **LLM assist (same provider stack as today: Codex OAuth → Cursor Agent CLI → OpenAI API)**
+2. **LLM assist** (same provider stack: Codex OAuth → Cursor Agent CLI → OpenAI API)
    - From `git diff` + TASK body: write **Result**, **Test Result** (facts: paths, commands).
-   - Propose **patches** (not full regen) for:
-     - `docs/project/05-current-state.md`
-     - `docs/project/06-decisions.md` (new bullets only, if decisions were made)
-     - `docs/project/03-architecture.md` (**only if** structure/paths changed)
-     - `docs/logs/YYYY-MM-DD.md` (append short entry, local date)
+   - Propose **patches** for `05-current-state`, `06-decisions`, `03-architecture` (if needed), daily log.
    - User-facing log: which files were updated vs skipped.
 
 3. **Git**
-   - Commit safe paths on task branch (no `node_modules` / `.next`).
-   - `git push` task branch; open **MR/PR** to integration branch via `gh` / `glab` (LLM title/body).
-   - Record MR/PR URL in Git Context. **No local merge** — human merges on host; CI deploys.
-   - Set Status **Done** + `doneAt` only after push/MR step succeeds (or existing MR URL).
+   - Commit safe paths on task branch (`feat(task-nnn): …`).
+   - Set Status **Shipped**; commit ship metadata (`docs(task-nnn): mark shipped`).
+   - `git push` task branch **once**; open **MR/PR** to integration via `gh` / `glab` (LLM title/body).
+   - Record MR/PR URL in Git Context. **No local merge** — human merges on host or via `task merge`.
 
 4. **No Notion sync.**
 
-**Flags:** `--dry-run`, `--no-pr` (push only), `--cwd`.
+**Flags:** `--dry-run`, `--no-pr`, `--cwd`.
 
-**Removed:** `next` follow-up, `next-task-suggestion.md` generation (optional later), Notion, MVP-only `TASK-mvp` defaults.
+---
+
+### `vibeops task merge [taskRef]`
+
+Merge the TASK MR/PR into the integration branch (default squash). Does **not** edit TASK markdown.
+
+**Flags:** `--dry-run`, `--merge`, `--rebase`, `--cwd`.
+
+---
+
+### `vibeops task sync [taskRef]`
+
+After merge: fetch, fast-forward integration branch, delete local/remote `task/*` branch. **Does not** edit TASK markdown (Status stays **Shipped**).
+
+**Flags:** `--dry-run`, `--no-remote-delete`, `--force`, `--cwd`.
+
+---
+
+### `vibeops task reship [taskRef]`
+
+**Purpose:** Same-TASK follow-up when Status is already **Shipped** (e.g. review feedback after merge).
+
+**Steps (summary):**
+
+1. Resolve TASK on `task/*` branch (or `--recreate-branch`).
+2. Integrate latest integration branch (`develop` by default; `--no-integrate` to skip).
+3. Commit, push, open **new** MR/PR; archive previous MR URL in Git Context (`previousMergeRequestUrls`, `reshipCount`).
+4. Status stays **Shipped**.
+
+**Flags:** `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`, `--allow-dirty`, `--cwd`.
+
+**Removed:** `task done`, `next` follow-up, Notion, MVP-only `TASK-mvp` defaults.
 
 ---
 
@@ -175,7 +212,7 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 - Focus TASK (branch-aligned), file path, Status.
 - Goal excerpt; Result / Test Result filled or empty.
 - Git: branch, clean/dirty, on task branch?, task branch exists?
-- **Next hint** (guide only): e.g. `task done`, `task add`, or `@TASK file in Cursor`.
+- **Next hint** (guide only): e.g. `task ship`, `task reship`, `task merge`, `task add`, or `@TASK file in Cursor`.
 
 **Flags:** `--json`, `--cwd`.
 
@@ -188,7 +225,7 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 | When | LLM does | LLM does not |
 |------|----------|----------------|
 | `task add` | Title, slug, minimal TASK sections | Multi-turn product interview |
-| `task done` | Result/Test + memory file patches | Implement code |
+| `task ship` / `task reship` | Result/Test + memory file patches | Implement code |
 | Cursor | Plan, edit TASK, write code | — |
 
 **Providers (keep):** Codex OAuth (`~/.codex/auth.json`), Cursor Agent CLI, `OPENAI_API_KEY`.
@@ -205,7 +242,7 @@ Documented in `AGENTS.md` + rules:
 |----------|--------|
 | Plan / edit TASK | Cursor **Ask**, `@docs/tasks/TASK-NNN-*.md` |
 | Implement | Cursor **Agent**, same file + Scope/AC |
-| Rules | `.cursor/rules/` — one TASK, git safety, update docs on done |
+| Rules | `.cursor/rules/` — one TASK, git safety, update docs before ship |
 | Skills | Optional `.cursor/skills/` — team adds as needed |
 
 **No** `vibeops agent`, `vibeops task prompt`, paste loops.
@@ -249,7 +286,7 @@ Documented in `AGENTS.md` + rules:
 
 **Required sections** (fewer than v1 18):
 
-1. Status  
+1. Status (**In Progress** | **Shipped** only)
 2. Goal  
 3. Scope  
 4. Out of Scope  
@@ -269,7 +306,7 @@ Optional: MVP Phase (legacy compat — ignore in new TASKs), Implementation Plan
 
 - Branch: `task/<slug>` from `parseTaskFilename`.
 - Commit message: `feat(task-nnn): <short title>`.
-- No force-push; `task done` pushes and opens MR/PR (merge on host).
+- No force-push; `task ship` / `task reship` push and open MR/PR (merge via `task merge` or host).
 - Governance paths: `.vibeops/**`, `docs/**` — stash/pop on branch switch when needed.
 
 ---
@@ -289,13 +326,14 @@ Optional: MVP Phase (legacy compat — ignore in new TASKs), Implementation Plan
 
 ## Success criteria (definition of done for v3 implementation)
 
-1. `pnpm smoke` passes with only: `init`, `task add` (non-interactive), `task done` (dry-run), `status`.
+1. `pnpm smoke` passes with: `init`, `task add` (non-interactive), `task ship` (dry-run), `status`.
 2. Fresh `vibeops init` tree matches [init](#vibeops-init) table; **no** `.vibeops/agents`.
-3. `task add` with In Progress TASK **exits with guide**; does not call `done` internally.
+3. `task add` with In Progress TASK **exits with guide**; Shipped does not block add.
 4. `task add` on clean tree creates `TASK-001`, branch, file survives branch switch (stash pop).
-5. `task done` updates `05-current-state` + TASK Result/Test; merge optional via flag.
-6. `status` output fits one screen; no Notion/GitHub sections.
-7. Package publishes without `@notionhq/client`; README documents 4 commands only.
+5. `task ship` updates Result/Test + may patch `05-current-state`; `task sync` does not edit TASK md.
+6. `task reship` on Shipped TASK opens new MR; Status stays Shipped.
+7. `status` output fits one screen; no Notion/GitHub sections.
+8. Package publishes without `@notionhq/client`; README documents ship / merge / sync / reship.
 
 ---
 
@@ -306,7 +344,7 @@ Optional: MVP Phase (legacy compat — ignore in new TASKs), Implementation Plan
 | **P0** | This document + CHANGELOG “v3 planned”. |
 | **P1** | Strip Notion/GitHub/plan/next; slim `cli.ts`; v3 templates + installer manifest. |
 | **P2** | `task add` guide-only + simplified LLM scaffold; remove `start`. |
-| **P3** | `task done` memory-file writer; slim `status`. |
+| **P3** | `task ship` memory-file writer; `task reship`; slim `status`. |
 | **P4** | README, 1.0.0 publish, goodtek-web dogfood note. |
 
 ---

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Docs before task ship
 
-Before `vibeops task ship`:
+Before `vibeops task ship` or `vibeops task reship`:
 
 1. Fill **Result** and **Test Result** in the TASK file.
 2. `task ship` may update `docs/project/*` via LLM.

@@ -8,6 +8,7 @@ import { taskAddCommand } from "./commands/task-add.js";
 import { taskMergeCommand } from "./commands/task-merge.js";
 import { taskReleaseCommand } from "./commands/task-release.js";
 import { taskShipCommand } from "./commands/task-ship.js";
+import { taskReshipCommand } from "./commands/task-reship.js";
 import { taskSyncCommand } from "./commands/task-sync.js";
 import { loadVibeopsEnv } from "./lib/env.js";
 import { VERSION } from "./version.js";
@@ -17,7 +18,7 @@ const program = new Command();
 program
   .name("vibeops")
   .description(
-    "VibeOps — TASK workflow (init · task add/ship/merge/sync · status · llm)",
+    "VibeOps — TASK workflow (init · task add/ship/reship/merge/sync · status · llm)",
   )
   .version(VERSION, "-v, --version", "Print the VibeOps version");
 
@@ -70,7 +71,7 @@ program
     });
   });
 
-const task = program.command("task").description("TASK lifecycle (add · ship · merge · sync · release)");
+const task = program.command("task").description("TASK lifecycle (add · ship · reship · merge · sync · release)");
 
 task
   .command("add")
@@ -90,7 +91,7 @@ task
 
 task
   .command("ship [taskRef]")
-  .description("Submit TASK: LLM summary, commit, push, open MR/PR (Status → Review)")
+  .description("Submit TASK: LLM summary, commit, push, open MR/PR (Status → Shipped)")
   .option("--dry-run", "Plan only")
   .option("--no-pr", "Push only; skip creating MR/PR")
   .option("--cwd <path>", "Target directory")
@@ -98,6 +99,30 @@ task
     await taskShipCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
       noPr: Boolean(opts.noPr),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+task
+  .command("reship [taskRef]")
+  .description("Follow-up on Shipped TASK: integrate develop, commit, new MR/PR")
+  .option("--dry-run", "Plan only")
+  .option("--no-pr", "Push only; skip creating MR/PR")
+  .option("--no-integrate", "Skip merging integration branch into task branch")
+  .option("--recreate-branch", "Recreate task branch from integration if missing")
+  .option("--skip-llm", "Do not run LLM for Result / Test Result")
+  .option("--allow-open-mr", "Allow reship while the recorded MR is still open")
+  .option("--allow-dirty", "Proceed when only governance paths are dirty")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await taskReshipCommand(taskRef, {
+      dryRun: Boolean(opts.dryRun),
+      noPr: Boolean(opts.noPr),
+      noIntegrate: Boolean(opts.noIntegrate),
+      recreateBranch: Boolean(opts.recreateBranch),
+      skipLlm: Boolean(opts.skipLlm),
+      allowOpenMr: Boolean(opts.allowOpenMr),
+      allowDirty: Boolean(opts.allowDirty),
       cwd: opts.cwd as string | undefined,
     });
   });
@@ -120,7 +145,7 @@ task
 
 task
   .command("sync [taskRef]")
-  .description("After MR merge: update integration branch, mark Done, delete task branch")
+  .description("After MR merge: integration pull and delete task branch (TASK md unchanged)")
   .option("--dry-run", "Plan only")
   .option("--no-remote-delete", "Keep the task branch on the remote")
   .option("--force", "Delete local task branch with -D if not fully merged")

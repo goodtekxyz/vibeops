@@ -22,6 +22,8 @@ export interface FinishTaskPullRequestOptions {
   readonly taskFile: string;
   readonly dryRun?: boolean;
   readonly skipPr?: boolean;
+  /** Open a new MR/PR even when Git Context already has a URL (`task reship`). */
+  readonly forceNewMergeRequest?: boolean;
 }
 
 export interface FinishTaskPullRequestResult {
@@ -97,7 +99,10 @@ export async function finishTaskWithPullRequest(
     );
   }
 
-  if (isExistingMergeRequestUrl(gitCtx.mergeRequestUrl)) {
+  if (
+    isExistingMergeRequestUrl(gitCtx.mergeRequestUrl) &&
+    opts.forceNewMergeRequest !== true
+  ) {
     log.info(dim(`Merge request already recorded: ${gitCtx.mergeRequestUrl}`));
     return { ok: true, mergeRequestUrl: gitCtx.mergeRequestUrl, pushed: true };
   }

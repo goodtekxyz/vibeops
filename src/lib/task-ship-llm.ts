@@ -132,6 +132,102 @@ Be factual. Do not invent files not in the diff.`,
   }
 }
 
+export async function llmCompleteTaskReship(params: {
+  readonly cwd: string;
+  readonly taskId: string;
+  readonly taskTitle: string;
+  readonly taskBody: string;
+  readonly taskFileRel: string;
+}): Promise<TaskShipLlmPatch | null> {
+  const git = await readGitInfo(params.cwd);
+  let diffSummary = "";
+  if (git.isRepo) {
+    const names = await gitDiffNameOnly(params.cwd);
+    diffSummary = names.slice(0, 40).join("\n") || "(no diff vs HEAD index yet)";
+  }
+
+  const paths = projectPaths(params.cwd);
+  const currentState = (await readOptional(join(paths.root, PROJECT_MEMORY_FILES.currentState))) ?? "";
+  const existingResult = readSection(params.taskBody, "Result");
+  const existingTest = readSection(params.taskBody, "Test Result");
+
+  const messages: OpenAiChatMessage[] = [
+    {
+      role: "system",
+      content: `You reship a follow-up on an already Shipped VibeOps TASK. Reply with JSON only:
+{
+  "result": "full Result section — preserve prior facts and add a ## Follow-up subsection for this pass",
+  "testResult": "full Test Result for this follow-up — commands and outcomes",
+  "currentStateMarkdown": "full replacement for docs/project/05-current-state.md OR null to skip",
+  "decisionsAppend": "markdown bullets to append under ## Decisions OR null",
+  "architectureUpdate": "full replacement for 03-architecture.md OR null if unchanged",
+  "logLine": "one line for docs/logs/YYYY-MM-DD.md"
+}
+Be factual. Do not invent files not in the diff.`,
+    },
+    {
+      role: "user",
+      content: [
+        `TASK follow-up reship: ${params.taskId} — ${params.taskTitle}`,
+        `File: ${params.taskFileRel}`,
+        "",
+        "Existing Result:",
+        existingResult || "(empty)",
+        "",
+        "Existing Test Result:",
+        existingTest || "(empty)",
+        "",
+        "Changed paths (working tree / HEAD):",
+        diffSummary,
+        "",
+        "Current project state excerpt:",
+        currentState.slice(0, 2000),
+      ].join("\n"),
+    },
+  ];
+
+  try {
+    const config = await readConfig(params.cwd);
+    const preference = getLlmPreferenceFromConfig(config);
+    const { text: raw, provider } = await llmCompleteJson(messages, {
+      cwd: params.cwd,
+      preference,
+    });
+    const parsed = JSON.parse(extractJsonObject(raw)) as Record<string, unknown>;
+    return {
+      result:
+        typeof parsed.result === "string" && parsed.result.trim().length > 0
+          ? parsed.result.trim()
+          : `${existingResult}\n\n## Follow-up\n\nReship ${params.taskId}.`,
+      testResult:
+        typeof parsed.testResult === "string" && parsed.testResult.trim().length > 0
+          ? parsed.testResult.trim()
+          : existingTest || "Follow-up verification required.",
+      currentStateMarkdown:
+        typeof parsed.currentStateMarkdown === "string" &&
+        parsed.currentStateMarkdown.trim().length > 0
+          ? parsed.currentStateMarkdown.trim()
+          : null,
+      decisionsAppend:
+        typeof parsed.decisionsAppend === "string" && parsed.decisionsAppend.trim().length > 0
+          ? parsed.decisionsAppend.trim()
+          : null,
+      architectureUpdate:
+        typeof parsed.architectureUpdate === "string" &&
+        parsed.architectureUpdate.trim().length > 0
+          ? parsed.architectureUpdate.trim()
+          : null,
+      logLine:
+        typeof parsed.logLine === "string" && parsed.logLine.trim().length > 0
+          ? parsed.logLine.trim()
+          : `${params.taskId} reship follow-up.`,
+      provider,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function applyTaskShipMemory(
   cwd: string,
   patch: TaskShipLlmPatch,

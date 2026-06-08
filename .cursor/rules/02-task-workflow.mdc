@@ -17,10 +17,12 @@ alwaysApply: true
 | Start | `vibeops task add` |
 | Build | Cursor (no CLI) |
 | Submit | `vibeops task ship TASK-NNN` |
+| Follow-up | `vibeops task reship TASK-NNN` (Shipped only, after merge) |
 | Integrate | `vibeops task merge TASK-NNN` (or host UI) |
 | Cleanup | `vibeops task sync TASK-NNN` |
 
 ## Completion
 
-- Fill **Result** and **Test Result** before `task ship`.
+- Fill **Result** and **Test Result** before `task ship` (or before `task reship` for follow-ups).
 - After MR merge (before or after optional `task sync`), update `05-current-state.md` and logs if not already done.
+- TASK **Status** stays **Shipped** after merge/sync — only `task add` sets **In Progress**.

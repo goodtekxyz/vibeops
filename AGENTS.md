@@ -41,7 +41,24 @@ Refer to `docs/project/01-requirements.md`, `08-env.md`, and `09-deployment.md` 
 4. Design **every mutating command** to support **`--dry-run`** where possible so the plan can be shown without side effects.
 5. Do **large refactors** only when a separate TASK explicitly covers them.
 6. Implement **Notion or Git integration** only in TASKs that explicitly own that responsibility.
-7. When work finishes, update docs according to [Completion report format](#completion-report-format) and `.cursor/rules/04-docs-update.mdc`.
+7. When work finishes, update docs before **`vibeops task ship`** (Result, Test Result, `05-current-state.md`, logs) per `.cursor/rules/03-docs-before-ship.mdc`.
+
+## CLI workflow (consumer projects)
+
+```bash
+vibeops task add
+# Cursor: plan + implement (@docs/tasks/TASK-NNN-*.md)
+
+vibeops task ship TASK-NNN
+vibeops task merge TASK-NNN    # or merge in GitHub/GitLab UI
+vibeops task sync TASK-NNN     # optional — integration pull + delete task branch
+
+# Same TASK follow-up:
+vibeops task reship TASK-NNN
+vibeops task merge TASK-NNN
+```
+
+TASK markdown **Status:** **In Progress** → **Shipped**. Merge and sync do not change the TASK file.
 
 Follow `.cursor/rules/` for details.
 
@@ -67,7 +84,8 @@ This project defines 8 agents in `.vibeops/agents/*.md`.
 - Creating a duplicate module **without searching** first.
 - Performing a **large refactor** without a separate TASK.
 - Adding **Notion or Git integration** not covered by the TASK.
-- Calling a TASK complete after implementation while skipping updates to **`05-current-state.md`, the TASK file, or `docs/logs/YYYY-MM-DD.md`**.
+- Calling a TASK ready to ship while skipping updates to **`05-current-state.md`, the TASK Result/Test Result, or `docs/logs/YYYY-MM-DD.md`** before `task ship`.
+- Running `task merge`, `task sync`, or `task reship` unless the human asks.
 
 ## Cursor rule files
 
@@ -77,11 +95,12 @@ This project defines 8 agents in `.vibeops/agents/*.md`.
 | `.cursor/rules/01-agent-orchestration.mdc`            | The 8 agents' roles and collaboration flow.       |
 | `.cursor/rules/02-task-workflow.mdc`                  | One-TASK start / progress / completion rules, dry-run first. |
 | `.cursor/rules/03-git-safety.mdc`                     | Branch and rollback safeguards, no force-push.    |
-| `.cursor/rules/04-docs-update.mdc`                    | Required doc updates after implementation.        |
+| `.cursor/rules/03-docs-before-ship.mdc`              | Fill Result/Test and project docs before `task ship`. |
+| `.cursor/rules/04-docs-update.mdc`                    | Required doc updates before ship.        |
 
 ## Completion report format
 
-When TASK implementation finishes, include at least the following in the chat response.
+When implementation is ready to ship, include at least the following in the chat response (human runs `vibeops task ship`).
 
 1. **TASK ID** (for example, `TASK-001`)
 2. **Summary** — 2 to 4 sentences describing what was accomplished.

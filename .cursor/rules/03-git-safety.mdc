@@ -16,8 +16,9 @@ alwaysApply: true
 
 ## Lifecycle (v4)
 
-- **`task ship`**: implementation commit + push + MR/PR; Status **Review** on task branch.
-- **`task merge`**: merge MR into integration (e.g. `develop`).
+- **`task ship`**: implementation commit + push + MR/PR; Status → **Shipped** on task branch.
+- **`task reship`**: Shipped follow-up — integrate develop, new MR/PR; Status stays **Shipped**.
+- **`task merge`**: merge MR into integration (e.g. `develop`); does not edit TASK md.
 - **`task sync`**: integration pull; delete task branch (TASK md stays **Shipped**).
 - **`task release`**: integration → production (separate from a TASK slice).
 

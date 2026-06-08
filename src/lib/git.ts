@@ -645,6 +645,15 @@ export async function gitPullFastForwardOnly(
   await runGit(cwd, ["pull", "--ff-only", remote, branch]);
 }
 
+/** Merge `remote/branch` into the current HEAD (follow-up integration). */
+export async function gitMergeRemoteBranch(
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<void> {
+  await runGit(cwd, ["merge", `${remote}/${branch}`, "--no-edit"]);
+}
+
 export async function gitPush(
   cwd: string,
   remote: string,

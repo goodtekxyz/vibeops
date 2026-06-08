@@ -1,5 +1,29 @@
 # 01 — Architecture
 
+> **Current lifecycle (2.1+):** `task add` → Cursor → `task ship` → `task merge` → optional `task sync`; Shipped follow-up via `task reship`. TASK md status: **In Progress** → **Shipped** only. See `docs/project/v3-scope.md` and `docs/project/05-current-state.md`. Sections below include **historical MVP 1–4** design (plan, notion, `task start/done`) retained for reference.
+
+## Task lifecycle (v4 — current)
+
+```
+vibeops task add
+  └─ TASK file + task branch, Status In Progress
+
+Cursor (Ask + Agent)
+  └─ plan + implement per docs/tasks/TASK-NNN-*.md
+
+vibeops task ship TASK-NNN
+  └─ Result/Test + commit + push + MR/PR, Status Shipped
+
+vibeops task merge TASK-NNN   (or host UI)
+  └─ merge MR into integration — TASK md unchanged
+
+vibeops task sync TASK-NNN   (optional)
+  └─ integration pull + delete task branch — TASK md unchanged
+
+vibeops task reship TASK-NNN   (optional, same TASK after merge)
+  └─ integrate develop + new MR/PR, Status stays Shipped
+```
+
 ## Big picture
 
 ```

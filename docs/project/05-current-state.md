@@ -1,35 +1,30 @@
 # 05 — Current State
 
-> This document records **facts only**. The `docs` agent updates it whenever an implementation finishes.
+> Facts only. Updated when implementation or release milestones land.
 
 ## Stage
 
-- **Current stage**: bootstrap complete. Planning / implementation has not started yet.
-- No code (`src/`, `package.json`, etc.) exists yet.
+- **Package:** `@goodtek/vibeops` **2.1.1** (local; publish when ready). **2.1.0** already on npm.
+- **CLI lifecycle:** `init` · `task add` · `task ship` · **`task reship`** · `task merge` · `task sync` · `task release` · `status` · `llm`.
+- **TASK md status:** **In Progress** → **Shipped** only. Merge/sync/reship follow-up do not rewrite Status (legacy Review/Done/Merged normalize when read).
 
-## What is in place
+## Implementation (this repo)
 
-| Item              | Location                              | Notes                       |
-| ----------------- | ------------------------------------- | --------------------------- |
-| Operating rules   | `AGENTS.md`, `.cursor/rules/*`        | Installed by VibeOps.       |
-| Agent definitions | `.vibeops/agents/*`                   | 8 files.                    |
-| Project docs      | `docs/project/00 ~ 09`                | Empty (waiting for plan).   |
-| TASK folder       | `docs/tasks/`                         | Empty (task generate).      |
-| Logs folder       | `docs/logs/`                          | Empty.                      |
+| Area | Path | Notes |
+|------|------|--------|
+| CLI commands | `src/commands/task-*.ts`, `src/cli.ts` | v4 lifecycle; `task done` removed |
+| Reship | `src/commands/task-reship.ts`, `src/lib/task-reship.ts` | Shipped follow-up, new MR, Git Context archive |
+| Git Context | `src/lib/task.ts` | MR URL, Previous Merge Requests, reship metadata |
+| Templates | `templates/core`, `templates/clients/*` | Shipped workflow, two statuses |
+| Smoke | `scripts/smoke.mjs` | init → add → ship/merge/sync dry-run |
 
-## What is still missing
+## Next
 
-- The actual body of `docs/project/*` (the slots planner / architect will fill).
-- `docs/tasks/TASK-001-*.md` (task generate).
-- Any application code.
-- Notion connection (run `vibeops notion init` if you want it).
+- npm publish `@goodtek/vibeops@2.1.1` (docs/templates delta over 2.1.0).
+- Consumer projects (e.g. goodtek-web): `npm i -g @goodtek/vibeops@2.1.1` and align Cursor rules if needed.
 
-## Next TASK
+## Progress rules
 
-**No backlog yet.** Run `vibeops plan --idea "<your idea>"` to populate `docs/project/{00,01,02,07}`; the first TASK candidates appear after that.
-
-## Progress rules (short summary)
-
-- One TASK at a time.
-- Every mutating command supports `--dry-run` where possible.
-- When implementation ends, update this document, the corresponding TASK file, and `docs/logs/YYYY-MM-DD.md` together.
+- One TASK at a time in consumer repos.
+- Docs before ship: Result, Test Result, `05-current-state.md`, daily log.
+- `task sync` does not edit TASK markdown.

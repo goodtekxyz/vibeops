@@ -1,5 +1,7 @@
 # 00 — Overview
 
+> **Product (2.1+):** See `docs/project/v3-scope.md` — `task add` / `ship` / `reship` / `merge` / `sync`; TASK status **In Progress** → **Shipped**. The sections below describe the **original MVP vision** (plan, 8 agents, Notion sync) retained for history.
+
 ## One-line definition
 
 **VibeOps** is a **local CLI** that, when a new project starts, installs an in-repo **doc structure, Cursor rules, AGENTS.md, agent definitions, TASK templates, Git task lifecycle, and Notion dashboard sync** so that **Cursor-based vibe coding** runs on rails.

@@ -1,5 +1,7 @@
 # 03 — Current State
 
+> **Archived snapshot (MVP 1–4 era).** For the live package state see **`docs/project/05-current-state.md`**.
+
 > This document records **facts only**. Plans live in [05-backlog.md](05-backlog.md).
 
 ## Stage

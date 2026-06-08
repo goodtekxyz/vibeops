@@ -394,6 +394,30 @@ export async function updateTaskSection(
   }
 }
 
+function parsePreviousMergeRequestUrls(content: string): string[] {
+  const lines = content.split("\n");
+  const urls: string[] = [];
+  let inBlock = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith("- Previous Merge Requests:")) {
+      inBlock = true;
+      continue;
+    }
+    if (inBlock) {
+      const m = /^\s*-\s+(https?:\/\/.+)$/.exec(line);
+      if (m) {
+        urls.push(m[1]!.trim());
+        continue;
+      }
+      if (t.startsWith("- ") && !line.startsWith("  ")) {
+        break;
+      }
+    }
+  }
+  return urls;
+}
+
 function renderGitContextBlock(ctx: GitContext): string {
   const lines: string[] = [
     `- Base Branch: \`${ctx.baseBranch}\``,
@@ -407,10 +431,39 @@ function renderGitContextBlock(ctx: GitContext): string {
   if (typeof ctx.mergeRequestUrl === "string" && ctx.mergeRequestUrl.length > 0) {
     lines.push(`- Merge Request: ${ctx.mergeRequestUrl}`);
   }
+  const prev = ctx.previousMergeRequestUrls ?? [];
+  if (prev.length > 0) {
+    lines.push("- Previous Merge Requests:");
+    for (const url of prev) {
+      lines.push(`  - ${url}`);
+    }
+  }
   if (typeof ctx.pushedAt === "string" && ctx.pushedAt.length > 0) {
     lines.push(`- Pushed At: \`${ctx.pushedAt}\``);
   }
+  if (typeof ctx.lastReshipAt === "string" && ctx.lastReshipAt.length > 0) {
+    lines.push(`- Last Reship At: \`${ctx.lastReshipAt}\``);
+  }
+  if (typeof ctx.reshipCount === "number" && ctx.reshipCount > 0) {
+    lines.push(`- Reship Count: \`${ctx.reshipCount}\``);
+  }
   return lines.join("\n");
+}
+
+/** Archive current MR URL and bump reship metadata before opening a follow-up PR. */
+export function archiveMergeRequestForReship(ctx: GitContext): GitContext {
+  const previous = [...(ctx.previousMergeRequestUrls ?? [])];
+  const current = ctx.mergeRequestUrl?.trim();
+  if (typeof current === "string" && current.length > 0) {
+    previous.push(current);
+  }
+  return {
+    ...ctx,
+    previousMergeRequestUrls: previous.length > 0 ? previous : undefined,
+    mergeRequestUrl: undefined,
+    reshipCount: (ctx.reshipCount ?? 0) + 1,
+    lastReshipAt: new Date().toISOString(),
+  };
 }
 
 export async function upsertGitContext(
@@ -434,7 +487,7 @@ export async function upsertGitContext(
   }
 }
 
-const GIT_CTX_RE: Record<keyof GitContext, RegExp> = {
+const GIT_CTX_RE = {
   baseBranch: /^-\s+Base Branch:\s*`([^`]+)`/m,
   baseCommit: /^-\s+Base Commit:\s*`([^`]+)`/m,
   taskBranch: /^-\s+Task Branch:\s*`([^`]+)`/m,
@@ -442,7 +495,9 @@ const GIT_CTX_RE: Record<keyof GitContext, RegExp> = {
   doneAt: /^-\s+Done At:\s*`([^`]+)`/m,
   mergeRequestUrl: /^-\s+Merge Request:\s*(.+)$/m,
   pushedAt: /^-\s+Pushed At:\s*`([^`]+)`/m,
-};
+  lastReshipAt: /^-\s+Last Reship At:\s*`([^`]+)`/m,
+  reshipCount: /^-\s+Reship Count:\s*`(\d+)`/m,
+} as const;
 
 export async function markGitContextDone(filePath: string): Promise<void> {
   const ctx = await readGitContext(filePath);
@@ -462,11 +517,24 @@ export async function readGitContext(filePath: string): Promise<GitContext | nul
   const doneAt = content.match(GIT_CTX_RE.doneAt)?.[1];
   const mergeRequestUrl = content.match(GIT_CTX_RE.mergeRequestUrl)?.[1]?.trim();
   const pushedAt = content.match(GIT_CTX_RE.pushedAt)?.[1];
+  const lastReshipAt = content.match(GIT_CTX_RE.lastReshipAt)?.[1];
+  const reshipCountRaw = content.match(GIT_CTX_RE.reshipCount)?.[1];
+  const previousMergeRequestUrls = parsePreviousMergeRequestUrls(content);
   const ctx: GitContext = { baseBranch, baseCommit, taskBranch, startedAt };
   if (typeof doneAt === "string" && doneAt.length > 0) ctx.doneAt = doneAt;
   if (typeof mergeRequestUrl === "string" && mergeRequestUrl.length > 0) {
     ctx.mergeRequestUrl = mergeRequestUrl;
   }
+  if (previousMergeRequestUrls.length > 0) {
+    ctx.previousMergeRequestUrls = previousMergeRequestUrls;
+  }
   if (typeof pushedAt === "string" && pushedAt.length > 0) ctx.pushedAt = pushedAt;
+  if (typeof lastReshipAt === "string" && lastReshipAt.length > 0) {
+    ctx.lastReshipAt = lastReshipAt;
+  }
+  if (typeof reshipCountRaw === "string") {
+    const n = Number.parseInt(reshipCountRaw, 10);
+    if (Number.isFinite(n) && n > 0) ctx.reshipCount = n;
+  }
   return ctx;
 }

@@ -129,6 +129,7 @@ async function buildReport(cwd: string): Promise<StatusReport> {
       typeof mergeRequestUrl === "string" && mergeRequestUrl.length > 0,
     mergeRequestMerged,
     needsSync,
+    hasLocalChanges: git.dirty === true,
   });
 
   const llm = isVibeopsProject ? await buildLlmStatusReport(cwd) : null;

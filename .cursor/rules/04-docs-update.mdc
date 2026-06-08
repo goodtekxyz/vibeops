@@ -5,11 +5,13 @@ alwaysApply: true
 
 # Docs Update
 
-When implementation finishes, update these **together**. The TASK is not complete until all three are updated.
+Before **`vibeops task ship`** (or **`task reship`** for Shipped follow-ups), update these **together**:
 
 1. **`docs/project/05-current-state.md`** — facts only (implementation stage, paths, next TASK).
-2. **`docs/tasks/TASK-NNN-*.md`** — Status, **Result**, **Test Result**.
+2. **`docs/tasks/TASK-NNN-*.md`** — **Result**, **Test Result** (Status is set by CLI: In Progress at add, Shipped at ship/reship).
 3. **`docs/logs/YYYY-MM-DD.md`** — use the local-date filename; create it if missing. Append to the same file for the same day.
+
+`task merge` and `task sync` do **not** edit TASK markdown.
 
 ## Writing tone
 

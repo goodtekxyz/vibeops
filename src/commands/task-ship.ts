@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
-import { requireGitConfig } from "../lib/git-config.js";
 import { bold, cyan, dim, green, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { resolveTask, taskNotFoundMessage } from "../lib/resolve-task.js";
@@ -10,7 +9,6 @@ import {
   commitDirtyWorkingTree,
   docsCommitMessageFor,
   featCommitMessageFor,
-  pushBranch,
 } from "../lib/task-git-commit.js";
 import {
   applyTaskShipMemory,
@@ -33,22 +31,16 @@ export interface TaskShipCommandOptions {
   noPr?: boolean;
 }
 
-async function commitShipMetadataAndPush(opts: {
+async function commitShipMetadata(opts: {
   readonly cwd: string;
   readonly taskFile: string;
   readonly taskId: string;
   readonly dryRun: boolean;
-  readonly push: { readonly remote: string; readonly branch: string } | null;
-}): Promise<boolean> {
+}): Promise<void> {
   if (opts.dryRun) {
     log.info(dim("  would set Status → Shipped"));
     log.info(dim("  would commit ship metadata"));
-    if (opts.push !== null) {
-      log.info(
-        dim(`  would git push ${opts.push.remote} ${opts.push.branch} (ship metadata)`),
-      );
-    }
-    return true;
+    return;
   }
 
   await updateInlineStatus(opts.taskFile, "shipped");
@@ -61,22 +53,6 @@ async function commitShipMetadataAndPush(opts: {
   );
   if (!committed) {
     log.warn("No file changes for ship metadata commit — check TASK Status on the remote branch.");
-    return true;
-  }
-
-  if (opts.push === null) return true;
-
-  try {
-    await pushBranch(opts.cwd, opts.push.remote, opts.push.branch, false);
-    log.ok(`Pushed ship metadata → ${opts.push.remote}/${opts.push.branch}`);
-    return true;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.error(`Ship metadata push failed: ${msg}`);
-    log.info(
-      dim(`Fix auth/remote, then: git push ${opts.push.remote} ${opts.push.branch}`),
-    );
-    return false;
   }
 }
 
@@ -152,26 +128,20 @@ export async function taskShipCommand(
     if (!resultOk || !testOk) {
       log.info("  · LLM fill Result / Test Result + patch docs/project/*");
     }
-    log.info("  · commit implementation, push task branch, open MR/PR (unless --no-pr)");
-    log.info("  · Status → Shipped; commit metadata; push again");
+    log.info("  · commit implementation + ship metadata (Status → Shipped)");
+    log.info("  · push task branch once, open MR/PR (unless --no-pr)");
+    const partsDry = parseTaskFilename(taskFile);
+    await commitShipMetadata({
+      cwd,
+      taskFile,
+      taskId: partsDry.id,
+      dryRun: true,
+    });
     await finishTaskWithPullRequest({
       cwd,
       taskFile,
       dryRun: true,
       skipPr: options.noPr === true,
-    });
-    const gitCtxDry = await readGitContext(taskFile);
-    const gitCfgDry =
-      gitCtxDry !== null ? await requireGitConfig(cwd).catch(() => null) : null;
-    await commitShipMetadataAndPush({
-      cwd,
-      taskFile,
-      taskId,
-      dryRun: true,
-      push:
-        gitCtxDry !== null && gitCfgDry !== null
-          ? { remote: gitCfgDry.remote, branch: gitCtxDry.taskBranch }
-          : null,
     });
     return;
   }
@@ -181,6 +151,13 @@ export async function taskShipCommand(
 
   const gitCtx = await readGitContext(taskFile);
   if (gitCtx !== null) {
+    await commitShipMetadata({
+      cwd,
+      taskFile,
+      taskId: parts.id,
+      dryRun: false,
+    });
+
     const prResult = await finishTaskWithPullRequest({
       cwd,
       taskFile,
@@ -196,30 +173,6 @@ export async function taskShipCommand(
     }
   } else {
     log.info(dim("No Git Context — push/MR skipped."));
-  }
-
-  const gitCtxAfter = await readGitContext(taskFile);
-  let pushTarget: { remote: string; branch: string } | null = null;
-  if (gitCtxAfter !== null) {
-    try {
-      const gitCfg = await requireGitConfig(cwd);
-      pushTarget = { remote: gitCfg.remote, branch: gitCtxAfter.taskBranch };
-    } catch (e) {
-      if (e instanceof Error) log.warn(e.message);
-    }
-  }
-
-  const shipped = await commitShipMetadataAndPush({
-    cwd,
-    taskFile,
-    taskId: parts.id,
-    dryRun: false,
-    push: pushTarget,
-  });
-  if (!shipped) {
-    log.error("Ship metadata push failed — fix manually, then merge the MR.");
-    process.exitCode = 1;
-    return;
   }
 
   log.blank();
