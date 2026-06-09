@@ -6,6 +6,7 @@ import { initCommand } from "./commands/init.js";
 import { llmConnectCommand, llmStatusCommand, llmUseCommand } from "./commands/llm.js";
 import { statusCommand } from "./commands/status.js";
 import { taskAddCommand } from "./commands/task-add.js";
+import { taskDelCommand } from "./commands/task-del.js";
 import { taskMergeCommand } from "./commands/task-merge.js";
 import { taskReleaseCommand } from "./commands/task-release.js";
 import { taskShipCommand } from "./commands/task-ship.js";
@@ -72,7 +73,9 @@ program
     });
   });
 
-const task = program.command("task").description("TASK lifecycle (add · ship · reship · merge · sync · release)");
+const task = program
+  .command("task")
+  .description("TASK lifecycle (add · del · ship · reship · merge · sync · release)");
 
 task
   .command("add")
@@ -86,6 +89,24 @@ task
       dryRun: Boolean(opts.dryRun),
       nonInteractive: Boolean(opts.nonInteractive),
       idea: opts.idea as string | undefined,
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+task
+  .command("del [taskRef]")
+  .description("Delete TASK before merge: remove md, close open MR/PR, delete task branch")
+  .option("--dry-run", "Plan only")
+  .option("--force", "Proceed with a dirty working tree (changes may remain)")
+  .option("--no-remote-delete", "Keep the task branch on the remote")
+  .option("--no-close-mr", "Do not close an open MR/PR")
+  .option("--cwd <path>", "Target directory")
+  .action(async (taskRef: string | undefined, opts) => {
+    await taskDelCommand(taskRef, {
+      dryRun: Boolean(opts.dryRun),
+      force: Boolean(opts.force),
+      noRemoteDelete: Boolean(opts.noRemoteDelete),
+      noCloseMr: Boolean(opts.noCloseMr),
       cwd: opts.cwd as string | undefined,
     });
   });

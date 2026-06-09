@@ -4,6 +4,16 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.3.0 - 2026-06-09
+
+### Added
+
+- **`vibeops task del [TASK-NNN]`** — cancel a TASK before merge: delete `docs/tasks/*.md`, close open MR/PR (unless `--no-close-mr`), delete local/remote `task/*` branch. Refuses when the MR is **merged** into integration.
+
+### Flags
+
+- `--dry-run`, `--force` (dirty working tree), `--no-remote-delete`, `--no-close-mr`, `--cwd`
+
 ## 2.2.1 - 2026-06-09
 
 ### Fixed

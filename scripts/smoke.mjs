@@ -43,6 +43,7 @@ try {
       "--cwd",
       tmpRoot,
     ],
+    ["task", "del", "TASK-001", "--dry-run", "--cwd", tmpRoot],
     ["task", "ship", "--dry-run", "--cwd", tmpRoot],
     ["task", "merge", "--dry-run", "--cwd", tmpRoot],
     ["task", "sync", "--dry-run", "--cwd", tmpRoot],

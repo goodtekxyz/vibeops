@@ -139,6 +139,18 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 
 ---
 
+### `vibeops task del [taskRef]`
+
+**Purpose:** Cancel a TASK **before merge** — delete TASK md, close open MR/PR, delete `task/*` branch.
+
+**Refuses** when the MR is **merged** into integration (use revert + keep TASK history).
+
+**Default task ref:** In Progress TASK only (pass `TASK-NNN` for Shipped with open/closed MR).
+
+**Flags:** `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`, `--cwd`.
+
+---
+
 ### `vibeops task ship [taskRef]`
 
 **Purpose:** Submit one TASK — refresh **project memory**, commit, push, open MR/PR. Status → **Shipped**.

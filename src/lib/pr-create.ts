@@ -266,6 +266,36 @@ export interface MergeMergeRequestOptions {
   readonly dryRun?: boolean;
 }
 
+export interface CloseMergeRequestOptions {
+  readonly cwd: string;
+  readonly host: GitHost;
+  readonly url: string;
+  readonly dryRun?: boolean;
+}
+
+export async function closeMergeRequest(opts: CloseMergeRequestOptions): Promise<void> {
+  const ref = prRefFromUrl(opts.url);
+  const label = mergeRequestLabel(opts.host);
+
+  if (opts.dryRun === true) {
+    log.info(`would close ${label} ${ref}`);
+    return;
+  }
+
+  if (opts.host === "gitlab") {
+    await execFileAsync("glab", ["mr", "close", ref], {
+      cwd: opts.cwd,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    return;
+  }
+
+  await execFileAsync("gh", ["pr", "close", ref], {
+    cwd: opts.cwd,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+}
+
 export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise<void> {
   const ref = prRefFromUrl(opts.url);
   const method = opts.method ?? "squash";

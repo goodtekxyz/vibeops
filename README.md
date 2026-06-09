@@ -13,6 +13,7 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 |---------|---------|
 | `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
+| `vibeops task del` | Cancel TASK before merge (md + branch + close open MR) |
 | `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → **Shipped**) |
 | `vibeops task reship` | Shipped follow-up: move uncommitted work to task branch, commit, new MR/PR (Status stays Shipped) |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
@@ -97,6 +98,7 @@ pnpm install && pnpm build && pnpm smoke
 
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--allow-no-remote`, `--cwd`
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
+- **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
 - **`task ship`**: `--dry-run`, `--no-pr`
 - **`task reship`**: `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
