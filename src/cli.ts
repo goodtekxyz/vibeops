@@ -117,7 +117,10 @@ task
     "Create task branch from integration instead of reusing local/remote ref",
   )
   .option("--skip-llm", "Do not run LLM for Result / Test Result")
-  .option("--allow-open-mr", "Allow reship while the recorded MR is still open")
+  .option(
+    "--allow-open-mr",
+    "Update the open MR/PR with new commits (merge before reship for a new PR)",
+  )
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
     await taskReshipCommand(taskRef, {

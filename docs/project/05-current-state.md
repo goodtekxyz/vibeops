@@ -4,7 +4,7 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.2.0** (local; publish when ready). **2.1.3** on npm.
+- **Package:** `@goodtek/vibeops` **2.2.1** (local; publish when ready). **2.2.0** on npm.
 - **CLI lifecycle:** `init` · `task add` · `task ship` · **`task reship`** · `task merge` · `task sync` · **`pull`** · `task release` · `status` · `llm`.
 - **TASK md status:** **In Progress** → **Shipped** only. Merge/sync/reship follow-up do not rewrite Status (legacy Review/Done/Merged normalize when read).
 
@@ -21,8 +21,8 @@
 
 ## Next
 
-- npm publish `@goodtek/vibeops@2.2.0` (pull + reship UX).
-- Consumer projects: `npm i -g @goodtek/vibeops@2.2.0` and align Cursor rules if needed.
+- npm publish `@goodtek/vibeops@2.2.1` (reship --allow-open-mr fix).
+- Consumer projects: `npm i -g @goodtek/vibeops@2.2.1`.
 
 ## Progress rules
 

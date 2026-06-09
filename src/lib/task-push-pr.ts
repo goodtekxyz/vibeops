@@ -30,6 +30,15 @@ export interface FinishTaskPullRequestOptions {
   readonly forceNewMergeRequest?: boolean;
 }
 
+function mergeRequestAlreadyExistsMessage(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("already exists") ||
+    lower.includes("merge request already exists") ||
+    lower.includes("pull request already exists")
+  );
+}
+
 export interface FinishTaskPullRequestResult {
   readonly ok: boolean;
   readonly mergeRequestUrl?: string;
@@ -100,20 +109,6 @@ export async function finishTaskWithPullRequest(
     );
   }
 
-  if (opts.skipPr !== true && opts.forceNewMergeRequest !== true) {
-    const existing = await findMergeRequestByBranches({
-      cwd: opts.cwd,
-      host: gitCfg.host,
-      headBranch: gitCtx.taskBranch,
-      baseBranch: gitCtx.baseBranch,
-      state: "open",
-    });
-    if (existing !== null) {
-      log.info(dim(`Open ${label} already exists: ${existing.url}`));
-      return { ok: true, mergeRequestUrl: existing.url, pushed: true };
-    }
-  }
-
   const ahead = await gitCommitsAhead(opts.cwd, gitCtx.baseCommit, "HEAD");
   if (ahead === 0) {
     log.warn("No commits ahead of base — pushing branch anyway.");
@@ -131,6 +126,21 @@ export async function finishTaskWithPullRequest(
   if (opts.skipPr === true) {
     log.info(dim("Merge request creation skipped (--no-pr)."));
     return { ok: true, pushed: true };
+  }
+
+  if (opts.forceNewMergeRequest !== true) {
+    const existing = await findMergeRequestByBranches({
+      cwd: opts.cwd,
+      host: gitCfg.host,
+      headBranch: gitCtx.taskBranch,
+      baseBranch: gitCtx.baseBranch,
+      state: "open",
+    });
+    if (existing !== null) {
+      log.ok(`Open ${label} updated: ${existing.url}`);
+      log.info(dim("MR/PR URL is on the host — not written to TASK md (use task merge)."));
+      return { ok: true, mergeRequestUrl: existing.url, pushed: true };
+    }
   }
 
   const cliOk = await probeMergeRequestCli(gitCfg.host);
@@ -174,6 +184,20 @@ export async function finishTaskWithPullRequest(
     return { ok: true, mergeRequestUrl: url, pushed: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (mergeRequestAlreadyExistsMessage(msg)) {
+      const existing = await findMergeRequestByBranches({
+        cwd: opts.cwd,
+        host: gitCfg.host,
+        headBranch: gitCtx.taskBranch,
+        baseBranch: gitCtx.baseBranch,
+        state: "open",
+      });
+      if (existing !== null) {
+        log.ok(`Open ${label} updated: ${existing.url}`);
+        log.info(dim("MR/PR URL is on the host — not written to TASK md (use task merge)."));
+        return { ok: true, mergeRequestUrl: existing.url, pushed: true };
+      }
+    }
     log.error(`Could not create merge request: ${msg}`);
     log.info(
       dim(

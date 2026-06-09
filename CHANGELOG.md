@@ -4,6 +4,13 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.2.1 - 2026-06-09
+
+### Fixed
+
+- **`vibeops task reship --allow-open-mr`**: push then reuse the open MR/PR instead of failing on duplicate `gh pr create`. Skips reship metadata archive when updating the same PR.
+- **`finishTaskWithPullRequest`**: push before checking for an open MR so follow-up commits reach the remote.
+
 ## 2.2.0 - 2026-06-09
 
 ### Added

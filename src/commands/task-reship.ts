@@ -95,8 +95,9 @@ export async function taskReshipCommand(
 
   const integrationBranch = gitCfg?.integrationBranch ?? "develop";
   const remote = gitCfg?.remote ?? "origin";
+  const updateOpenMr = options.allowOpenMr === true;
 
-  if (!dryRun && !(await assertMergeRequestNotOpen(cwd, taskFile, options.allowOpenMr === true))) {
+  if (!dryRun && !(await assertMergeRequestNotOpen(cwd, taskFile, updateOpenMr))) {
     process.exitCode = 1;
     return;
   }
@@ -166,7 +167,11 @@ export async function taskReshipCommand(
 
   if (dryRun) {
     log.info(bold("dry-run — would also:"));
-    log.info("  · feat commit + reship metadata, then push once and open MR/PR (unless --no-pr)");
+    if (updateOpenMr) {
+      log.info("  · feat commit, push, update open MR/PR (unless --no-pr)");
+    } else {
+      log.info("  · feat commit + reship metadata, then push once and open MR/PR (unless --no-pr)");
+    }
     log.blank();
     log.info(`Next: ${cyan("vibeops task merge")}, then optional ${cyan("task sync")}`);
     return;
@@ -195,21 +200,25 @@ export async function taskReshipCommand(
     return;
   }
 
-  gitCtx = await refreshGitContextBaseCommit(taskFile, gitCtx, cwd);
-  gitCtx = await prepareGitContextForReship(cwd, taskFile, gitCtx);
+  if (updateOpenMr) {
+    log.info(dim("Updating open MR/PR (--allow-open-mr)."));
+  } else {
+    gitCtx = await refreshGitContextBaseCommit(taskFile, gitCtx, cwd);
+    gitCtx = await prepareGitContextForReship(cwd, taskFile, gitCtx);
 
-  await commitReshipMetadata({
-    cwd,
-    taskFile,
-    taskId: parts.id,
-    dryRun: false,
-  });
+    await commitReshipMetadata({
+      cwd,
+      taskFile,
+      taskId: parts.id,
+      dryRun: false,
+    });
+  }
 
   const prResult = await finishTaskWithPullRequest({
     cwd,
     taskFile,
     skipPr: options.noPr === true,
-    forceNewMergeRequest: true,
+    forceNewMergeRequest: !updateOpenMr,
   });
   if (!prResult.ok) {
     log.error("Reship failed — fix push/MR, then rerun task reship.");
