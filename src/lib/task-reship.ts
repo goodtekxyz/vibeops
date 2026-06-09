@@ -5,8 +5,8 @@ import {
   gitBranchExists,
   gitCheckout,
   gitCheckoutNewBranch,
+  gitDeleteBranch,
   gitFetchRemote,
-  gitGovernanceOnlyDirty,
   gitHeadCommit,
   gitMergeRemoteBranch,
   gitMergeInProgress,
@@ -98,76 +98,58 @@ export interface EnsureTaskBranchOptions {
   readonly gitCtx: GitContext;
   readonly integrationBranch: string;
   readonly remote: string;
+  /** Prefer recreating from integration instead of checking out a stale remote ref. */
   readonly recreateBranch: boolean;
   readonly dryRun: boolean;
-  readonly allowDirty: boolean;
 }
 
-/** Checkout or recreate the task branch without changing TASK Status. */
-export async function ensureTaskBranchForReship(
+async function switchToTaskBranch(cwd: string, taskBranch: string): Promise<boolean> {
+  try {
+    await gitCheckout(cwd, taskBranch);
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.error(
+      `Could not switch to ${taskBranch} with uncommitted changes. Commit, stash, or resolve conflicts, then rerun.`,
+    );
+    if (msg.length > 0) log.info(dim(msg));
+    return false;
+  }
+}
+
+async function removeLocalTaskBranch(
+  cwd: string,
+  taskBranch: string,
+  integrationBranch: string,
+  remote: string,
+): Promise<boolean> {
+  if (!(await gitBranchExists(cwd, taskBranch))) return true;
+
+  const git = await readGitInfo(cwd);
+  if (git.branch === taskBranch) {
+    const ok = await gitSwitchToBranch(cwd, integrationBranch, remote);
+    if (!ok) {
+      log.error(`Integration branch "${integrationBranch}" not found.`);
+      return false;
+    }
+  }
+
+  try {
+    await gitDeleteBranch(cwd, taskBranch, { force: true });
+    log.info(dim(`Removed local ${taskBranch}.`));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.error(`Could not remove local ${taskBranch}: ${msg}`);
+    return false;
+  }
+  return true;
+}
+
+async function recreateTaskBranchFromIntegration(
   opts: EnsureTaskBranchOptions,
 ): Promise<boolean> {
   const cwd = resolve(opts.cwd);
   const { taskBranch } = opts.gitCtx;
-  const git = await readGitInfo(cwd);
-
-  if (!git.isRepo) {
-    log.error("Not a git repository.");
-    return false;
-  }
-
-  if (git.dirty === true && !opts.allowDirty) {
-    const gov = await gitGovernanceOnlyDirty(cwd);
-    if (!gov.onlyGovernance) {
-      log.error("Working tree is dirty. Commit or stash, or rerun with --allow-dirty.");
-      return false;
-    }
-    log.warn("Only governance paths are dirty — proceeding.");
-  }
-
-  const localExists = await gitBranchExists(cwd, taskBranch);
-  const remoteExists = await gitRemoteBranchExists(
-    cwd,
-    opts.remote,
-    taskBranch,
-  );
-
-  if (opts.dryRun) {
-    if (localExists) {
-      log.info(dim(`  would git switch ${taskBranch}`));
-    } else if (opts.recreateBranch) {
-      log.info(
-        dim(
-          `  would recreate ${taskBranch} from ${opts.integrationBranch}`,
-        ),
-      );
-    } else {
-      log.error(
-        `Local branch ${taskBranch} missing. Rerun with --recreate-branch.`,
-      );
-      return false;
-    }
-    return true;
-  }
-
-  if (localExists) {
-    await gitCheckout(cwd, taskBranch);
-    log.ok(`On ${taskBranch}`);
-    return true;
-  }
-
-  if (!opts.recreateBranch) {
-    if (remoteExists) {
-      log.error(
-        `Local ${taskBranch} missing. Fetch/checkout the branch or rerun with --recreate-branch.`,
-      );
-    } else {
-      log.error(
-        `Branch ${taskBranch} not found locally or on ${opts.remote}. Use --recreate-branch.`,
-      );
-    }
-    return false;
-  }
 
   const ok = await gitSwitchToBranch(cwd, opts.integrationBranch, opts.remote);
   if (!ok) {
@@ -191,14 +173,94 @@ export async function ensureTaskBranchForReship(
     return false;
   }
 
-  await gitCheckoutNewBranch(cwd, taskBranch, opts.integrationBranch);
+  try {
+    await gitCheckoutNewBranch(cwd, taskBranch, opts.integrationBranch);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.error(
+      `Could not create ${taskBranch} from ${opts.integrationBranch} with uncommitted changes.`,
+    );
+    if (msg.length > 0) log.info(dim(msg));
+    return false;
+  }
+
   await upsertGitContext(opts.taskFile, {
     ...opts.gitCtx,
     baseBranch: opts.integrationBranch,
     baseCommit: head,
   });
-  log.ok(`Recreated ${taskBranch} from ${opts.integrationBranch}`);
+  log.ok(`Created ${taskBranch} from ${opts.integrationBranch}`);
   return true;
+}
+
+/** Checkout or recreate the task branch without changing TASK Status. */
+export async function ensureTaskBranchForReship(
+  opts: EnsureTaskBranchOptions,
+): Promise<boolean> {
+  const cwd = resolve(opts.cwd);
+  const { taskBranch } = opts.gitCtx;
+  const git = await readGitInfo(cwd);
+
+  if (!git.isRepo) {
+    log.error("Not a git repository.");
+    return false;
+  }
+
+  if (git.dirty === true) {
+    log.info(dim("Uncommitted changes will be carried onto the task branch."));
+  }
+
+  const localExists = await gitBranchExists(cwd, taskBranch);
+  const remoteExists = await gitRemoteBranchExists(
+    cwd,
+    opts.remote,
+    taskBranch,
+  );
+  const recreateFromIntegration =
+    opts.recreateBranch === true || (!localExists && !remoteExists);
+
+  if (opts.dryRun) {
+    if (localExists && !opts.recreateBranch) {
+      log.info(dim(`  would git switch ${taskBranch}`));
+    } else if (!recreateFromIntegration && remoteExists) {
+      log.info(dim(`  would checkout ${taskBranch} from ${opts.remote}`));
+    } else {
+      if (localExists && opts.recreateBranch) {
+        log.info(dim(`  would remove local ${taskBranch}`));
+      }
+      log.info(
+        dim(`  would create ${taskBranch} from ${opts.integrationBranch}`),
+      );
+    }
+    return true;
+  }
+
+  if (localExists && !opts.recreateBranch) {
+    if (!(await switchToTaskBranch(cwd, taskBranch))) return false;
+    log.ok(`On ${taskBranch}`);
+    return true;
+  }
+
+  if (!recreateFromIntegration && remoteExists) {
+    const checkedOut = await gitSwitchToBranch(cwd, taskBranch, opts.remote);
+    if (checkedOut) {
+      log.ok(`Checked out ${taskBranch} from ${opts.remote}`);
+      return true;
+    }
+    log.warn(`Could not checkout ${opts.remote}/${taskBranch}; creating from integration.`);
+  }
+
+  if (localExists) {
+    const removed = await removeLocalTaskBranch(
+      cwd,
+      taskBranch,
+      opts.integrationBranch,
+      opts.remote,
+    );
+    if (!removed) return false;
+  }
+
+  return recreateTaskBranchFromIntegration(opts);
 }
 
 export interface IntegrateOptions {

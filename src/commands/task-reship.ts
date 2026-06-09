@@ -39,7 +39,6 @@ export interface TaskReshipCommandOptions {
   recreateBranch?: boolean;
   skipLlm?: boolean;
   allowOpenMr?: boolean;
-  allowDirty?: boolean;
 }
 
 async function commitReshipMetadata(opts: {
@@ -110,7 +109,6 @@ export async function taskReshipCommand(
     remote,
     recreateBranch: options.recreateBranch === true,
     dryRun,
-    allowDirty: options.allowDirty === true,
   });
   if (!branchOk) {
     process.exitCode = 1;
@@ -182,7 +180,7 @@ export async function taskReshipCommand(
 
   const dirtyBefore = await listWorkingTreeRelPaths(cwd);
   if (dirtyBefore.length === 0) {
-    log.error("No changes to reship. Edit files on the task branch, then rerun.");
+    log.error("No changes to reship. Edit files (e.g. on develop), then rerun.");
     process.exitCode = 1;
     return;
   }

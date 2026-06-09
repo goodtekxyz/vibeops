@@ -36,6 +36,14 @@ vibeops task merge TASK-NNN
 - Merges the TASK MR/PR into the integration branch (default squash).
 - Or merge in GitHub/GitLab UI, then continue.
 
+## 4b. Pull (refresh integration)
+
+```bash
+vibeops pull
+```
+
+- Fetches remote and fast-forwards **develop** (or your integration branch). Run after merge, before reship or `task add`.
+
 ## 5. Sync (optional)
 
 ```bash
@@ -52,7 +60,7 @@ vibeops task reship TASK-NNN
 vibeops task merge TASK-NNN
 ```
 
-- After merge: edit on task branch (or `--recreate-branch`), integrate develop, **new MR/PR**, Status stays **Shipped**.
+- Edit on **develop or task branch** (uncommitted is fine). `task reship` moves work onto the task branch, creates it from integration when missing (after sync), integrates develop, **new MR/PR**; Status stays **Shipped**.
 
 ## 7. Next slice
 

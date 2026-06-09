@@ -14,10 +14,11 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 | `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
 | `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → **Shipped**) |
-| `vibeops task reship` | Shipped TASK follow-up: integrate develop, new MR/PR (Status stays Shipped) |
+| `vibeops task reship` | Shipped follow-up: move uncommitted work to task branch, commit, new MR/PR (Status stays Shipped) |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
 | `vibeops task sync` | After merge: ff-only integration pull, delete task branches (no TASK md edits) |
 | `vibeops task release` | Release PR: integration → production (GitFlow) |
+| `vibeops pull` | Fetch remote + update integration branch (e.g. develop) |
 | `vibeops status` | Briefing: TASK, Git, LLM, clients |
 | `vibeops llm` | Connect LLM providers (`connect` · `status` · `use`) |
 
@@ -53,6 +54,7 @@ vibeops task add
 
 vibeops task ship
 vibeops task merge
+vibeops pull
 # Follow-up on same TASK (after merge):
 vibeops task reship TASK-NNN
 vibeops task merge
@@ -96,10 +98,11 @@ pnpm install && pnpm build && pnpm smoke
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--allow-no-remote`, `--cwd`
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task ship`**: `--dry-run`, `--no-pr`
-- **`task reship`**: `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`, `--allow-dirty`
+- **`task reship`**: `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
 - **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
 - **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
+- **`pull`**: `--dry-run`
 - **`status`**: `--json`
 
 ## Git
@@ -107,9 +110,10 @@ pnpm install && pnpm build && pnpm smoke
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
 - **`task ship`**: commit implementation + ship metadata (Status **Shipped**) → push once → MR/PR (URL on host; `task merge` resolves by branch).
-- **`task reship`**: Shipped TASK only; integrates `develop`; opens **new** PR (archives previous MR in Git Context).
+- **`task reship`**: Shipped TASK follow-up — carries uncommitted work onto the task branch (creates it from integration when missing after sync), integrates `develop`, commit → push → **new** PR.
 - **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
 - **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
+- **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command).
 - **`task release`**: integration → production PR + merge (skipped on trunk policy).
 - No force-push to shared branches.
 

@@ -80,7 +80,7 @@ export function computeNextHint(input: {
   if (input.focus.status === "shipped") {
     if (input.needsSync) return "task-sync";
     if (input.hasMergeRequest && !input.mergeRequestMerged) return "task-merge";
-    if (input.hasLocalChanges && input.onTaskBranch === true) return "task-reship";
+    if (input.hasLocalChanges) return "task-reship";
     return "task-add";
   }
   if (!input.resultFilled || !input.testFilled) {
@@ -99,7 +99,7 @@ export function hintToText(hint: NextHint, cwd: string, task: TaskMeta | null): 
       return task ? `Run \`vibeops task ship ${task.id}\`.` : "Run `vibeops task ship`.";
     case "task-reship":
       return task
-        ? `Follow-up on ${task.id}? Edit on task branch, then \`vibeops task reship ${task.id}\`.`
+        ? `Follow-up on ${task.id}? Edit files (develop is fine), then \`vibeops task reship ${task.id}\`.`
         : "Run `vibeops task reship TASK-NNN` for a Shipped follow-up.";
     case "task-merge":
       return task

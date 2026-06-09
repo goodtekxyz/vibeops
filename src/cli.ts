@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 
+import { pullCommand } from "./commands/pull.js";
 import { initCommand } from "./commands/init.js";
 import { llmConnectCommand, llmStatusCommand, llmUseCommand } from "./commands/llm.js";
 import { statusCommand } from "./commands/status.js";
@@ -18,7 +19,7 @@ const program = new Command();
 program
   .name("vibeops")
   .description(
-    "VibeOps — TASK workflow (init · task add/ship/reship/merge/sync · status · llm)",
+    "VibeOps — TASK workflow (init · task · pull · status · llm)",
   )
   .version(VERSION, "-v, --version", "Print the VibeOps version");
 
@@ -105,14 +106,18 @@ task
 
 task
   .command("reship [taskRef]")
-  .description("Follow-up on Shipped TASK: integrate develop, commit, new MR/PR")
+  .description(
+    "Follow-up on Shipped TASK: move uncommitted work to task branch, commit, new MR/PR",
+  )
   .option("--dry-run", "Plan only")
   .option("--no-pr", "Push only; skip creating MR/PR")
   .option("--no-integrate", "Skip merging integration branch into task branch")
-  .option("--recreate-branch", "Recreate task branch from integration if missing")
+  .option(
+    "--recreate-branch",
+    "Create task branch from integration instead of reusing local/remote ref",
+  )
   .option("--skip-llm", "Do not run LLM for Result / Test Result")
   .option("--allow-open-mr", "Allow reship while the recorded MR is still open")
-  .option("--allow-dirty", "Proceed when only governance paths are dirty")
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
     await taskReshipCommand(taskRef, {
@@ -122,7 +127,6 @@ task
       recreateBranch: Boolean(opts.recreateBranch),
       skipLlm: Boolean(opts.skipLlm),
       allowOpenMr: Boolean(opts.allowOpenMr),
-      allowDirty: Boolean(opts.allowDirty),
       cwd: opts.cwd as string | undefined,
     });
   });
@@ -173,6 +177,18 @@ task
       noMerge: Boolean(opts.noMerge),
       merge: Boolean(opts.merge),
       rebase: Boolean(opts.rebase),
+      cwd: opts.cwd as string | undefined,
+    });
+  });
+
+program
+  .command("pull")
+  .description("Fetch remote and update integration branch (e.g. develop)")
+  .option("--dry-run", "Plan only")
+  .option("--cwd <path>", "Target directory")
+  .action(async (opts) => {
+    await pullCommand({
+      dryRun: Boolean(opts.dryRun),
       cwd: opts.cwd as string | undefined,
     });
   });

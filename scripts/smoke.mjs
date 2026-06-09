@@ -46,6 +46,7 @@ try {
     ["task", "ship", "--dry-run", "--cwd", tmpRoot],
     ["task", "merge", "--dry-run", "--cwd", tmpRoot],
     ["task", "sync", "--dry-run", "--cwd", tmpRoot],
+    ["pull", "--dry-run", "--cwd", tmpRoot],
     ["task", "release", "--dry-run", "--cwd", tmpRoot],
     ["status", "--cwd", tmpRoot],
   ];

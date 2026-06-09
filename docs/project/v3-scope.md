@@ -14,7 +14,7 @@ Cursor plans and implements. VibeOps does **files + Git + short LLM assists**. *
 
 ## Design principles
 
-1. **Daily commands:** `init`, `task add`, `task ship`, `task reship`, `task merge`, `task sync`, `status` (+ optional `task release`).
+1. **Daily commands:** `init`, `task add`, `task ship`, `task reship`, `task merge`, `task sync`, `pull`, `status` (+ optional `task release`).
 2. **Files are the API** between CLI and Cursor — no “copy prompt from terminal” workflow.
 3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on ship/reship.
 4. **Planning and coding happen in Cursor** (Ask / Agent + `@docs/tasks/TASK-NNN.md`).
@@ -184,18 +184,29 @@ After merge: fetch, fast-forward integration branch, delete local/remote `task/*
 
 ---
 
+### `vibeops pull`
+
+**Purpose:** One-step remote sync — fetch, switch to integration branch, fast-forward pull.
+
+**Steps:** `git fetch <remote> --prune` → `git switch <integration>` (if needed) → `git pull --ff-only <remote> <integration>`.
+
+**Flags:** `--dry-run`, `--cwd`.
+
+---
+
 ### `vibeops task reship [taskRef]`
 
 **Purpose:** Same-TASK follow-up when Status is already **Shipped** (e.g. review feedback after merge).
 
 **Steps (summary):**
 
-1. Resolve TASK on `task/*` branch (or `--recreate-branch`).
-2. Integrate latest integration branch (`develop` by default; `--no-integrate` to skip).
-3. Commit, push, open **new** MR/PR; archive previous MR URL in Git Context (`previousMergeRequestUrls`, `reshipCount`).
-4. Status stays **Shipped**.
+1. Resolve Shipped TASK; **uncommitted changes are allowed** (e.g. edits on `develop`).
+2. Switch to the task branch, or **create it from integration** when local/remote refs are missing (post-`task sync`), or check out from remote when only the remote ref exists.
+3. Integrate latest integration branch (`develop` by default; `--no-integrate` to skip).
+4. Commit, push, open **new** MR/PR; archive previous MR URL in Git Context (`previousMergeRequestUrls`, `reshipCount`).
+5. Status stays **Shipped**.
 
-**Flags:** `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`, `--allow-dirty`, `--cwd`.
+**Flags:** `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`, `--cwd`.
 
 **Removed:** `task done`, `next` follow-up, Notion, MVP-only `TASK-mvp` defaults.
 

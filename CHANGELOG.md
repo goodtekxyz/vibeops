@@ -4,6 +4,16 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.2.0 - 2026-06-09
+
+### Added
+
+- **`vibeops pull`** — one command: `git fetch`, switch to integration branch (e.g. `develop`), fast-forward pull.
+
+### Changed
+
+- **`vibeops task reship`**: no longer blocks on a dirty working tree — uncommitted edits (including on `develop`) are carried onto the task branch. When the task branch is missing locally and on the remote (e.g. after `task sync`), it is **created automatically** from the integration branch. Removed `--allow-dirty` (behavior is now default).
+
 ## 2.1.3 - 2026-06-08
 
 ### Changed
