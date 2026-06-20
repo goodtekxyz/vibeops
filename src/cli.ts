@@ -113,23 +113,40 @@ task
 
 task
   .command("ship [taskRef]")
-  .description("Submit TASK: LLM summary, commit, push, open MR/PR (Status → Shipped)")
+  .description(
+    "State-aware submit: new PR · update open PR · new PR cycle after merge (Status → Shipped)",
+  )
   .option("--dry-run", "Plan only")
+  .option("-m, --message <msg>", "Commit message (TASK id auto-prefixed; LLM/prompt when omitted)")
+  .option("--new-cycle", "Allow a new PR cycle after merge without prompting (alias: --reship)")
+  .option("--reship", "Alias for --new-cycle")
+  .option("--no-commit", "Push already-committed changes only (skip staging/commit)")
   .option("--no-pr", "Push only; skip creating MR/PR")
+  .option("--non-interactive", "CI: never prompt")
+  .option("--no-integrate", "New PR cycle: skip merging integration into the task branch")
+  .option("--recreate-branch", "New PR cycle: recreate task branch from integration")
+  .option("--skip-llm", "New PR cycle: do not run LLM for Result / Test Result")
+  .option("--allow-open-mr", "Update the open MR/PR with new commits instead of a new cycle")
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
     await taskShipCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
-      noPr: Boolean(opts.noPr),
+      message: opts.message as string | undefined,
+      newCycle: Boolean(opts.newCycle) || Boolean(opts.reship),
+      noCommit: opts.commit === false,
+      noPr: opts.pr === false,
+      nonInteractive: Boolean(opts.nonInteractive),
+      noIntegrate: opts.integrate === false,
+      recreateBranch: Boolean(opts.recreateBranch),
+      skipLlm: Boolean(opts.skipLlm),
+      allowOpenMr: Boolean(opts.allowOpenMr),
       cwd: opts.cwd as string | undefined,
     });
   });
 
 task
   .command("reship [taskRef]")
-  .description(
-    "Follow-up on Shipped TASK: move uncommitted work to task branch, commit, new MR/PR",
-  )
+  .description("Deprecated alias for `task ship --new-cycle` (start a new PR cycle after merge)")
   .option("--dry-run", "Plan only")
   .option("--no-pr", "Push only; skip creating MR/PR")
   .option("--no-integrate", "Skip merging integration branch into task branch")
@@ -146,8 +163,8 @@ task
   .action(async (taskRef: string | undefined, opts) => {
     await taskReshipCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
-      noPr: Boolean(opts.noPr),
-      noIntegrate: Boolean(opts.noIntegrate),
+      noPr: opts.pr === false,
+      noIntegrate: opts.integrate === false,
       recreateBranch: Boolean(opts.recreateBranch),
       skipLlm: Boolean(opts.skipLlm),
       allowOpenMr: Boolean(opts.allowOpenMr),

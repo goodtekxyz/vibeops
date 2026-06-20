@@ -4,6 +4,26 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.4.0 - 2026-06-12
+
+### Changed
+
+- **`vibeops task ship` is now state-aware.** It detects the TASK's PR/MR state and branches:
+  1. **No PR** → push + open a new PR (first submit, Status → Shipped).
+  2. **Open PR (unmerged)** → commit + push the **same** branch to update the existing PR (no new PR); CI re-runs. This replaces the manual `git add/commit/push` loop.
+  3. **Merged PR** → start a **new** PR cycle (former `reship`), guarded by an interactive confirm (`This starts a NEW PR cycle after merge. Continue? (y/N)`) or `--new-cycle` in non-interactive mode.
+- Every path prints a one-line summary: `Created PR #<n> → <url>`, `Updated existing PR #<n> (pushed <sha>) — CI re-running`, `Started new PR cycle → PR #<n>`, or `Nothing to ship (working tree clean, PR #<n> up to date)`.
+- Commit messages are auto-scoped with the TASK id (`feat(task-001): …`). `ship` refuses when HEAD is not the TASK branch.
+- PR/MR state resolution is unified in a single source (`resolveTaskMergeRequestLifecycle`).
+
+### Added
+
+- **`vibeops task ship`** flags: `-m/--message <msg>` (TASK id auto-prefixed; LLM-drafted or prompted when omitted), `--new-cycle` (alias `--reship`), `--no-commit` (push committed history only), `--non-interactive`.
+
+### Deprecated
+
+- **`vibeops task reship`** is now a thin alias for `vibeops task ship --new-cycle` and prints a deprecation notice.
+
 ## 2.3.0 - 2026-06-09
 
 ### Added

@@ -8,4 +8,4 @@ alwaysApply: true
 - Use branch pattern `task/*` from `vibeops task add`.
 - Include TASK id in commits: `feat(task-nnn): …`.
 - No force-push to shared branches.
-- Run `vibeops task ship`, `task reship`, `task merge`, `task sync` when the human asks — do not merge locally in the IDE unless requested.
+- Run `vibeops task ship`, `task merge`, `task sync` when the human asks — do not merge locally in the IDE unless requested. (`ship` is state-aware: it updates an open PR or, with `--new-cycle`, starts a new PR cycle after merge.)

@@ -2,6 +2,11 @@ import { checkbox, confirm, input, select } from "@inquirer/prompts";
 
 export const OTHER_LABEL = "Other";
 
+/** True when both stdin and stdout are TTYs (safe to show interactive prompts). */
+export function isInteractiveSession(): boolean {
+  return Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+}
+
 function isOther(value: string): boolean {
   return value === OTHER_LABEL;
 }

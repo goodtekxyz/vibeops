@@ -214,14 +214,21 @@ export async function findMergeRequestByBranches(
   }
 }
 
-function prRefFromUrl(url: string): string {
+/** Extract the numeric PR/MR id from a host URL (e.g. `#42`), or `null`. */
+export function prNumberFromUrl(url: string | null | undefined): string | null {
+  if (typeof url !== "string") return null;
   const trimmed = url.trim();
+  if (trimmed.length === 0) return null;
   const pullMatch = /\/pull\/(\d+)/i.exec(trimmed);
   if (pullMatch) return pullMatch[1]!;
   const mrMatch = /\/merge_requests\/(\d+)/i.exec(trimmed);
   if (mrMatch) return mrMatch[1]!;
   if (/^\d+$/.test(trimmed)) return trimmed;
-  return trimmed;
+  return null;
+}
+
+function prRefFromUrl(url: string): string {
+  return prNumberFromUrl(url) ?? url.trim();
 }
 
 export async function getMergeRequestState(

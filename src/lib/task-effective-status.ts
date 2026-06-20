@@ -94,24 +94,42 @@ export async function resolveOpenTaskMergeRequest(
   return null;
 }
 
+export interface ResolvedTaskMergeRequestLifecycle {
+  readonly state: TaskMergeRequestLifecycle;
+  readonly url: string | null;
+  readonly host: GitHost | null;
+}
+
+/**
+ * Single source of truth for a TASK's PR/MR lifecycle and URL.
+ * Resolution order: open branch lookup → merged branch lookup → legacy TASK URL.
+ * `ship` keys its state machine off the returned `state`.
+ */
+export async function resolveTaskMergeRequestLifecycle(
+  cwd: string,
+  taskFile: string,
+): Promise<ResolvedTaskMergeRequestLifecycle> {
+  const ctx = await readTaskGitContext(taskFile);
+  if (ctx === null) return { state: "none", url: null, host: null };
+
+  const open = await resolveFromBranches(cwd, ctx, "open");
+  if (open !== null) return { state: "open", url: open.url, host: open.host };
+
+  const merged = await resolveFromBranches(cwd, ctx, "merged");
+  if (merged !== null) return { state: "merged", url: merged.url, host: merged.host };
+
+  const legacy = await resolveFromTaskFileUrl(cwd, ctx);
+  if (legacy !== null) return { state: legacy.state, url: legacy.url, host: legacy.host };
+
+  return { state: "none", url: null, host: null };
+}
+
 /** MR lifecycle for hints, sync, and status — prefers host branch lookup. */
 export async function getTaskMergeRequestLifecycle(
   cwd: string,
   taskFile: string,
 ): Promise<TaskMergeRequestLifecycle> {
-  const ctx = await readTaskGitContext(taskFile);
-  if (ctx === null) return "none";
-
-  const open = await resolveFromBranches(cwd, ctx, "open");
-  if (open !== null) return "open";
-
-  const merged = await resolveFromBranches(cwd, ctx, "merged");
-  if (merged !== null) return "merged";
-
-  const legacy = await resolveFromTaskFileUrl(cwd, ctx);
-  if (legacy !== null) return legacy.state;
-
-  return "none";
+  return (await resolveTaskMergeRequestLifecycle(cwd, taskFile)).state;
 }
 
 /** @deprecated Use {@link getTaskMergeRequestLifecycle} or {@link resolveOpenTaskMergeRequest}. */

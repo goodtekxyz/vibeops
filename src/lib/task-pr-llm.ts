@@ -1,4 +1,5 @@
 import { llmCompleteJson } from "./llm-complete.js";
+import { taskScopedCommitMessage } from "./task-git-commit.js";
 import type { LlmProviderPreference } from "../types/config.js";
 import type { OpenAiChatMessage } from "./plan-llm-openai.js";
 
@@ -18,8 +19,20 @@ export interface TaskPrLlmResult {
 
 const SYSTEM = `You write pull/merge request titles and bodies for a software task.
 Output valid JSON only: { "title": string, "body": string }.
-Title: under 72 chars, include task id.
+Title: Conventional Commits format — type(task-nnn): lowercase subject (under 72 chars total).
+Use task id as scope in lowercase (e.g. feat(task-013): ship public status page).
+Allowed types: feat, fix, docs, chore, perf, ci, refactor, test, build, style, revert.
 Body: markdown with Summary, Changes, Test plan sections. Facts only from the input.`;
+
+/** Normalize PR titles to Conventional Commits with the TASK id as scope. */
+export function normalizeTaskPrTitle(taskId: string, rawTitle: string): string {
+  const trimmed = rawTitle.trim().replace(/\s+/g, " ");
+  const withoutTaskPrefix = trimmed.replace(/^TASK-\d+\s*[:\-]\s*/i, "").trim();
+  return taskScopedCommitMessage(
+    taskId,
+    withoutTaskPrefix || trimmed,
+  ).slice(0, 72);
+}
 
 export async function generateTaskPrWithLlm(
   input: TaskPrLlmInput,
@@ -50,14 +63,17 @@ export async function generateTaskPrWithLlm(
     const prTitle = typeof parsed.title === "string" ? parsed.title.trim() : "";
     const prBody = typeof parsed.body === "string" ? parsed.body.trim() : "";
     if (!prTitle || !prBody) return null;
-    return { prTitle, prBody };
+    return {
+      prTitle: normalizeTaskPrTitle(input.taskId, prTitle),
+      prBody,
+    };
   } catch {
     return null;
   }
 }
 
 export function fallbackTaskPr(input: TaskPrLlmInput): TaskPrLlmResult {
-  const prTitle = `${input.taskId}: ${input.title}`.slice(0, 72);
+  const prTitle = normalizeTaskPrTitle(input.taskId, input.title);
   const prBody = [
     "## Summary",
     input.title,

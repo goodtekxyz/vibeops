@@ -17,6 +17,36 @@ export function docsCommitMessageFor(taskId: string, suffix: string): string {
   return `docs(${taskId.toLowerCase()}): ${suffix}`;
 }
 
+const CONVENTIONAL_COMMIT_RE = /^([a-z]+)(?:\(([^)]*)\))?(!)?:\s*(.+)$/is;
+
+/**
+ * Normalize a raw commit message so it carries the TASK id as the conventional
+ * commit scope (git-safety rule: `feat(task-001): …`).
+ *
+ * - `"fix: handle null"`            → `fix(task-001): handle null`
+ * - `"fix(login): handle null"`     → `fix(task-001): handle null` (scope rewritten)
+ * - `"handle null"`                 → `feat(task-001): handle null` (defaultType)
+ * - already-scoped correct messages are returned unchanged.
+ */
+export function taskScopedCommitMessage(
+  taskId: string,
+  rawMessage: string,
+  defaultType = "feat",
+): string {
+  const scope = taskId.toLowerCase();
+  const msg = rawMessage.trim().replace(/\s+/g, " ");
+  if (msg.length === 0) return `${defaultType}(${scope}): ${taskId}`;
+
+  const m = CONVENTIONAL_COMMIT_RE.exec(msg);
+  if (m) {
+    const type = m[1]!.toLowerCase();
+    const bang = m[3] ?? "";
+    const subject = m[4]!.trim();
+    return `${type}(${scope})${bang}: ${subject}`;
+  }
+  return `${defaultType}(${scope}): ${msg}`;
+}
+
 /** Commit all committable dirty paths; returns whether a commit was created. */
 export async function commitDirtyWorkingTree(
   cwd: string,

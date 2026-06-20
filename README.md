@@ -14,8 +14,8 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 | `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
 | `vibeops task del` | Cancel TASK before merge (md + branch + close open MR) |
-| `vibeops task ship` | LLM summary, commit, push, open MR/PR (Status → **Shipped**) |
-| `vibeops task reship` | Shipped follow-up: move uncommitted work to task branch, commit, new MR/PR (Status stays Shipped) |
+| `vibeops task ship` | State-aware submit: open a new PR · update the open PR · start a new PR cycle after merge (Status → **Shipped**) |
+| `vibeops task reship` | **Deprecated** alias for `task ship --new-cycle` |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
 | `vibeops task sync` | After merge: ff-only integration pull, delete task branches (no TASK md edits) |
 | `vibeops task release` | Release PR: integration → production (GitFlow) |
@@ -56,12 +56,23 @@ vibeops task add
 vibeops task ship
 vibeops task merge
 vibeops pull
-# Follow-up on same TASK (after merge):
-vibeops task reship TASK-NNN
+# Same TASK, before merge — edit, then just re-run ship (updates the open PR):
+vibeops task ship -m "address review"
+# Same TASK, after merge — start a new PR cycle:
+vibeops task ship --new-cycle
 vibeops task merge
 vibeops task sync
 vibeops task add
 ```
+
+`ship` detects the TASK's PR state and does the right thing:
+
+| State | `ship` does | Output |
+|-------|-------------|--------|
+| No PR yet | push + open a new PR | `Created PR #<n> → <url>` |
+| PR open (unmerged) | commit + push the **same** branch (no new PR), CI re-runs | `Updated existing PR #<n> (pushed <sha>) — CI re-running` |
+| PR merged | start a **new** PR cycle (needs confirm or `--new-cycle`) | `Started new PR cycle → PR #<n>` |
+| No change | no-op | `Nothing to ship (working tree clean, PR #<n> up to date)` |
 
 Occasionally (GitFlow release to production):
 
@@ -73,7 +84,7 @@ Only one TASK **In Progress** at a time (`task add` blocks otherwise). **Shipped
 
 ## LLM (optional)
 
-For **`task add`** / **`task ship`** / **`task reship`** only (not for coding in the IDE):
+For **`task add`** / **`task ship`** only (not for coding in the IDE). When `-m` is omitted, `ship` uses a connected provider to draft the commit subject:
 
 ```bash
 vibeops llm connect
@@ -99,8 +110,8 @@ pnpm install && pnpm build && pnpm smoke
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--allow-no-remote`, `--cwd`
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
-- **`task ship`**: `--dry-run`, `--no-pr`
-- **`task reship`**: `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr`
+- **`task ship`**: `-m/--message`, `--new-cycle` (alias `--reship`), `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
+- **`task reship`** (deprecated): `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr` → delegates to `task ship --new-cycle`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
 - **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
 - **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
@@ -111,8 +122,8 @@ pnpm install && pnpm build && pnpm smoke
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
-- **`task ship`**: commit implementation + ship metadata (Status **Shipped**) → push once → MR/PR (URL on host; `task merge` resolves by branch).
-- **`task reship`**: Shipped TASK follow-up — carries uncommitted work onto the task branch (creates it from integration when missing after sync), integrates `develop`, commit → push → **new** PR.
+- **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
+- **`task reship`** *(deprecated)*: alias for `task ship --new-cycle`.
 - **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
 - **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
 - **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command).
