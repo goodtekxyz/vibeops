@@ -166,27 +166,30 @@ async function glabFindMergeRequestByBranches(
   opts: FindMergeRequestByBranchesOptions,
 ): Promise<MergeRequestRef | null> {
   const state = opts.state ?? "open";
-  const glabState =
-    state === "open" ? "opened" : state === "merged" ? "merged" : state === "closed" ? "closed" : "all";
-  const { stdout } = await execFileAsync(
-    "glab",
-    [
-      "mr",
-      "list",
-      "--source-branch",
-      opts.headBranch,
-      "--target-branch",
-      opts.baseBranch,
-      "-S",
-      glabState,
-      "-P",
-      "1",
-      "--output",
-      "json",
-      "web_url,state",
-    ],
-    { cwd: opts.cwd, maxBuffer: 1024 * 1024 },
-  );
+  const args = [
+    "mr",
+    "list",
+    "--source-branch",
+    opts.headBranch,
+    "--target-branch",
+    opts.baseBranch,
+    "-F",
+    "json",
+    "-P",
+    "1",
+  ];
+  if (state === "merged") {
+    args.push("-M");
+  } else if (state === "closed") {
+    args.push("-c");
+  } else if (state === "all") {
+    args.push("-A");
+  }
+
+  const { stdout } = await execFileAsync("glab", args, {
+    cwd: opts.cwd,
+    maxBuffer: 1024 * 1024,
+  });
   const trimmed = stdout.trim();
   if (trimmed.length === 0 || trimmed === "[]") return null;
   const rows = JSON.parse(trimmed) as Array<{ web_url?: string; state?: string }>;
@@ -241,10 +244,11 @@ export async function getMergeRequestState(
     if (host === "gitlab") {
       const { stdout } = await execFileAsync(
         "glab",
-        ["mr", "view", ref, "--output", "json", "state"],
+        ["mr", "view", ref, "-F", "json"],
         { cwd, maxBuffer: 1024 * 1024 },
       );
-      const state = stdout.trim().toLowerCase();
+      const parsed = JSON.parse(stdout.trim()) as { state?: string };
+      const state = (parsed.state ?? "").toLowerCase();
       if (state === "merged") return "merged";
       if (state === "opened" || state === "open") return "open";
       if (state === "closed") return "closed";
