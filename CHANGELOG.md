@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.4.2 - 2026-06-24
+
+### Fixed
+
+- **GitLab (`glab` 1.105+):** `task merge` / `task ship` now resolve merge requests using `-F json` and `-M`/`-c`/`-A` state filters instead of deprecated `--output` / `-S` flags.
+
 ## 2.4.0 - 2026-06-12
 
 ### Changed
