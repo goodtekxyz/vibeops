@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
-import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
+import { detectGitHost } from "../lib/git-host.js";
 import {
   gitBranchExists,
   gitDeleteBranch,
@@ -13,16 +13,12 @@ import {
   gitSwitchToBranch,
   readGitInfo,
 } from "../lib/git.js";
-import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
-import { probeMergeRequestCli } from "../lib/pr-create.js";
+import { bold, cyan, dim, log } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
 import { relPath } from "../lib/task-context.js";
-import {
-  getTaskMergeRequestLifecycle,
-  isMergeRequestMerged,
-} from "../lib/task-effective-status.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
+import { checkTaskSyncReady } from "../lib/task-sync-guard.js";
 import { readTaskFile } from "../lib/task.js";
 
 export interface TaskSyncCommandOptions {
@@ -85,33 +81,13 @@ export async function taskSyncCommand(
   log.info(`  ${dim("note")}        ${dim("Git cleanup only — TASK md stays Shipped")}`);
   log.blank();
 
-  const meta = await readTaskFile(taskFile);
-  if (!dryRun) {
-    const lifecycle = await getTaskMergeRequestLifecycle(cwd, taskFile);
-    if (lifecycle !== "none") {
-      const remoteUrl = await gitRemoteUrl(cwd, remote);
-      const host =
-        remoteUrl !== null && detectGitHost(remoteUrl) !== null
-          ? detectGitHost(remoteUrl)!
-          : gitCfg.host;
-      const label = mergeRequestLabel(host);
-      if (lifecycle === "open") {
-        log.warn(
-          `${yellow(label)} still open — merge with task merge or the host UI before sync.`,
-        );
-      } else if (lifecycle === "merged") {
-        log.ok(`${label} merged.`);
-      }
-    } else if (await probeMergeRequestCli(gitCfg.host)) {
-      log.warn("Could not read MR state — continuing with branch cleanup.");
-    }
-  } else if (meta.status === "shipped" && !(await isMergeRequestMerged(cwd, meta))) {
-    log.warn(
-      `${yellow("MR")} not merged yet — merge on the host or \`task merge\`, then rerun task sync.`,
-    );
-  }
-
   if (dryRun) {
+    const meta = await readTaskFile(taskFile);
+    if (meta.status === "shipped" && options.force !== true) {
+      log.info(
+        dim("Would verify MR is merged and integration branch contains task commits before cleanup."),
+      );
+    }
     log.info(bold("dry-run — would:"));
     log.info(`  · git fetch ${remote} --prune`);
     log.info(`  · git switch ${integrationBranch}`);
@@ -170,6 +146,35 @@ export async function taskSyncCommand(
   } else {
     log.warn(`No ${remote}/${integrationBranch} — skipped pull.`);
   }
+
+  const remoteUrl = await gitRemoteUrl(cwd, remote);
+  const host =
+    remoteUrl !== null && detectGitHost(remoteUrl) !== null
+      ? detectGitHost(remoteUrl)!
+      : gitCfg.host;
+
+  const syncGuard = await checkTaskSyncReady({
+    cwd,
+    taskFile,
+    remote,
+    integrationBranch,
+    taskBranch,
+    host,
+    force: options.force === true,
+  });
+  if (!syncGuard.ok) {
+    log.error(syncGuard.message ?? "Refusing task sync — merge checks failed.");
+    if (options.force !== true) {
+      log.info(
+        dim(
+          "Use --force only if you intentionally want to delete the task branch without merge verification.",
+        ),
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+  log.ok(`Ready to sync — ${integrationBranch} contains the task commits.`);
 
   if (await gitBranchExists(cwd, taskBranch)) {
     try {

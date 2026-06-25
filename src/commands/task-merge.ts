@@ -12,6 +12,7 @@ import {
   probeMergeRequestCli,
   type MergeRequestMergeMethod,
 } from "../lib/pr-create.js";
+import { assertMergeRequestMerged } from "../lib/task-merge-verify.js";
 import { relPath } from "../lib/task-context.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
 import { resolveOpenTaskMergeRequest } from "../lib/task-effective-status.js";
@@ -132,7 +133,18 @@ export async function taskMergeCommand(
       return;
     }
     try {
-      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method });
+      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method, immediate: true });
+      const verified = await assertMergeRequestMerged({
+        cwd,
+        host,
+        url: mergeRequestUrl,
+        integrationBranch: ctx.baseBranch,
+      });
+      if (!verified.ok) {
+        log.error(verified.message);
+        process.exitCode = 1;
+        return;
+      }
       log.ok(`${label} merged into ${ctx.baseBranch}.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -148,8 +160,19 @@ export async function taskMergeCommand(
   } else {
     log.warn(`Could not read ${label} state — attempting merge anyway.`);
     try {
-      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method });
-      log.ok(`${label} merge command completed.`);
+      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method, immediate: true });
+      const verified = await assertMergeRequestMerged({
+        cwd,
+        host,
+        url: mergeRequestUrl,
+        integrationBranch: ctx.baseBranch,
+      });
+      if (!verified.ok) {
+        log.error(verified.message);
+        process.exitCode = 1;
+        return;
+      }
+      log.ok(`${label} merged into ${ctx.baseBranch}.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`Merge failed: ${msg}`);

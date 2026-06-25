@@ -4,6 +4,17 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.4.3 - 2026-06-25
+
+### Fixed
+
+- **`task merge` / `task release`:** GitLab merges use `--auto-merge=false` so CI running no longer schedules auto-merge and reports success prematurely. Commands poll the host until `merged_at` is set before succeeding.
+- **`task sync`:** Refuses branch cleanup when the MR is open, closed-not-merged, auto-merge pending, or integration branch does not contain task commits. `--force` bypasses merge verification (local branch delete still uses `-D` when needed).
+
+### Added
+
+- **`task-sync-guard`:** MR lifecycle and integration-branch ancestry checks before `task sync` deletes branches.
+
 ## 2.4.2 - 2026-06-24
 
 ### Fixed

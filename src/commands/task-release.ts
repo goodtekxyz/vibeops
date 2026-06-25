@@ -11,6 +11,7 @@ import {
   probeMergeRequestCli,
   type MergeRequestMergeMethod,
 } from "../lib/pr-create.js";
+import { assertMergeRequestMerged } from "../lib/task-merge-verify.js";
 
 export interface TaskReleaseCommandOptions {
   dryRun?: boolean;
@@ -121,7 +122,18 @@ export async function taskReleaseCommand(
 
   const method = resolveMergeMethod(options);
   try {
-    await mergeMergeRequest({ cwd, host, url: releaseUrl, method });
+    await mergeMergeRequest({ cwd, host, url: releaseUrl, method, immediate: true });
+    const verified = await assertMergeRequestMerged({
+      cwd,
+      host,
+      url: releaseUrl,
+      integrationBranch: productionBranch,
+    });
+    if (!verified.ok) {
+      log.error(verified.message);
+      process.exitCode = 1;
+      return;
+    }
     log.ok(`Release ${label} merged into ${productionBranch}.`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

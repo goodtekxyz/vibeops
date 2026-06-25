@@ -98,6 +98,13 @@ export type MergeRequestMergeMethod = "merge" | "squash" | "rebase";
 
 export type MergeRequestState = "merged" | "open" | "closed" | "unknown";
 
+export interface MergeRequestDetails {
+  readonly state: MergeRequestState;
+  readonly mergedAt: string | null;
+  readonly mergeCommitSha: string | null;
+  readonly squashCommitSha: string | null;
+}
+
 export type MergeRequestListState = "open" | "merged" | "closed" | "all";
 
 export interface FindMergeRequestByBranchesOptions {
@@ -239,6 +246,15 @@ export async function getMergeRequestState(
   host: GitHost,
   url: string,
 ): Promise<MergeRequestState> {
+  const details = await getMergeRequestDetails(cwd, host, url);
+  return details?.state ?? "unknown";
+}
+
+export async function getMergeRequestDetails(
+  cwd: string,
+  host: GitHost,
+  url: string,
+): Promise<MergeRequestDetails | null> {
   const ref = prRefFromUrl(url);
   try {
     if (host === "gitlab") {
@@ -247,26 +263,66 @@ export async function getMergeRequestState(
         ["mr", "view", ref, "-F", "json"],
         { cwd, maxBuffer: 1024 * 1024 },
       );
-      const parsed = JSON.parse(stdout.trim()) as { state?: string };
-      const state = (parsed.state ?? "").toLowerCase();
-      if (state === "merged") return "merged";
-      if (state === "opened" || state === "open") return "open";
-      if (state === "closed") return "closed";
-      return "unknown";
+      const parsed = JSON.parse(stdout.trim()) as {
+        state?: string;
+        merged_at?: string | null;
+        merge_commit_sha?: string | null;
+        squash_commit_sha?: string | null;
+      };
+      const state = normalizeGlabMergeRequestState(parsed.state ?? "");
+      return {
+        state,
+        mergedAt: parsed.merged_at ?? null,
+        mergeCommitSha: parsed.merge_commit_sha ?? null,
+        squashCommitSha: parsed.squash_commit_sha ?? null,
+      };
     }
     const { stdout } = await execFileAsync(
       "gh",
-      ["pr", "view", ref, "--json", "state", "-q", ".state"],
+      ["pr", "view", ref, "--json", "state,mergedAt,mergeCommit"],
       { cwd, maxBuffer: 1024 * 1024 },
     );
-    const state = stdout.trim().toUpperCase();
-    if (state === "MERGED") return "merged";
-    if (state === "OPEN") return "open";
-    if (state === "CLOSED") return "closed";
-    return "unknown";
+    const parsed = JSON.parse(stdout.trim()) as {
+      state?: string;
+      mergedAt?: string | null;
+      mergeCommit?: { oid?: string | null } | null;
+    };
+    return {
+      state: normalizeGhMergeRequestState(parsed.state ?? ""),
+      mergedAt: parsed.mergedAt ?? null,
+      mergeCommitSha: parsed.mergeCommit?.oid ?? null,
+      squashCommitSha: null,
+    };
   } catch {
-    return "unknown";
+    return null;
   }
+}
+
+export interface WaitForMergeRequestMergedOptions {
+  readonly timeoutMs?: number;
+  readonly intervalMs?: number;
+}
+
+/** Poll host until MR/PR state is merged (or timeout). */
+export async function waitForMergeRequestMerged(
+  cwd: string,
+  host: GitHost,
+  url: string,
+  options: WaitForMergeRequestMergedOptions = {},
+): Promise<boolean> {
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  const intervalMs = options.intervalMs ?? 2_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const details = await getMergeRequestDetails(cwd, host, url);
+    if (details?.state === "merged" && details.mergedAt !== null) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return false;
 }
 
 export interface MergeMergeRequestOptions {
@@ -275,6 +331,8 @@ export interface MergeMergeRequestOptions {
   readonly url: string;
   readonly method?: MergeRequestMergeMethod;
   readonly dryRun?: boolean;
+  /** GitLab only: merge now instead of scheduling auto-merge when CI is running. Default true. */
+  readonly immediate?: boolean;
 }
 
 export interface CloseMergeRequestOptions {
@@ -314,7 +372,11 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
 
   if (opts.dryRun === true) {
     if (opts.host === "gitlab") {
-      log.info(`would ${label} merge ${ref} (glab mr merge)`);
+      const immediate = opts.immediate !== false;
+      const flags = immediate ? " --auto-merge=false" : "";
+      const methodFlag =
+        method === "squash" ? " --squash" : method === "rebase" ? " --rebase" : "";
+      log.info(`would ${label} merge ${ref} (glab mr merge${flags}${methodFlag})`);
     } else {
       log.info(`would gh pr merge ${ref} --${method}`);
     }
@@ -322,7 +384,16 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
   }
 
   if (opts.host === "gitlab") {
-    await execFileAsync("glab", ["mr", "merge", ref], {
+    const args = ["mr", "merge", ref];
+    if (opts.immediate !== false) {
+      args.push("--auto-merge=false");
+    }
+    if (method === "squash") {
+      args.push("--squash");
+    } else if (method === "rebase") {
+      args.push("--rebase");
+    }
+    await execFileAsync("glab", args, {
       cwd: opts.cwd,
       maxBuffer: 4 * 1024 * 1024,
     });

@@ -193,7 +193,10 @@ task
   .description("After MR merge: integration pull and delete task branch (TASK md unchanged)")
   .option("--dry-run", "Plan only")
   .option("--no-remote-delete", "Keep the task branch on the remote")
-  .option("--force", "Delete local task branch with -D if not fully merged")
+  .option(
+    "--force",
+    "Bypass MR merge checks and delete local task branch with -D if not fully merged",
+  )
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
     await taskSyncCommand(taskRef, {

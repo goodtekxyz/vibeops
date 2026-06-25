@@ -119,6 +119,25 @@ export async function gitHeadCommit(cwd: string, short = true): Promise<string |
   return res ? res.stdout.trim() : null;
 }
 
+export async function gitRevParse(cwd: string, ref: string): Promise<string | null> {
+  const res = await tryGit(cwd, ["rev-parse", ref]);
+  return res ? res.stdout.trim() : null;
+}
+
+/** True when `ancestor` is contained in `descendant`'s history. */
+export async function gitIsAncestor(
+  cwd: string,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  try {
+    await runGit(cwd, ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function gitBranchExists(cwd: string, name: string): Promise<boolean> {
   const res = await tryGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${name}`]);
   return res !== null;
