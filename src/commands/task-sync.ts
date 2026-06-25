@@ -92,7 +92,7 @@ export async function taskSyncCommand(
     log.info(`  · git fetch ${remote} --prune`);
     log.info(`  · git switch ${integrationBranch}`);
     log.info(`  · git pull --ff-only ${remote} ${integrationBranch}`);
-    log.info(`  · git branch ${options.force === true ? "-D" : "-d"} ${taskBranch}`);
+    log.info(`  · git branch -D ${taskBranch}`);
     if (options.noRemoteDelete !== true) {
       log.info(`  · git push ${remote} --delete ${taskBranch} (if exists)`);
     }
@@ -178,14 +178,16 @@ export async function taskSyncCommand(
 
   if (await gitBranchExists(cwd, taskBranch)) {
     try {
-      await gitDeleteBranch(cwd, taskBranch, { force: options.force === true });
+      // Guard verified integration contains the work — squash merges leave task/* SHAs
+      // off develop ancestry, so -D is required even without --force.
+      await gitDeleteBranch(cwd, taskBranch, { force: true });
       log.ok(`Deleted local branch ${taskBranch}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`Could not delete local ${taskBranch}: ${msg}`);
       log.info(
         dim(
-          "Merge the MR into the integration branch first, or rerun with --force (discards unmerged branch).",
+          "Merge the MR into the integration branch first, or rerun with --force (skip merge verification).",
         ),
       );
       process.exitCode = 1;

@@ -1,6 +1,6 @@
 {
   "name": "@goodtek/vibeops",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "Minimal CLI rails for Cursor-based TASK-driven vibe coding.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",

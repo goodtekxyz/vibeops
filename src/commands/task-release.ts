@@ -22,10 +22,10 @@ export interface TaskReleaseCommandOptions {
   rebase?: boolean;
 }
 
-function resolveMergeMethod(opts: TaskReleaseCommandOptions): MergeRequestMergeMethod {
+function resolveReleaseMergeMethod(opts: TaskReleaseCommandOptions): MergeRequestMergeMethod {
   if (opts.rebase === true) return "rebase";
-  if (opts.merge === true) return "merge";
-  return "squash";
+  if (opts.squash === true) return "squash";
+  return "merge";
 }
 
 export async function taskReleaseCommand(
@@ -77,7 +77,7 @@ export async function taskReleaseCommand(
     log.info(bold("dry-run — would:"));
     log.info(`  · ${label}: ${integrationBranch} → ${productionBranch}`);
     if (options.noMerge !== true) {
-      log.info(`  · merge ${label} (${resolveMergeMethod(options)})`);
+      log.info(`  · merge ${label} (${resolveReleaseMergeMethod(options)}, wait for CI)`);
     }
     return;
   }
@@ -120,9 +120,16 @@ export async function taskReleaseCommand(
     return;
   }
 
-  const method = resolveMergeMethod(options);
+  const method = resolveReleaseMergeMethod(options);
   try {
-    await mergeMergeRequest({ cwd, host, url: releaseUrl, method, immediate: true });
+    await mergeMergeRequest({
+      cwd,
+      host,
+      url: releaseUrl,
+      method,
+      waitForCi: true,
+      immediate: true,
+    });
     const verified = await assertMergeRequestMerged({
       cwd,
       host,

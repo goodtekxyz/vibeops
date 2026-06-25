@@ -133,7 +133,14 @@ export async function taskMergeCommand(
       return;
     }
     try {
-      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method, immediate: true });
+      await mergeMergeRequest({
+        cwd,
+        host,
+        url: mergeRequestUrl,
+        method,
+        waitForCi: true,
+        immediate: true,
+      });
       const verified = await assertMergeRequestMerged({
         cwd,
         host,
@@ -160,7 +167,14 @@ export async function taskMergeCommand(
   } else {
     log.warn(`Could not read ${label} state — attempting merge anyway.`);
     try {
-      await mergeMergeRequest({ cwd, host, url: mergeRequestUrl, method, immediate: true });
+      await mergeMergeRequest({
+        cwd,
+        host,
+        url: mergeRequestUrl,
+        method,
+        waitForCi: true,
+        immediate: true,
+      });
       const verified = await assertMergeRequestMerged({
         cwd,
         host,

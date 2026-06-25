@@ -4,6 +4,14 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.4.4 - 2026-06-25
+
+### Fixed
+
+- **`task sync`:** After merge verification passes, delete the local `task/*` branch with `-D`. Squash-merged TASK branches no longer require `--force` for cleanup.
+- **`task merge` / `task release`:** Wait for MR/PR CI to finish before calling the host merge API. GitLab no longer gets an immediate `--auto-merge=false` merge while the pipeline is still running (405). Falls back to auto-merge when needed, then polls until `merged_at` is set.
+- **`task release`:** Default merge strategy is now **merge commit** (integration → production). Use `--squash` to squash.
+
 ## 2.4.3 - 2026-06-25
 
 ### Fixed

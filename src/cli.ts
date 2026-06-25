@@ -195,7 +195,7 @@ task
   .option("--no-remote-delete", "Keep the task branch on the remote")
   .option(
     "--force",
-    "Bypass MR merge checks and delete local task branch with -D if not fully merged",
+    "Bypass MR merge verification before branch cleanup",
   )
   .option("--cwd <path>", "Target directory")
   .action(async (taskRef: string | undefined, opts) => {
@@ -209,10 +209,11 @@ task
 
 task
   .command("release")
-  .description("Open (and merge) release MR/PR: integration branch → production")
+  .description("Open (and merge) release MR/PR: integration branch → production (default: merge commit)")
   .option("--dry-run", "Plan only")
   .option("--no-merge", "Create release PR only")
-  .option("--merge", "Merge commit (instead of squash)")
+  .option("--squash", "Squash merge (default is merge commit for release)")
+  .option("--merge", "Merge commit (default for release)")
   .option("--rebase", "Rebase merge")
   .option("--cwd <path>", "Target directory")
   .action(async (opts) => {
@@ -220,6 +221,7 @@ task
       dryRun: Boolean(opts.dryRun),
       noMerge: Boolean(opts.noMerge),
       merge: Boolean(opts.merge),
+      squash: Boolean(opts.squash),
       rebase: Boolean(opts.rebase),
       cwd: opts.cwd as string | undefined,
     });

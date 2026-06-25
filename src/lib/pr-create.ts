@@ -2,7 +2,14 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { mergeRequestLabel } from "./git-host.js";
-import { log } from "./logger.js";
+import {
+  isMergeRequestReadyToMerge,
+  isPipelineActive,
+  pipelineStatusFromHost,
+  type MergeRequestReadiness,
+  type PipelineStatus,
+} from "./merge-request-readiness.js";
+import { dim, log } from "./logger.js";
 import type { GitHost } from "../types/config.js";
 
 const execFileAsync = promisify(execFile);
@@ -103,7 +110,14 @@ export interface MergeRequestDetails {
   readonly mergedAt: string | null;
   readonly mergeCommitSha: string | null;
   readonly squashCommitSha: string | null;
+  readonly mergeStatus: string | null;
+  readonly detailedMergeStatus: string | null;
+  readonly pipelineStatus: PipelineStatus;
+  readonly hasConflicts: boolean | null;
 }
+
+export type { MergeRequestReadiness, PipelineStatus };
+export { isMergeRequestReadyToMerge, isPipelineActive };
 
 export type MergeRequestListState = "open" | "merged" | "closed" | "all";
 
@@ -268,6 +282,10 @@ export async function getMergeRequestDetails(
         merged_at?: string | null;
         merge_commit_sha?: string | null;
         squash_commit_sha?: string | null;
+        merge_status?: string | null;
+        detailed_merge_status?: string | null;
+        has_conflicts?: boolean | null;
+        head_pipeline?: { status?: string | null } | null;
       };
       const state = normalizeGlabMergeRequestState(parsed.state ?? "");
       return {
@@ -275,23 +293,43 @@ export async function getMergeRequestDetails(
         mergedAt: parsed.merged_at ?? null,
         mergeCommitSha: parsed.merge_commit_sha ?? null,
         squashCommitSha: parsed.squash_commit_sha ?? null,
+        mergeStatus: parsed.merge_status ?? null,
+        detailedMergeStatus: parsed.detailed_merge_status ?? null,
+        pipelineStatus: pipelineStatusFromHost(parsed.head_pipeline?.status),
+        hasConflicts: parsed.has_conflicts ?? null,
       };
     }
     const { stdout } = await execFileAsync(
       "gh",
-      ["pr", "view", ref, "--json", "state,mergedAt,mergeCommit"],
+      ["pr", "view", ref, "--json", "state,mergedAt,mergeCommit,mergeable,statusCheckRollup"],
       { cwd, maxBuffer: 1024 * 1024 },
     );
     const parsed = JSON.parse(stdout.trim()) as {
       state?: string;
       mergedAt?: string | null;
       mergeCommit?: { oid?: string | null } | null;
+      mergeable?: string | null;
+      statusCheckRollup?: Array<{ state?: string | null }> | null;
     };
+    const checks = parsed.statusCheckRollup ?? [];
+    let pipelineStatus: PipelineStatus = "none";
+    if (checks.some((c) => (c.state ?? "").toUpperCase() === "PENDING")) {
+      pipelineStatus = "running";
+    } else if (checks.some((c) => (c.state ?? "").toUpperCase() === "FAILURE")) {
+      pipelineStatus = "failed";
+    } else if (checks.length > 0) {
+      pipelineStatus = "success";
+    }
+    const mergeable = parsed.mergeable?.trim().toUpperCase() ?? "";
     return {
       state: normalizeGhMergeRequestState(parsed.state ?? ""),
       mergedAt: parsed.mergedAt ?? null,
       mergeCommitSha: parsed.mergeCommit?.oid ?? null,
       squashCommitSha: null,
+      mergeStatus: mergeable === "MERGEABLE" ? "can_be_merged" : mergeable.toLowerCase(),
+      detailedMergeStatus: mergeable.toLowerCase(),
+      pipelineStatus,
+      hasConflicts: mergeable === "CONFLICTING" ? true : mergeable === "MERGEABLE" ? false : null,
     };
   } catch {
     return null;
@@ -325,13 +363,70 @@ export async function waitForMergeRequestMerged(
   return false;
 }
 
+function mergeRequestReadinessFromDetails(
+  details: MergeRequestDetails | null,
+): MergeRequestReadiness | null {
+  if (details === null) return null;
+  return {
+    state: details.state,
+    mergeStatus: details.mergeStatus,
+    detailedMergeStatus: details.detailedMergeStatus,
+    pipelineStatus: details.pipelineStatus,
+    hasConflicts: details.hasConflicts,
+  };
+}
+
+export interface WaitForMergeRequestReadyToMergeOptions {
+  readonly timeoutMs?: number;
+  readonly intervalMs?: number;
+}
+
+/** Poll until MR/PR CI finished and host reports mergeable (or already merged). */
+export async function waitForMergeRequestReadyToMerge(
+  cwd: string,
+  host: GitHost,
+  url: string,
+  options: WaitForMergeRequestReadyToMergeOptions = {},
+): Promise<boolean> {
+  const timeoutMs = options.timeoutMs ?? 900_000;
+  const intervalMs = options.intervalMs ?? 5_000;
+  const deadline = Date.now() + timeoutMs;
+  const label = mergeRequestLabel(host);
+  let loggedWait = false;
+
+  while (Date.now() < deadline) {
+    const details = await getMergeRequestDetails(cwd, host, url);
+    const readiness = mergeRequestReadinessFromDetails(details);
+    if (readiness !== null && isMergeRequestReadyToMerge(readiness)) {
+      return true;
+    }
+    if (!loggedWait) {
+      log.info(dim(`Waiting for ${label} pipeline / merge checks…`));
+      loggedWait = true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return false;
+}
+
+function isMergeHttp405(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes("405") || msg.toLowerCase().includes("method not allowed");
+}
+
 export interface MergeMergeRequestOptions {
   readonly cwd: string;
   readonly host: GitHost;
   readonly url: string;
   readonly method?: MergeRequestMergeMethod;
   readonly dryRun?: boolean;
-  /** GitLab only: merge now instead of scheduling auto-merge when CI is running. Default true. */
+  /** Wait for MR/PR CI to finish before attempting merge. Default false. */
+  readonly waitForCi?: boolean;
+  /**
+   * GitLab only: merge now instead of scheduling auto-merge when CI is running.
+   * When `waitForCi` is true, defaults to true after CI is green.
+   */
   readonly immediate?: boolean;
 }
 
@@ -370,10 +465,24 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
   const method = opts.method ?? "squash";
   const label = mergeRequestLabel(opts.host);
 
+  if (opts.waitForCi === true && opts.dryRun !== true) {
+    const ready = await waitForMergeRequestReadyToMerge(opts.cwd, opts.host, opts.url);
+    if (!ready) {
+      throw new Error(
+        `${label} is not ready to merge yet (pipeline running, checks pending, or timeout).`,
+      );
+    }
+  }
+
+  const details = await getMergeRequestDetails(opts.cwd, opts.host, opts.url);
+  const readiness = mergeRequestReadinessFromDetails(details);
+  const pipelineActive =
+    readiness !== null ? isPipelineActive(readiness.pipelineStatus) : false;
+
   if (opts.dryRun === true) {
     if (opts.host === "gitlab") {
-      const immediate = opts.immediate !== false;
-      const flags = immediate ? " --auto-merge=false" : "";
+      const immediate = opts.immediate !== false && !pipelineActive;
+      const flags = immediate ? " --auto-merge=false" : " (auto-merge when pipeline succeeds)";
       const methodFlag =
         method === "squash" ? " --squash" : method === "rebase" ? " --rebase" : "";
       log.info(`would ${label} merge ${ref} (glab mr merge${flags}${methodFlag})`);
@@ -384,22 +493,52 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
   }
 
   if (opts.host === "gitlab") {
-    const args = ["mr", "merge", ref];
-    if (opts.immediate !== false) {
-      args.push("--auto-merge=false");
-    }
-    if (method === "squash") {
-      args.push("--squash");
-    } else if (method === "rebase") {
-      args.push("--rebase");
-    }
-    await execFileAsync("glab", args, {
+    await mergeGitLabMergeRequest({
       cwd: opts.cwd,
-      maxBuffer: 4 * 1024 * 1024,
+      ref,
+      method,
+      immediate: opts.immediate !== false && !pipelineActive,
     });
     return;
   }
 
   const args = ["pr", "merge", ref, `--${method}`];
   await execFileAsync("gh", args, { cwd: opts.cwd, maxBuffer: 4 * 1024 * 1024 });
+}
+
+async function mergeGitLabMergeRequest(input: {
+  readonly cwd: string;
+  readonly ref: string;
+  readonly method: MergeRequestMergeMethod;
+  readonly immediate: boolean;
+}): Promise<void> {
+  const attempt = async (immediate: boolean): Promise<void> => {
+    const args = ["mr", "merge", input.ref];
+    if (immediate) {
+      args.push("--auto-merge=false");
+    }
+    if (input.method === "squash") {
+      args.push("--squash");
+    } else if (input.method === "rebase") {
+      args.push("--rebase");
+    }
+    await execFileAsync("glab", args, {
+      cwd: input.cwd,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+  };
+
+  try {
+    await attempt(input.immediate);
+  } catch (error) {
+    if (!input.immediate && isMergeHttp405(error)) {
+      await attempt(false);
+      return;
+    }
+    if (input.immediate && isMergeHttp405(error)) {
+      await attempt(false);
+      return;
+    }
+    throw error;
+  }
 }
