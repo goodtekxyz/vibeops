@@ -4,6 +4,18 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.5.0 - 2026-07-19
+
+### Breaking
+
+- **Removed `vibeops task reship`.** Use `vibeops task ship` (state-aware). After merge, confirm or pass `--new-cycle`. Hidden flag `ship --reship` remains as an alias for `--new-cycle`.
+
+### Changed
+
+- **`vibeops init` remote setup:** ask GitHub / GitLab / Skip, then Create or Connect. Soft-gate when `gh`/`glab` is missing (install hints, optional `brew install` with consent, or manual URL).
+- **`vibeops status`:** human output is a **Now / Next** card (focus, checklist, PR, next command); details (project, counts, LLM) move to a dim footer.
+- Shared **host CLI install/login hints** for ship / merge / release when the tool is missing.
+
 ## 2.4.4 - 2026-06-25
 
 ### Fixed

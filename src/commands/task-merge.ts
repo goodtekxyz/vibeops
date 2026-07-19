@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
 import { gitRemoteUrl } from "../lib/git.js";
 import { bold, cyan, dim, log } from "../lib/logger.js";
@@ -77,7 +78,7 @@ export async function taskMergeCommand(
 
   if (!dryRun && resolvedMr === null) {
     log.error(
-      `No open MR/PR for ${ctx.taskBranch} → ${ctx.baseBranch}. Run task ship or task reship first.`,
+      `No open MR/PR for ${ctx.taskBranch} → ${ctx.baseBranch}. Run task ship first.`,
     );
     process.exitCode = 1;
     return;
@@ -127,8 +128,11 @@ export async function taskMergeCommand(
   if (state === "open") {
     const cliOk = await probeMergeRequestCli(host);
     if (!cliOk) {
-      const tool = host === "gitlab" ? "glab" : "gh";
-      log.error(`${tool} CLI not found — merge in the host UI, then task sync.`);
+      log.error(formatHostCliMissingMessage(host, `merge the ${label}`));
+      for (const line of formatHostCliHint(host)) {
+        log.info(dim(`  ${line}`));
+      }
+      log.info(dim("Or merge in the host UI, then task sync."));
       process.exitCode = 1;
       return;
     }

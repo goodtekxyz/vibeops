@@ -1,8 +1,9 @@
 # VibeOps v3 — Product Scope
 
-> **Status:** Implemented in `@goodtek/vibeops@2.1.x` (ship · reship · merge · sync · release).  
+> **Status:** Implemented in `@goodtek/vibeops@2.x` (ship · merge · sync · release).  
+> **Note (2.5+):** `task reship` was removed — use state-aware `task ship` / `--new-cycle`.  
 > **Replaces:** v1 multi-command surface + v2 `TASK-mvp` / `plan` / Notion / `next` as the default product.  
-> **Package:** `@goodtek/vibeops` — **2.x** (`task ship` → `task merge` → optional `task sync`; **`task reship`** for Shipped follow-up; optional `task release`).
+> **Package:** `@goodtek/vibeops` — **2.x** (`task ship` → `task merge` → optional `task sync`; new PR cycle via `ship --new-cycle`; optional `task release`).
 
 ## One-line definition
 
@@ -14,20 +15,20 @@ Cursor plans and implements. VibeOps does **files + Git + short LLM assists**. *
 
 ## Design principles
 
-1. **Daily commands:** `init`, `task add`, `task ship`, `task reship`, `task merge`, `task sync`, `pull`, `status` (+ optional `task release`).
+1. **Daily commands:** `init`, `task add`, `task ship`, `task merge`, `task sync`, `pull`, `status` (+ optional `task release`).
 2. **Files are the API** between CLI and Cursor — no “copy prompt from terminal” workflow.
-3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on ship/reship.
+3. **LLM in CLI only where Git/files need it:** scaffold on add, summarize + doc patches on ship / new-cycle.
 4. **Planning and coding happen in Cursor** (Ask / Agent + `@docs/tasks/TASK-NNN.md`).
 5. **In-progress TASK handoff is guide-only** — CLI does not auto-run `task ship` during `task add`. **Shipped** does not block `task add`.
 6. **One TASK model:** `TASK-NNN-<slug>.md` only (no `TASK-mvp`, no dual `resolveCommandTask` paths).
-7. **TASK md status:** **In Progress** → **Shipped** only. Merge, sync, and reship follow-up do not rewrite Status.
+7. **TASK md status:** **In Progress** → **Shipped** only. Merge, sync, and new-cycle follow-up do not rewrite Status.
 
 ---
 
 ## User workflow (target)
 
 ```text
-vibeops init                    # once per repo
+vibeops init                    # once per repo (asks Git host + create/connect)
 
 vibeops task add                # interactive: guide if In Progress → new TASK + branch
 
@@ -39,10 +40,10 @@ vibeops task merge [TASK-NNN]   # merge MR into integration (CLI or host UI)
 vibeops task sync [TASK-NNN]    # optional — integration pull + delete task branch (no md edits)
 
 # Same TASK follow-up after merge:
-vibeops task reship TASK-NNN
+vibeops task ship --new-cycle
 vibeops task merge TASK-NNN
 
-vibeops status                  # briefing: active TASK, branch, doc health, next hint
+vibeops status                  # Now / Next: focus TASK, checklist, next command
 ```
 
 ### Step detail
@@ -56,7 +57,7 @@ vibeops status                  # briefing: active TASK, branch, doc health, nex
 | 5 Task ship | CLI | See [task ship](#vibeops-task-ship-taskref). Status → **Shipped**. |
 | 6 Task merge | CLI / host | Merge MR into integration. Does not edit TASK md. |
 | 7 Task sync | CLI | Optional branch cleanup + integration pull. Does not edit TASK md. |
-| 8 Task reship | CLI | Optional Shipped follow-up — new MR; Status stays **Shipped**. |
+| 8 New PR cycle | CLI | After merge: `task ship --new-cycle` — new MR; Status stays **Shipped**. |
 | 9 Status | CLI | Anytime snapshot; no interactive menu. |
 
 ---

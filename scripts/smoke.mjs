@@ -48,7 +48,6 @@ try {
     ["task", "ship", "--dry-run", "-m", "fix: tweak", "--cwd", tmpRoot],
     ["task", "ship", "--dry-run", "--no-commit", "--cwd", tmpRoot],
     ["task", "ship", "--dry-run", "--new-cycle", "--cwd", tmpRoot],
-    ["task", "reship", "--dry-run", "--cwd", tmpRoot],
     ["task", "merge", "--dry-run", "--cwd", tmpRoot],
     ["task", "sync", "--dry-run", "--cwd", tmpRoot],
     ["pull", "--dry-run", "--cwd", tmpRoot],

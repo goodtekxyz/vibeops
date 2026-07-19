@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from "commander";
+import { Command, Option } from "commander";
 
 import { pullCommand } from "./commands/pull.js";
 import { initCommand } from "./commands/init.js";
@@ -10,7 +10,6 @@ import { taskDelCommand } from "./commands/task-del.js";
 import { taskMergeCommand } from "./commands/task-merge.js";
 import { taskReleaseCommand } from "./commands/task-release.js";
 import { taskShipCommand } from "./commands/task-ship.js";
-import { taskReshipCommand } from "./commands/task-reship.js";
 import { taskSyncCommand } from "./commands/task-sync.js";
 import { loadVibeopsEnv } from "./lib/env.js";
 import { VERSION } from "./version.js";
@@ -75,7 +74,7 @@ program
 
 const task = program
   .command("task")
-  .description("TASK lifecycle (add · del · ship · reship · merge · sync · release)");
+  .description("TASK lifecycle (add · del · ship · merge · sync · release)");
 
 task
   .command("add")
@@ -118,8 +117,8 @@ task
   )
   .option("--dry-run", "Plan only")
   .option("-m, --message <msg>", "Commit message (TASK id auto-prefixed; LLM/prompt when omitted)")
-  .option("--new-cycle", "Allow a new PR cycle after merge without prompting (alias: --reship)")
-  .option("--reship", "Alias for --new-cycle")
+  .option("--new-cycle", "Allow a new PR cycle after merge without prompting")
+  .addOption(new Option("--reship", "Alias for --new-cycle").hideHelp())
   .option("--no-commit", "Push already-committed changes only (skip staging/commit)")
   .option("--no-pr", "Push only; skip creating MR/PR")
   .option("--non-interactive", "CI: never prompt")
@@ -136,34 +135,6 @@ task
       noCommit: opts.commit === false,
       noPr: opts.pr === false,
       nonInteractive: Boolean(opts.nonInteractive),
-      noIntegrate: opts.integrate === false,
-      recreateBranch: Boolean(opts.recreateBranch),
-      skipLlm: Boolean(opts.skipLlm),
-      allowOpenMr: Boolean(opts.allowOpenMr),
-      cwd: opts.cwd as string | undefined,
-    });
-  });
-
-task
-  .command("reship [taskRef]")
-  .description("Deprecated alias for `task ship --new-cycle` (start a new PR cycle after merge)")
-  .option("--dry-run", "Plan only")
-  .option("--no-pr", "Push only; skip creating MR/PR")
-  .option("--no-integrate", "Skip merging integration branch into task branch")
-  .option(
-    "--recreate-branch",
-    "Create task branch from integration instead of reusing local/remote ref",
-  )
-  .option("--skip-llm", "Do not run LLM for Result / Test Result")
-  .option(
-    "--allow-open-mr",
-    "Update the open MR/PR with new commits (merge before reship for a new PR)",
-  )
-  .option("--cwd <path>", "Target directory")
-  .action(async (taskRef: string | undefined, opts) => {
-    await taskReshipCommand(taskRef, {
-      dryRun: Boolean(opts.dryRun),
-      noPr: opts.pr === false,
       noIntegrate: opts.integrate === false,
       recreateBranch: Boolean(opts.recreateBranch),
       skipLlm: Boolean(opts.skipLlm),

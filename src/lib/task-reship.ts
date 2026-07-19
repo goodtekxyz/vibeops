@@ -89,7 +89,7 @@ export function reshipNotFoundMessage(taskRef: string | undefined): string {
   if (taskRef?.trim()) {
     return `Shipped TASK not found: ${normalizeTaskRef(taskRef)}. Check docs/tasks/.`;
   }
-  return "No Shipped TASK found. Pass `vibeops task reship TASK-NNN`.";
+  return "No Shipped TASK found. Pass `vibeops task ship TASK-NNN` (use --new-cycle after merge).";
 }
 
 export interface EnsureTaskBranchOptions {

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
 import { gitRemoteUrl } from "../lib/git.js";
 import { bold, dim, log } from "../lib/logger.js";
@@ -84,8 +85,10 @@ export async function taskReleaseCommand(
 
   const cliOk = await probeMergeRequestCli(host);
   if (!cliOk) {
-    const tool = host === "gitlab" ? "glab" : "gh";
-    log.error(`${tool} CLI not found — create the release ${label} manually.`);
+    log.error(formatHostCliMissingMessage(host, `create the release ${label}`));
+    for (const line of formatHostCliHint(host)) {
+      log.info(dim(`  ${line}`));
+    }
     process.exitCode = 1;
     return;
   }
