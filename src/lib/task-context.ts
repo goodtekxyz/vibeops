@@ -57,7 +57,7 @@ export function relPath(cwd: string, filePath: string): string {
 export type NextHint =
   | "task-add"
   | "task-ship"
-  | "task-reship"
+  | "task-ship-followup"
   | "task-merge"
   | "task-sync"
   | "cursor-plan"
@@ -80,7 +80,7 @@ export function computeNextHint(input: {
   if (input.focus.status === "shipped") {
     if (input.needsSync) return "task-sync";
     if (input.hasMergeRequest && !input.mergeRequestMerged) return "task-merge";
-    if (input.hasLocalChanges) return "task-reship";
+    if (input.hasLocalChanges) return "task-ship-followup";
     return "task-add";
   }
   if (!input.resultFilled || !input.testFilled) {
@@ -89,35 +89,52 @@ export function computeNextHint(input: {
   return input.hasMergeRequest ? "task-merge" : "task-ship";
 }
 
-export function hintToText(hint: NextHint, cwd: string, task: TaskMeta | null): string {
+/** Multi-line NEXT block lines (without the leading arrow prefix). */
+export function hintToLines(
+  hint: NextHint,
+  cwd: string,
+  task: TaskMeta | null,
+): readonly string[] {
   switch (hint) {
     case "init":
-      return "Run `vibeops init` in this directory.";
+      return ["vibeops init"];
     case "task-add":
-      return "Run `vibeops task add` to start the next slice.";
+      return ["vibeops task add"];
     case "task-ship":
-      return task ? `Run \`vibeops task ship ${task.id}\`.` : "Run `vibeops task ship`.";
-    case "task-reship":
+      return [task ? `vibeops task ship ${task.id}` : "vibeops task ship"];
+    case "task-ship-followup":
       return task
-        ? `Follow-up on ${task.id}? Edit files (develop is fine), then \`vibeops task reship ${task.id}\`.`
-        : "Run `vibeops task reship TASK-NNN` for a Shipped follow-up.";
+        ? [
+            `Follow up on ${task.id} (after merge: confirm or --new-cycle)`,
+            `vibeops task ship ${task.id}`,
+          ]
+        : ["vibeops task ship --new-cycle"];
     case "task-merge":
       return task
-        ? `Merge the MR (UI or \`vibeops task merge ${task.id}\`), then optional task sync.`
-        : "Merge the MR on the host or with `vibeops task merge`.";
+        ? [`vibeops task merge ${task.id}`, "(or merge in the host UI)"]
+        : ["vibeops task merge"];
     case "task-sync":
       return task
-        ? `Run \`vibeops task sync ${task.id}\` to delete task branches, then task add.`
-        : "Run `vibeops task sync` to delete task branches after merge.";
+        ? [`vibeops task sync ${task.id}`, "then: vibeops task add"]
+        : ["vibeops task sync"];
     case "cursor-plan":
       return task
-        ? `In Cursor Ask: @${relPath(cwd, task.filePath)} — refine Scope / AC.`
-        : "Open the TASK file in Cursor Ask.";
+        ? [
+            `Cursor Ask: @${relPath(cwd, task.filePath)} — refine Scope / AC`,
+          ]
+        : ["Open the TASK file in Cursor Ask"];
     case "cursor-implement":
       return task
-        ? `In Cursor Agent: @${relPath(cwd, task.filePath)} — implement, then task ship.`
-        : "Implement per the TASK file in Cursor.";
+        ? [
+            `Cursor Agent: @${relPath(cwd, task.filePath)} — implement`,
+            `then: vibeops task ship ${task.id}`,
+          ]
+        : ["Implement per the TASK file, then vibeops task ship"];
   }
+}
+
+export function hintToText(hint: NextHint, cwd: string, task: TaskMeta | null): string {
+  return hintToLines(hint, cwd, task).join(" · ");
 }
 
 export async function listInProgressTasks(paths: ProjectPaths): Promise<TaskMeta[]> {

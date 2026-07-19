@@ -1,3 +1,4 @@
+import { formatHostCliHint, formatHostCliMissingMessage } from "./git-host-cli.js";
 import { readText } from "./filesystem.js";
 import { readConfig } from "./config.js";
 import { detectGitHost, mergeRequestLabel } from "./git-host.js";
@@ -26,7 +27,7 @@ export interface FinishTaskPullRequestOptions {
   readonly taskFile: string;
   readonly dryRun?: boolean;
   readonly skipPr?: boolean;
-  /** Open a new MR/PR even when an open one exists for the task branch (`task reship`). */
+  /** Open a new MR/PR even when an open one exists for the task branch (new PR cycle). */
   readonly forceNewMergeRequest?: boolean;
 }
 
@@ -145,9 +146,14 @@ export async function finishTaskWithPullRequest(
 
   const cliOk = await probeMergeRequestCli(gitCfg.host);
   if (!cliOk) {
-    const tool = gitCfg.host === "gitlab" ? "glab" : "gh";
-    log.warn(
-      `${tool} CLI not found — create the ${label} manually: ${gitCtx.taskBranch} → ${gitCtx.baseBranch}`,
+    log.warn(formatHostCliMissingMessage(gitCfg.host, `create the ${label}`));
+    for (const line of formatHostCliHint(gitCfg.host)) {
+      log.info(dim(`  ${line}`));
+    }
+    log.info(
+      dim(
+        `Create the ${label} manually: ${gitCtx.taskBranch} → ${gitCtx.baseBranch}`,
+      ),
     );
     return { ok: true, pushed: true };
   }

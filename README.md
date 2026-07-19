@@ -15,22 +15,23 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 | `vibeops task add` | New `TASK-NNN` file + task branch |
 | `vibeops task del` | Cancel TASK before merge (md + branch + close open MR) |
 | `vibeops task ship` | State-aware submit: open a new PR · update the open PR · start a new PR cycle after merge (Status → **Shipped**) |
-| `vibeops task reship` | **Deprecated** alias for `task ship --new-cycle` |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
 | `vibeops task sync` | After merge: ff-only integration pull, delete task branches (no TASK md edits) |
 | `vibeops task release` | Release PR: integration → production (GitFlow) |
 | `vibeops pull` | Fetch remote + update integration branch (e.g. develop) |
-| `vibeops status` | Briefing: TASK, Git, LLM, clients |
+| `vibeops status` | Now / Next briefing: focus TASK, Git, what to run next |
 | `vibeops llm` | Connect LLM providers (`connect` · `status` · `use`) |
 
 ## Init
 
+Interactive init asks which agents to install, Git branch policy, then **where the remote lives** (GitHub / GitLab / skip) and whether to **create** or **connect** a repository. If `gh`/`glab` is missing, init prints install hints (optional `brew install` with consent) or accepts a URL — it does not block the rest of VibeOps.
+
 ```bash
-# Interactive: pick agents (≥1), then Git
+# Interactive: pick agents (≥1), then Git + remote host
 vibeops init
 
 # Non-interactive (GitFlow: develop + main, origin required unless CI)
-vibeops init --clients cursor,claude,codex --git --initial-commit --git-policy gitflow
+vibeops init --clients cursor,claude,codex --git --initial-commit --git-policy gitflow --allow-no-remote
 
 # Re-init templates on an existing project
 vibeops init --clients cursor --yes
@@ -107,11 +108,10 @@ pnpm install && pnpm build && pnpm smoke
 
 ## Flags (common)
 
-- **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--allow-no-remote`, `--cwd`
+- **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--git-host github|gitlab`, `--allow-no-remote`, `--cwd`
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
-- **`task ship`**: `-m/--message`, `--new-cycle` (alias `--reship`), `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
-- **`task reship`** (deprecated): `--dry-run`, `--no-pr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`, `--allow-open-mr` → delegates to `task ship --new-cycle`
+- **`task ship`**: `-m/--message`, `--new-cycle`, `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
 - **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
 - **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
@@ -120,14 +120,14 @@ pnpm install && pnpm build && pnpm smoke
 
 ## Git
 
-- **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`).
+- **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`). Interactive remote setup: ask GitHub/GitLab, create or connect; soft-gate when `gh`/`glab` is missing.
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
-- **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
-- **`task reship`** *(deprecated)*: alias for `task ship --new-cycle`.
+- **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Use `--new-cycle` in non-interactive mode. Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
 - **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
 - **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
 - **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command).
 - **`task release`**: integration → production PR + merge (skipped on trunk policy).
+- **`status`**: Now / Next card — focus stage, checklist, PR, and the next command to run.
 - No force-push to shared branches.
 
 ## License

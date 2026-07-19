@@ -40,5 +40,5 @@ vibeops llm connect   # optional — task add / ship
 
 - One **In Progress** TASK at a time; **Shipped** does not block `task add`.
 - Fill **Result** and **Test Result** before `vibeops task ship` (warned, not blocked, when updating an open PR).
-- `ship` is state-aware: re-run it to update an open PR; after merge it needs `--new-cycle` (or a confirm) to start a new PR cycle. `task reship` still works as a deprecated alias for `task ship --new-cycle`.
+- `ship` is state-aware: re-run it to update an open PR; after merge it needs `--new-cycle` (or a confirm) to start a new PR cycle.
 - Agents do not run `task merge` or `task sync` unless the human asks.

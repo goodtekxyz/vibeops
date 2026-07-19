@@ -1,6 +1,6 @@
 # 00 — Overview
 
-> **Product (2.1+):** See `docs/project/v3-scope.md` — `task add` / `ship` / `reship` / `merge` / `sync`; TASK status **In Progress** → **Shipped**. The sections below describe the **original MVP vision** (plan, 8 agents, Notion sync) retained for history.
+> **Product (2.1+):** See `docs/project/v3-scope.md` — `task add` / `ship` / `merge` / `sync` (new PR cycle via `ship --new-cycle`); TASK status **In Progress** → **Shipped**. The sections below describe the **original MVP vision** (plan, 8 agents, Notion sync) retained for history.
 
 ## One-line definition
 

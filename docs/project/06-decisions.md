@@ -16,10 +16,10 @@ No body sync. No realtime.
 
 ## D-004 · TASK md status is In Progress → Shipped only (2.1+)
 
-- **`task ship`** and **`task reship`** set Status **Shipped**.
+- **`task ship`** sets Status **Shipped** (including new PR cycles via `--new-cycle`).
 - **`task merge`**, **`task sync`**, and host UI merge do **not** edit TASK markdown.
 - Legacy Review/Done/Merged/Planned normalize when read.
-- Same-TASK follow-up after merge: **`task reship`**, not a new TASK id.
+- Same-TASK follow-up after merge: **`task ship --new-cycle`** (or interactive confirm), not a new TASK id.
 
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.

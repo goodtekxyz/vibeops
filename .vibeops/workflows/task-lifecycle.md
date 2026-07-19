@@ -4,7 +4,7 @@ A TASK from start to finish (v4).
 
 ## 0. Pick
 
-Run `vibeops status` for the active TASK and next hint.
+Run `vibeops status` for NOW / NEXT (focus TASK and next command).
 
 ## 1. Add
 
@@ -26,6 +26,7 @@ vibeops task ship TASK-NNN
 
 - Fills Result / Test Result (LLM optional), commits, pushes, opens MR/PR.
 - Status → **Shipped** on the task branch.
+- Re-run `ship` while the PR is open to push updates (same PR).
 
 ## 4. Merge
 
@@ -42,7 +43,7 @@ vibeops task merge TASK-NNN
 vibeops pull
 ```
 
-- Fetches remote and fast-forwards **develop** (or your integration branch). Run after merge, before reship or `task add`.
+- Fetches remote and fast-forwards **develop** (or your integration branch). Run after merge, before a new PR cycle or `task add`.
 
 ## 5. Sync (optional)
 
@@ -56,11 +57,11 @@ vibeops task sync TASK-NNN
 ## 6. Follow-up (same TASK, optional)
 
 ```bash
-vibeops task reship TASK-NNN
+vibeops task ship --new-cycle
 vibeops task merge TASK-NNN
 ```
 
-- Edit on **develop or task branch** (uncommitted is fine). `task reship` moves work onto the task branch, creates it from integration when missing (after sync), integrates develop, **new MR/PR**; Status stays **Shipped**.
+- Edit on **develop or task branch** (uncommitted is fine). After merge, `ship` (confirm or `--new-cycle`) moves work onto the task branch, creates it from integration when missing (after sync), integrates develop, **new MR/PR**; Status stays **Shipped**.
 
 ## 7. Next slice
 

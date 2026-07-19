@@ -1,10 +1,24 @@
+import { basename } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { askInput } from "./inquirer-helpers.js";
+import {
+  brewInstall,
+  formatHostCliHint,
+  formatHostCliMissingMessage,
+  hostCliTool,
+  parseOwnerRepo,
+  probeBrew,
+  probeHostCliAuth,
+  remoteUrlForHost,
+  repoExistsOnHost,
+  runInteractiveCli,
+  type HostCliTool,
+} from "./git-host-cli.js";
 import { detectGitHost } from "./git-host.js";
 import { gitRemoteUrl, runGit } from "./git.js";
-import { dim, log } from "./logger.js";
+import { askInput, askSelect, askYesNo } from "./inquirer-helpers.js";
+import { dim, log, yellow } from "./logger.js";
 import type { GitHost } from "../types/config.js";
 
 const execFileAsync = promisify(execFile);
@@ -15,6 +29,8 @@ export interface EnsureRemoteOptions {
   readonly dryRun?: boolean;
   readonly nonInteractive?: boolean;
   readonly allowMissing?: boolean;
+  /** Preferred host from `--git-host` (used when interactive select is skipped). */
+  readonly preferredHost?: GitHost;
   /** GitLab `glab repo create --defaultBranch` (defaults to main). */
   readonly defaultBranch?: string;
 }
@@ -23,30 +39,13 @@ export interface EnsureRemoteResult {
   readonly remote: string;
   readonly url: string;
   readonly host: GitHost;
-}
-
-async function probeGh(): Promise<boolean> {
-  try {
-    await execFileAsync("gh", ["auth", "status"], { maxBuffer: 1024 * 1024 });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function probeGlab(): Promise<boolean> {
-  try {
-    await execFileAsync("glab", ["auth", "status"], { maxBuffer: 1024 * 1024 });
-    return true;
-  } catch {
-    return false;
-  }
+  /** True when the user chose local-only / skip. */
+  readonly skipped?: boolean;
 }
 
 async function createGithubRepo(cwd: string, name: string): Promise<string> {
   const { stdout } = await execFileAsync(
     "gh",
-    // gh requires an explicit visibility flag when non-interactive.
     ["repo", "create", name, "--source=.", "--remote=origin", "--push", "--private"],
     { cwd, maxBuffer: 8 * 1024 * 1024 },
   );
@@ -72,8 +71,168 @@ async function createGitlabRepo(
   throw new Error("glab repo create finished but origin URL could not be read.");
 }
 
+async function addRemoteUrl(
+  cwd: string,
+  remote: string,
+  url: string,
+): Promise<EnsureRemoteResult> {
+  const host = detectGitHost(url);
+  if (!host) {
+    throw new Error("Only GitHub and GitLab HTTPS/SSH URLs are supported.");
+  }
+  await runGit(cwd, ["remote", "add", remote, url.trim()]);
+  return { remote, url: url.trim(), host };
+}
+
+async function resolveConnectUrl(
+  host: GitHost,
+  input: string,
+): Promise<string> {
+  const trimmed = input.trim();
+  const parsed = parseOwnerRepo(trimmed);
+  if (parsed) {
+    if (trimmed.startsWith("http") || trimmed.startsWith("git@") || trimmed.startsWith("ssh://")) {
+      return trimmed.endsWith(".git") ? trimmed : `${trimmed.replace(/\/$/, "")}.git`;
+    }
+    return remoteUrlForHost(host, parsed.owner, parsed.repo);
+  }
+  if (detectGitHost(trimmed)) {
+    return trimmed.endsWith(".git") ? trimmed : `${trimmed.replace(/\/$/, "")}.git`;
+  }
+  throw new Error(`Could not parse remote: ${trimmed}`);
+}
+
+async function repairMissingCli(host: GitHost): Promise<"retry" | "manual" | "skip"> {
+  const tool = hostCliTool(host);
+  const status = await probeHostCliAuth(host);
+  log.warn(
+    status === "missing"
+      ? formatHostCliMissingMessage(host, "create a remote repository")
+      : `${tool} is installed but not logged in.`,
+  );
+  for (const line of formatHostCliHint(host)) {
+    log.info(dim(`  ${line}`));
+  }
+
+  const brewOk = status === "missing" ? await probeBrew() : false;
+  const choices = [
+    "I installed / logged in — retry",
+    ...(brewOk ? [`Run brew install ${tool}`] : []),
+    "Enter remote URL manually",
+    "Skip remote for now",
+  ];
+
+  // Loop so brew install / retry can re-prompt.
+  for (;;) {
+    const pick = await askSelect({
+      message: "How do you want to continue?",
+      nonInteractive: false,
+      choices,
+    });
+
+    if (pick === "I installed / logged in — retry") {
+      const again = await probeHostCliAuth(host);
+      if (again === "ok") return "retry";
+      log.warn(
+        again === "missing"
+          ? `${tool} still not found on PATH.`
+          : `${tool} still not authenticated. Run \`${tool} auth login\`.`,
+      );
+      continue;
+    }
+
+    if (pick.startsWith("Run brew install")) {
+      log.info(dim(`Running: brew install ${tool}`));
+      try {
+        await brewInstall(tool as HostCliTool);
+        log.ok(`Installed ${tool}`);
+        log.info(dim(`Next: ${tool} auth login`));
+        const loginNow = await askYesNo({
+          message: `Run \`${tool} auth login\` now?`,
+          nonInteractive: false,
+          defaultValue: true,
+        });
+        if (loginNow) {
+          try {
+            await runInteractiveCli(tool, ["auth", "login"]);
+          } catch {
+            /* user may cancel */
+          }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.warn(`brew install failed: ${msg}`);
+      }
+      continue;
+    }
+
+    if (pick === "Enter remote URL manually") return "manual";
+    return "skip";
+  }
+}
+
+async function connectExisting(
+  cwd: string,
+  remote: string,
+  host: GitHost,
+): Promise<EnsureRemoteResult> {
+  const input = await askInput({
+    message: "Repository URL or owner/repo",
+    nonInteractive: false,
+    required: true,
+  });
+  const url = await resolveConnectUrl(host, input);
+  const parsed = parseOwnerRepo(url) ?? parseOwnerRepo(input);
+
+  if (parsed && (await probeHostCliAuth(host)) === "ok") {
+    const exists = await repoExistsOnHost(host, parsed.owner, parsed.repo);
+    if (!exists) {
+      log.warn(
+        yellow(
+          `Could not verify ${parsed.owner}/${parsed.repo} on ${host} (missing or private). Continuing with remote add.`,
+        ),
+      );
+    }
+  }
+
+  return addRemoteUrl(cwd, remote, url);
+}
+
+async function createOnHost(
+  cwd: string,
+  remote: string,
+  host: GitHost,
+  defaultBranch: string,
+): Promise<EnsureRemoteResult> {
+  const folder = basename(cwd);
+  const label = host === "gitlab" ? "GitLab project path (group/project)" : "GitHub repository (owner/repo or name)";
+  const name = await askInput({
+    message: label,
+    nonInteractive: false,
+    required: true,
+    default: folder,
+  });
+
+  log.info(dim(`Creating ${host} repository via ${hostCliTool(host)}…`));
+  if (host === "gitlab") {
+    const url = await createGitlabRepo(cwd, name, defaultBranch);
+    // glab may name remote differently; ensure our remote name.
+    const current = await gitRemoteUrl(cwd, remote);
+    if (!current) {
+      const origin = await gitRemoteUrl(cwd, "origin");
+      if (origin && remote !== "origin") {
+        await runGit(cwd, ["remote", "rename", "origin", remote]);
+      }
+    }
+    return { remote, url, host };
+  }
+  const url = await createGithubRepo(cwd, name);
+  return { remote, url, host };
+}
+
 /**
- * Ensures `origin` (or named remote) exists. Interactive path can create via gh/glab or manual URL.
+ * Ensures `origin` (or named remote) exists.
+ * Interactive: ask host → create/connect; soft-gate when CLI missing.
  */
 export async function ensureOriginRemote(
   opts: EnsureRemoteOptions,
@@ -91,8 +250,9 @@ export async function ensureOriginRemote(
   }
 
   if (opts.dryRun) {
-    log.info(dim(`would configure git remote ${remote}`));
-    return { remote, url: "(dry-run)", host: "github" };
+    const host = opts.preferredHost ?? "github";
+    log.info(dim(`would configure git remote ${remote} (${host})`));
+    return { remote, url: "(dry-run)", host };
   }
 
   if (opts.allowMissing) {
@@ -106,44 +266,56 @@ export async function ensureOriginRemote(
   }
 
   log.blank();
-  log.info("Remote origin is required for push and merge requests.");
+  log.info("Remote setup — used later for pull requests / merge requests.");
 
-  const ghOk = await probeGh();
-  const glabOk = await probeGlab();
-
-  if (ghOk) {
-    const name = await askInput({
-      message: "GitHub repository name (owner/repo or name for gh to create)",
-      nonInteractive: false,
-      required: true,
-    });
-    log.info(dim("Creating GitHub repository via gh…"));
-    const url = await createGithubRepo(opts.cwd, name);
-    return { remote, url, host: "github" };
-  }
-
-  if (glabOk) {
-    const name = await askInput({
-      message: "GitLab project path (group/project)",
-      nonInteractive: false,
-      required: true,
-    });
-    log.info(dim("Creating GitLab project via glab…"));
-    const defaultBranch =
-      typeof opts.defaultBranch === "string" && opts.defaultBranch.length > 0
-        ? opts.defaultBranch
-        : "main";
-    const url = await createGitlabRepo(opts.cwd, name, defaultBranch);
-    return { remote, url, host: "gitlab" };
-  }
-
-  const url = await askInput({
-    message: `Remote URL for ${remote} (https://github.com/… or https://gitlab.com/…)`,
+  const hostPick = await askSelect({
+    message: "Where will this project's remote live?",
     nonInteractive: false,
-    required: true,
+    choices: ["GitHub", "GitLab", "Skip for now (local only)"],
+    default:
+      opts.preferredHost === "gitlab"
+        ? "GitLab"
+        : opts.preferredHost === "github"
+          ? "GitHub"
+          : undefined,
   });
-  await runGit(opts.cwd, ["remote", "add", remote, url.trim()]);
-  const host = detectGitHost(url);
-  if (!host) throw new Error("Only GitHub and GitLab HTTPS/SSH URLs are supported.");
-  return { remote, url: url.trim(), host };
+
+  if (hostPick.startsWith("Skip")) {
+    log.warn("No git remote configured. task ship push/MR will fail until origin exists.");
+    log.info(dim(`  Later: git remote add ${remote} <url>`));
+    return null;
+  }
+
+  const host: GitHost = hostPick === "GitLab" ? "gitlab" : "github";
+
+  const mode = await askSelect({
+    message: "Set up the remote",
+    nonInteractive: false,
+    choices: ["Create a new repository", "Connect an existing repository"],
+  });
+
+  if (mode.startsWith("Connect")) {
+    return connectExisting(opts.cwd, remote, host);
+  }
+
+  // Create path — requires authenticated CLI (soft gate).
+  for (;;) {
+    const auth = await probeHostCliAuth(host);
+    if (auth === "ok") {
+      const defaultBranch =
+        typeof opts.defaultBranch === "string" && opts.defaultBranch.length > 0
+          ? opts.defaultBranch
+          : "main";
+      return createOnHost(opts.cwd, remote, host, defaultBranch);
+    }
+
+    const action = await repairMissingCli(host);
+    if (action === "retry") continue;
+    if (action === "manual") {
+      return connectExisting(opts.cwd, remote, host);
+    }
+    log.warn("No git remote configured. task ship push/MR will fail until origin exists.");
+    log.info(dim(`  Later: git remote add ${remote} <url>`));
+    return null;
+  }
 }

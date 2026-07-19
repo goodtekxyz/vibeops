@@ -32,15 +32,15 @@ export interface GitContext {
   doneAt?: string;
   /**
    * Legacy: MR/PR URL stored in TASK md (pre-2.1.3).
-   * Since 2.1.3 the host resolves open PRs by `(taskBranch, baseBranch)`; ship/reship do not write this.
+   * Since 2.1.3 the host resolves open PRs by `(taskBranch, baseBranch)`; ship does not write this.
    */
   mergeRequestUrl?: string;
-  /** Prior MR/PR URLs archived on `task reship`. */
+  /** Prior MR/PR URLs archived when starting a new PR cycle after merge. */
   previousMergeRequestUrls?: readonly string[];
   /** Legacy push timestamp in TASK md (pre-2.1.3). */
   pushedAt?: string;
-  /** ISO timestamp of the latest `task reship`. */
+  /** ISO timestamp of the latest new-PR-cycle follow-up. */
   lastReshipAt?: string;
-  /** Number of `task reship` runs (excluding initial ship). */
+  /** Number of new-PR-cycle follow-ups (excluding initial ship). */
   reshipCount?: number;
 }

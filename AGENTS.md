@@ -53,8 +53,8 @@ vibeops task ship TASK-NNN
 vibeops task merge TASK-NNN    # or merge in GitHub/GitLab UI
 vibeops task sync TASK-NNN     # optional — integration pull + delete task branch
 
-# Same TASK follow-up:
-vibeops task reship TASK-NNN
+# Same TASK follow-up (after merge):
+vibeops task ship --new-cycle
 vibeops task merge TASK-NNN
 ```
 
@@ -85,7 +85,7 @@ This project defines 8 agents in `.vibeops/agents/*.md`.
 - Performing a **large refactor** without a separate TASK.
 - Adding **Notion or Git integration** not covered by the TASK.
 - Calling a TASK ready to ship while skipping updates to **`05-current-state.md`, the TASK Result/Test Result, or `docs/logs/YYYY-MM-DD.md`** before `task ship`.
-- Running `task merge`, `task sync`, or `task reship` unless the human asks.
+- Running `task merge`, `task sync`, or `task ship --new-cycle` unless the human asks.
 
 ## Cursor rule files
 

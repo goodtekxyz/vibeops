@@ -183,30 +183,48 @@ async function resolveBranchPolicy(
   return { integrationBranch: "develop", productionBranch: "main" };
 }
 
-function printNextSteps(clients: readonly VibeopsClientId[], git: VibeopsGitConfig): void {
+function printNextSteps(
+  clients: readonly VibeopsClientId[],
+  git: VibeopsGitConfig,
+  opts: { hasRemote: boolean; pushedBaseline: boolean },
+): void {
   log.blank();
   log.info("Next steps:");
-  log.info("  1. Read AGENTS.md");
+  let n = 1;
+  log.info(`  ${n++}. Read AGENTS.md`);
   if (clients.includes("cursor")) {
-    log.info("  2. Cursor: @docs/tasks/TASK-001-….md in Ask, then Agent (+ /plan-task, /implement-task)");
+    log.info(
+      `  ${n++}. Cursor: @docs/tasks/TASK-001-….md in Ask, then Agent (+ /plan-task, /implement-task)`,
+    );
+  } else if (clients.includes("claude")) {
+    log.info(`  ${n++}. Claude Code: open TASK file; use /plan-task then /implement-task`);
+  } else if (clients.includes("codex")) {
+    log.info(`  ${n++}. Codex: open TASK file; use $plan-task / $implement-task when needed`);
+  } else {
+    log.info(`  ${n++}. Open the current TASK file in your agent before coding`);
   }
-  if (clients.includes("claude")) {
-    log.info("  2. Claude Code: open TASK file; use /plan-task then /implement-task");
+  log.info(`  ${n++}. ${cyan("vibeops llm connect")} — LLM for task add / task ship`);
+  if (!opts.hasRemote) {
+    log.info(
+      `  ${n++}. Add a remote later: ${dim(`git remote add ${git.remote} <url>`)} (or re-run init)`,
+    );
+  } else if (!opts.pushedBaseline) {
+    log.info(`  ${n++}. Push branches to origin (first time only):`);
+    log.info(`     ${dim(`git push -u ${git.remote} ${git.productionBranch}`)}`);
+    if (git.integrationBranch !== git.productionBranch) {
+      log.info(`     ${dim(`git push -u ${git.remote} ${git.integrationBranch}`)}`);
+    }
   }
-  if (clients.includes("codex")) {
-    log.info("  2. Codex: open TASK file; use $plan-task / $implement-task when needed");
+  log.info(
+    `  ${n++}. ${cyan("vibeops task add")} — branches from ${git.integrationBranch} (pulls latest first)`,
+  );
+  if (opts.hasRemote) {
+    log.info(
+      `  ${n++}. ${cyan("vibeops task ship")} → merge → sync — TASK lifecycle on ${git.host}`,
+    );
+  } else {
+    log.info(`  ${n++}. ${cyan("vibeops task ship")} — after origin exists`);
   }
-  if (!clients.includes("cursor") && !clients.includes("claude") && !clients.includes("codex")) {
-    log.info("  2. Open the current TASK file in your agent before coding");
-  }
-  log.info(`  3. ${cyan("vibeops llm connect")} — LLM for task add / task ship`);
-  log.info("  4. Push branches to origin (first time only):");
-  log.info(`     ${dim(`git push -u ${git.remote} ${git.productionBranch}`)}`);
-  if (git.integrationBranch !== git.productionBranch) {
-    log.info(`     ${dim(`git push -u ${git.remote} ${git.integrationBranch}`)}`);
-  }
-  log.info(`  5. ${cyan("vibeops task add")} — branches from ${git.integrationBranch} (pulls latest first)`);
-  log.info(`  6. ${cyan("vibeops task ship")} → merge → sync — TASK lifecycle on ${git.host}`);
 }
 
 export async function initCommand(options: InitOptions = {}): Promise<void> {
@@ -317,6 +335,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     dryRun,
     nonInteractive: !interactive,
     allowMissing: options.allowNoRemote === true,
+    preferredHost: hostFromFlag ?? existingConfig?.git?.host,
     defaultBranch: gitConfig.productionBranch,
   });
 
@@ -328,15 +347,24 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     };
   }
 
+  let pushedBaseline = hadRemoteBefore;
   // If we created/configured a new remote during init, push baseline branches so
   // `task add` can always pull latest integration before branching.
-  if (!dryRun && options.allowNoRemote !== true && !hadRemoteBefore) {
+  if (
+    !dryRun &&
+    options.allowNoRemote !== true &&
+    !hadRemoteBefore &&
+    remote !== null
+  ) {
     const remoteName = gitConfig.remote;
     log.blank();
     log.info("Remote bootstrap:");
     try {
-      // Ensure local branches are up-to-date with origin if they already exist remotely.
-      const prodRemoteExists = await gitRemoteBranchExists(projectRoot, remoteName, gitConfig.productionBranch);
+      const prodRemoteExists = await gitRemoteBranchExists(
+        projectRoot,
+        remoteName,
+        gitConfig.productionBranch,
+      );
       if (prodRemoteExists) {
         await gitCheckout(projectRoot, gitConfig.productionBranch);
         await gitPullFastForwardOnly(projectRoot, remoteName, gitConfig.productionBranch);
@@ -346,7 +374,11 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       log.ok(`pushed ${gitConfig.productionBranch} → ${remoteName}`);
 
       if (gitConfig.integrationBranch !== gitConfig.productionBranch) {
-        const intRemoteExists = await gitRemoteBranchExists(projectRoot, remoteName, gitConfig.integrationBranch);
+        const intRemoteExists = await gitRemoteBranchExists(
+          projectRoot,
+          remoteName,
+          gitConfig.integrationBranch,
+        );
         if (intRemoteExists) {
           await gitCheckout(projectRoot, gitConfig.integrationBranch);
           await gitPullFastForwardOnly(projectRoot, remoteName, gitConfig.integrationBranch);
@@ -355,6 +387,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         await gitPush(projectRoot, remoteName, gitConfig.integrationBranch, true);
         log.ok(`pushed ${gitConfig.integrationBranch} → ${remoteName}`);
       }
+      pushedBaseline = true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.warn(`Automatic push failed: ${msg}`);
@@ -363,15 +396,23 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       if (gitConfig.integrationBranch !== gitConfig.productionBranch) {
         log.info(dim(`  git push -u ${remoteName} ${gitConfig.integrationBranch}`));
       }
+      pushedBaseline = false;
     }
   }
 
   if (!dryRun) {
     await writeConfig(projectRoot, buildConfig(name, clients, gitConfig, existingConfig));
-    if (options.allowNoRemote === true && remote === null) {
-      log.warn("No git remote configured (--allow-no-remote). task ship push/MR will fail until origin exists.");
+    if (remote === null) {
+      log.warn(
+        options.allowNoRemote === true
+          ? "No git remote configured (--allow-no-remote). task ship push/MR will fail until origin exists."
+          : "No git remote configured. task ship push/MR will fail until origin exists.",
+      );
     }
-    printNextSteps(clients, gitConfig);
+    printNextSteps(clients, gitConfig, {
+      hasRemote: remote !== null,
+      pushedBaseline,
+    });
   }
 }
 
