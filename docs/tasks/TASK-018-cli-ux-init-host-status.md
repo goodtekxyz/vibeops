@@ -2,7 +2,7 @@
 
 ## Status
 
-In Progress
+Shipped
 
 ## MVP Phase
 

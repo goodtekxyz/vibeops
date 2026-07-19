@@ -21,12 +21,11 @@
 
 ## Branch
 
-- Feature branch: `task/task-018-cli-ux-init-host-status` (not yet merged to `main`).
-- npm 2.5.0 was published from this work; merge to integration/main still pending.
+- TASK-018 merged to `main` via https://github.com/goodtekxyz/vibeops/pull/5.
+- npm **2.5.0** published.
 
 ## Next
 
-- Push branch + open/merge PR for TASK-018 into `main`.
 - Consumers: `npm i -g @goodtek/vibeops@2.5.0` (watch for shell aliases / Volta shadowing old binaries).
 
 ## Progress rules
