@@ -52,3 +52,4 @@ Improve init remote UX (ask host, create/connect, soft-gate missing CLI), remove
 - `pnpm smoke` — typecheck, build, 14 tests pass, smoke OK.
 - `node dist/cli.js task --help` — no `reship` command; `task reship` → unknown command.
 - `node dist/cli.js status` — prints NOW / NEXT / footer.
+- npm: `@goodtek/vibeops@2.5.0` published; `npm view` reports `2.5.0`.

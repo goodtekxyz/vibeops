@@ -7,20 +7,48 @@
 
 VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on Git branches, and runs a clear GitFlow lifecycle. You plan and implement in your chosen agent; the CLI handles files, Git, and short LLM assists.
 
+**Current release:** [`@goodtek/vibeops@2.5.0`](https://www.npmjs.com/package/@goodtek/vibeops) — interactive init remote (GitHub/GitLab), state-aware `task ship` only (no `task reship`), `status` Now/Next card.
+
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `vibeops init` | Core docs + agent packs (cursor / claude / codex) |
+| `vibeops init` | Core docs + agent packs; interactive Git host + create/connect remote |
 | `vibeops task add` | New `TASK-NNN` file + task branch |
 | `vibeops task del` | Cancel TASK before merge (md + branch + close open MR) |
-| `vibeops task ship` | State-aware submit: open a new PR · update the open PR · start a new PR cycle after merge (Status → **Shipped**) |
+| `vibeops task ship` | State-aware submit: new PR · update open PR · new PR cycle after merge (Status → **Shipped**) |
 | `vibeops task merge` | Merge TASK MR/PR into integration branch (default: squash) |
 | `vibeops task sync` | After merge: ff-only integration pull, delete task branches (no TASK md edits) |
 | `vibeops task release` | Release PR: integration → production (GitFlow) |
 | `vibeops pull` | Fetch remote + update integration branch (e.g. develop) |
-| `vibeops status` | Now / Next briefing: focus TASK, Git, what to run next |
+| `vibeops status` | **Now / Next** card — focus TASK, checklist, what to run next |
 | `vibeops llm` | Connect LLM providers (`connect` · `status` · `use`) |
+
+## Installation
+
+Node.js 20+.
+
+```bash
+npm install -g @goodtek/vibeops@2.5.0
+# or latest: npm install -g @goodtek/vibeops
+vibeops --version   # expect 2.5.0
+```
+
+If `vibeops --version` stays on an old release after install, check for a **shell alias** or **Volta** shim shadowing npm:
+
+```bash
+type -a vibeops
+# alias → unalias vibeops (and remove from ~/.zshrc)
+# ~/.volta/bin/vibeops → volta install @goodtek/vibeops@2.5.0
+```
+
+**Upgrading from before 2.5:** `task reship` was removed. Use `vibeops task ship` (re-run while the PR is open; after merge use confirm or `--new-cycle`).
+
+Development:
+
+```bash
+pnpm install && pnpm build && pnpm smoke
+```
 
 ## Init
 
@@ -83,6 +111,22 @@ vibeops task release
 
 Only one TASK **In Progress** at a time (`task add` blocks otherwise). **Shipped** slices do not block the next add; merge on the host or with `task merge`, then optional `task sync`.
 
+## Status
+
+```bash
+vibeops status
+```
+
+Prints a short card:
+
+- **NOW** — focus TASK, stage, Result/Test checklist, branch, PR
+- **NEXT** — one primary action (copy-pasteable command)
+- footer — project, task counts, LLM (dim)
+
+```bash
+vibeops status --json   # machine-readable
+```
+
 ## LLM (optional)
 
 For **`task add`** / **`task ship`** only (not for coding in the IDE). When `-m` is omitted, `ship` uses a connected provider to draft the commit subject:
@@ -90,20 +134,6 @@ For **`task add`** / **`task ship`** only (not for coding in the IDE). When `-m`
 ```bash
 vibeops llm connect
 vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
-```
-
-## Installation
-
-Node.js 20+.
-
-```bash
-npm install -g @goodtek/vibeops
-```
-
-Development:
-
-```bash
-pnpm install && pnpm build && pnpm smoke
 ```
 
 ## Flags (common)

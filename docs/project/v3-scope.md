@@ -57,7 +57,7 @@ vibeops status                  # Now / Next: focus TASK, checklist, next comman
 | 5 Task ship | CLI | See [task ship](#vibeops-task-ship-taskref). Status → **Shipped**. |
 | 6 Task merge | CLI / host | Merge MR into integration. Does not edit TASK md. |
 | 7 Task sync | CLI | Optional branch cleanup + integration pull. Does not edit TASK md. |
-| 8 Task reship | CLI | Optional Shipped follow-up — new MR; Status stays **Shipped**. |
+| 8 New PR cycle | CLI | After merge: `task ship --new-cycle` — new MR; Status stays **Shipped**. |
 | 9 Status | CLI | Anytime snapshot; no interactive menu. |
 
 ---
