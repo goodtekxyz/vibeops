@@ -111,6 +111,8 @@ vibeops task release
 
 Only one TASK **In Progress** at a time (`task add` blocks otherwise). **Shipped** slices do not block the next add; merge on the host or with `task merge`, then optional `task sync`.
 
+`task add` fast-forward-pulls the integration branch first. If that fails (diverged / dirty / local-ahead), it prints the cause and fix commands and **does not** create a TASK file. If a previous run left a TASK file without a branch, rerun `task add` to resume.
+
 ## Status
 
 ```bash

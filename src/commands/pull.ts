@@ -2,6 +2,10 @@ import { resolve } from "node:path";
 
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
 import {
+  diagnoseIntegrationSync,
+  printIntegrationSyncDiagnosis,
+} from "../lib/git-integration-sync.js";
+import {
   gitFetchRemote,
   gitPullFastForwardOnly,
   gitRemoteBranchExists,
@@ -97,9 +101,14 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
     log.ok(`Up to date with ${remote}/${integrationBranch}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log.error(
-      `Could not fast-forward ${integrationBranch}: ${msg}. Commit or stash local changes, then rerun \`vibeops pull\`.`,
-    );
+    const diagnosis = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
+    if (!diagnosis.ok) {
+      printIntegrationSyncDiagnosis(diagnosis);
+    } else {
+      log.error(
+        `Could not fast-forward ${integrationBranch}: ${msg}. Commit or stash local changes, then rerun \`vibeops pull\`.`,
+      );
+    }
     process.exitCode = 1;
   }
 }
