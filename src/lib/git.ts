@@ -664,6 +664,33 @@ export async function gitPullFastForwardOnly(
   await runGit(cwd, ["pull", "--ff-only", remote, branch]);
 }
 
+/**
+ * Commits reachable only from `left` vs only from `right` (git left-right).
+ * Example: `develop...origin/develop` → { left: local-only, right: remote-only }.
+ */
+export async function gitLeftRightCount(
+  cwd: string,
+  leftRef: string,
+  rightRef: string,
+): Promise<{ left: number; right: number } | null> {
+  try {
+    const { stdout } = await runGit(cwd, [
+      "rev-list",
+      "--left-right",
+      "--count",
+      `${leftRef}...${rightRef}`,
+    ]);
+    const parts = stdout.trim().split(/\s+/);
+    if (parts.length < 2) return null;
+    const left = Number.parseInt(parts[0]!, 10);
+    const right = Number.parseInt(parts[1]!, 10);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+    return { left, right };
+  } catch {
+    return null;
+  }
+}
+
 /** Merge `remote/branch` into the current HEAD (follow-up integration). */
 export async function gitMergeRemoteBranch(
   cwd: string,

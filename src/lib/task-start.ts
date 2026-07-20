@@ -13,12 +13,13 @@ import {
   gitCheckoutNewBranch,
   gitGovernanceOnlyDirty,
   gitHeadCommit,
-  gitPullFastForwardOnly,
-  gitRemoteBranchExists,
   gitSwitchToBranch,
-  gitRemoteUrl,
   readGitInfo,
 } from "./git.js";
+import {
+  ensureIntegrationSynced,
+  printIntegrationSyncDiagnosis,
+} from "./git-integration-sync.js";
 import { cyan, dim, log } from "./logger.js";
 import type { GitContext } from "../types/task.js";
 
@@ -29,11 +30,26 @@ export interface StartTaskBranchOptions {
   readonly remote?: string;
   readonly dryRun?: boolean;
   readonly allowDirty?: boolean;
+  /**
+   * Skip fetch+ff pull (caller already ran {@link ensureIntegrationSynced}).
+   * Still verifies we are on the integration branch before creating a new task branch.
+   */
+  readonly skipIntegrationPull?: boolean;
 }
 
 function relOrAbs(root: string, p: string): string {
   const r = relative(root, p);
   return r === "" ? "." : r.startsWith("..") ? p : r;
+}
+
+/** True when In Progress TASK has no task branch yet (failed mid-add). */
+export async function isIncompleteTaskStart(
+  cwd: string,
+  taskFile: string,
+): Promise<boolean> {
+  const ctx = await readGitContext(taskFile);
+  if (ctx === null) return true;
+  return !(await gitBranchExists(cwd, ctx.taskBranch));
 }
 
 /** Create or resume task branch from integration branch and mark TASK In Progress. */
@@ -91,21 +107,25 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
   }
 
   // Ensure integration branch is up-to-date before creating a new task branch.
-  if (!branchExists) {
-    const remoteUrl = await gitRemoteUrl(cwd, remote);
-    if (remoteUrl) {
-      const hasRemoteBranch = await gitRemoteBranchExists(cwd, remote, integrationBranch);
-      if (hasRemoteBranch) {
-        try {
-          await gitPullFastForwardOnly(cwd, remote, integrationBranch);
-          log.info(dim(`Pulled latest ${remote}/${integrationBranch} (--ff-only).`));
-        } catch {
-          log.warn(
-            `Could not fast-forward pull ${remote}/${integrationBranch}. Resolve manually, then rerun task add.`,
-          );
-          return false;
-        }
-      }
+  if (!branchExists && opts.skipIntegrationPull !== true) {
+    const synced = await ensureIntegrationSynced({
+      cwd,
+      remote,
+      integrationBranch,
+      fetch: true,
+    });
+    if (!synced.ok) {
+      printIntegrationSyncDiagnosis(synced.diagnosis);
+      log.blank();
+      log.info(
+        dim(
+          `TASK file is already created — after fixing sync, rerun ${cyan("vibeops task add")} to resume the branch (does not create a second TASK).`,
+        ),
+      );
+      return false;
+    }
+    if (synced.pulled) {
+      log.info(dim(synced.diagnosis.summary));
     }
   }
 

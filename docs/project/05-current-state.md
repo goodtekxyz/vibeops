@@ -4,29 +4,23 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.5.0** published on npm ([npmjs.com/package/@goodtek/vibeops](https://www.npmjs.com/package/@goodtek/vibeops)).
+- **Package:** `@goodtek/vibeops` **2.5.1** (TASK-019 integration sync UX; publish target).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
-- **TASK md status:** **In Progress** → **Shipped** only. Merge/sync/new-cycle follow-up do not rewrite Status.
+- **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 
 ## Implementation (this repo)
 
 | Area | Path | Notes |
 |------|------|--------|
-| Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect; soft-gate CLI |
-| Status Now/Next | `src/commands/status.ts`, `src/lib/task-context.ts` | Human layout + ship-only hints |
-| Ship state machine | `src/commands/task-ship.ts`, `src/lib/task-ship-state.ts` | first / update-open / new-cycle |
-| New PR cycle | `src/lib/task-new-cycle.ts`, `src/lib/task-reship.ts` | lib kept; CLI `reship` removed |
-| Docs | `README.md`, `AGENTS.md`, templates, Cursor rules | ship-only + install notes |
-
-## Branch
-
-- TASK-018 merged to `main` via https://github.com/goodtekxyz/vibeops/pull/5.
-- npm **2.5.0** published.
+| Integration sync UX | `src/lib/git-integration-sync.ts`, `task-add.ts`, `task-start.ts`, `pull.ts` | Diagnose + preflight + resume |
+| Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
+| Status Now/Next | `src/commands/status.ts` | Human layout |
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@2.5.0` (watch for shell aliases / Volta shadowing old binaries).
+- Publish `@goodtek/vibeops@2.5.1` to npm; merge TASK-019.
+- Consumers: `npm i -g @goodtek/vibeops@2.5.1`.
 
 ## Progress rules
 
