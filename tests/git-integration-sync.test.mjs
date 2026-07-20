@@ -78,6 +78,49 @@ test("diagnoseIntegrationSync: diverged reports ahead and behind", async () => {
   }
 });
 
+test("diagnoseIntegrationSync: governance-only dirty (.vibeops.json) is ok", async () => {
+  const dir = await initRepo();
+  try {
+    const { stdout: base } = await exec("git", ["rev-parse", "HEAD"], { cwd: dir });
+    await exec("git", ["update-ref", "refs/remotes/origin/develop", base.trim()], { cwd: dir });
+    await git(dir, "remote", "add", "origin", dir);
+
+    await writeFile(join(dir, ".vibeops.json"), '{"name":"demo"}\n');
+    // Track then modify — mirrors post-init config touch on an existing repo.
+    await git(dir, "add", ".vibeops.json");
+    await git(dir, "commit", "-m", "config");
+    await writeFile(join(dir, ".vibeops.json"), '{"name":"demo","git":{}}\n');
+
+    // Refresh origin/develop to current HEAD so we are not "ahead".
+    const { stdout: tip } = await exec("git", ["rev-parse", "HEAD"], { cwd: dir });
+    await exec("git", ["update-ref", "refs/remotes/origin/develop", tip.trim()], { cwd: dir });
+
+    const d = await diagnoseIntegrationSync(dir, "origin", "develop");
+    assert.equal(d.ok, true);
+    assert.equal(d.kind, "ok");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("diagnoseIntegrationSync: app dirty still blocks", async () => {
+  const dir = await initRepo();
+  try {
+    const { stdout: base } = await exec("git", ["rev-parse", "HEAD"], { cwd: dir });
+    await exec("git", ["update-ref", "refs/remotes/origin/develop", base.trim()], { cwd: dir });
+    await git(dir, "remote", "add", "origin", dir);
+
+    await writeFile(join(dir, "app.js"), "console.log(1)\n");
+
+    const d = await diagnoseIntegrationSync(dir, "origin", "develop");
+    assert.equal(d.ok, false);
+    assert.equal(d.kind, "dirty");
+    assert.ok(d.fixes.some((f) => f.includes("app.js")));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("isIncompleteTaskStart: true without Git Context", async () => {
   const dir = await mkdtemp(join(tmpdir(), "vibeops-task-"));
   try {

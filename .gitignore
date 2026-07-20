@@ -6,6 +6,8 @@ node_modules/
 dist/
 
 .vibeops.env
+.env
+.env.local
 *.log
 .DS_Store
 

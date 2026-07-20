@@ -1,6 +1,6 @@
 {
   "name": "@goodtek/vibeops",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Minimal CLI rails for Cursor-based TASK-driven vibe coding.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
@@ -39,7 +39,9 @@
     "smoke": "pnpm typecheck && pnpm build && node --test \"tests/*.test.mjs\" && node scripts/smoke.mjs",
     "clean": "rm -rf dist",
     "prepack": "pnpm clean && pnpm build",
-    "publish:dry": "pnpm publish --dry-run --no-git-checks"
+    "publish:dry": "pnpm publish --dry-run --no-git-checks",
+    "publish:npm": "scripts/npm-publish.sh",
+    "publish:npm:dry": "scripts/npm-publish.sh --dry-run"
   },
   "keywords": [
     "cursor",

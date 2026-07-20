@@ -4,23 +4,25 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.5.1** (TASK-019 integration sync UX; publish target).
+- **Package:** `@goodtek/vibeops` **2.5.2** (governance-only dirty no longer blocks `task add` sync).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
+- **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
 
 ## Implementation (this repo)
 
 | Area | Path | Notes |
 |------|------|--------|
-| Integration sync UX | `src/lib/git-integration-sync.ts`, `task-add.ts`, `task-start.ts`, `pull.ts` | Diagnose + preflight + resume |
+| Integration sync UX | `src/lib/git-integration-sync.ts`, `task-add.ts`, `git.ts` | Preflight; governance-only dirty OK |
+| npm publish | `scripts/npm-publish.sh`, `scripts/infisical-run.sh` | Infisical / `.env` → temp npmrc |
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 
 ## Next
 
-- Publish `@goodtek/vibeops@2.5.1` to npm; merge TASK-019.
-- Consumers: `npm i -g @goodtek/vibeops@2.5.1`.
+- Consumers: `npm i -g @goodtek/vibeops@2.5.2` (or `volta install @goodtek/vibeops@2.5.2`).
+- Maintainers: `pnpm publish:npm` (Infisical `NPM_TOKEN` or `.env`).
 
 ## Progress rules
 

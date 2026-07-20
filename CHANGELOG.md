@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.5.2 - 2026-07-20
+
+### Fixed
+
+- **`task add` / integration sync:** Governance-only dirt (`.vibeops.json`, `AGENTS.md`, `.vibeops/`, docs, `.cursor/rules/`) no longer blocks preflight. Right after `init`, `task add` works without stash. App-file dirt still fails and lists the blocking paths.
+
 ## 2.5.1 - 2026-07-20
 
 ### Fixed

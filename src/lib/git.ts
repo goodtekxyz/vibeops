@@ -380,7 +380,11 @@ const GOVERNANCE_DOC_REL_PREFIXES = [
   "docs/project/",
   "docs/logs/",
   ".vibeops/",
+  ".cursor/rules/",
 ] as const;
+
+/** Root files owned by vibeops init / config (not under `.vibeops/`). */
+const GOVERNANCE_DOC_EXACT = new Set([".vibeops.json", "AGENTS.md"]);
 
 function normalizeRepoRelPath(p: string): string {
   return p.replace(/\\/g, "/").replace(/^\/+/, "");
@@ -388,6 +392,7 @@ function normalizeRepoRelPath(p: string): string {
 
 export function isGovernanceDocumentationPath(repoRelativePath: string): boolean {
   const n = normalizeRepoRelPath(repoRelativePath);
+  if (GOVERNANCE_DOC_EXACT.has(n)) return true;
   for (const prefix of GOVERNANCE_DOC_REL_PREFIXES) {
     if (n.startsWith(prefix)) return true;
   }

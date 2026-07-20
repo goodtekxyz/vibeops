@@ -1,5 +1,6 @@
 import {
   gitFetchRemote,
+  gitGovernanceOnlyDirty,
   gitLeftRightCount,
   gitPullFastForwardOnly,
   gitRemoteBranchExists,
@@ -7,6 +8,8 @@ import {
   gitRevParse,
   gitSwitchToBranch,
   readGitInfo,
+  restoreGovernanceStashAfterSwitch,
+  stashGovernanceIfBlocking,
 } from "./git.js";
 import { cyan, dim, log } from "./logger.js";
 
@@ -47,6 +50,9 @@ function remoteRef(remote: string, branch: string): string {
 /**
  * Classify why `git pull --ff-only` would fail for the integration branch.
  * Call after fetch when possible so `origin/branch` is current.
+ *
+ * Governance-only dirt (`.vibeops.json`, docs/, `.vibeops/`, …) does **not**
+ * block — `task add` right after `init` must work.
  */
 export async function diagnoseIntegrationSync(
   cwd: string,
@@ -73,19 +79,29 @@ export async function diagnoseIntegrationSync(
 
   const git = await readGitInfo(cwd);
   if (git.dirty === true) {
-    return {
-      ok: false,
-      kind: "dirty",
-      summary: `Working tree is dirty — cannot fast-forward ${integrationBranch}.`,
-      fixes: [
-        "git status",
-        "git stash push -u -m \"vibeops: before sync\"",
-        `git checkout ${integrationBranch}`,
-        `git pull --ff-only ${remote} ${integrationBranch}`,
-        "git stash pop   # if you stashed",
-        "vibeops task add",
-      ],
-    };
+    const gov = await gitGovernanceOnlyDirty(cwd);
+    if (!gov.onlyGovernance) {
+      const blocking = gov.nonGovernancePaths.slice(0, 8);
+      const more =
+        gov.nonGovernancePaths.length > blocking.length
+          ? ` (+${gov.nonGovernancePaths.length - blocking.length} more)`
+          : "";
+      return {
+        ok: false,
+        kind: "dirty",
+        summary: `Working tree has app changes — cannot fast-forward ${integrationBranch}.`,
+        fixes: [
+          "git status",
+          `# Blocking (non-governance): ${blocking.join(", ")}${more}`,
+          "git stash push -u -m \"vibeops: before sync\"",
+          `git checkout ${integrationBranch}`,
+          `git pull --ff-only ${remote} ${integrationBranch}`,
+          "git stash pop   # if you stashed",
+          "vibeops task add",
+        ],
+      };
+    }
+    // Governance-only dirty (.vibeops.json after init, docs, …) — proceed.
   }
 
   const localSha = await gitRevParse(cwd, integrationBranch);
@@ -191,6 +207,7 @@ export interface EnsureIntegrationSyncedResult {
 /**
  * Fetch + ensure local integration can be used as the base for a new task branch.
  * Switches to the integration branch, then `--ff-only` pull when needed. Never force-resets.
+ * Governance-only dirt is stashed around switch/pull so post-`init` `.vibeops.json` edits do not block.
  */
 export async function ensureIntegrationSynced(
   opts: EnsureIntegrationSyncedOptions,
@@ -255,6 +272,8 @@ export async function ensureIntegrationSynced(
     return { ok: true, diagnosis, pulled: false };
   }
 
+  // Stash governance dirt so ff-only pull cannot be blocked by `.vibeops.json` etc.
+  const stashed = await stashGovernanceIfBlocking(cwd);
   try {
     await gitPullFastForwardOnly(cwd, remote, integrationBranch);
     diagnosis = {
@@ -280,5 +299,7 @@ export async function ensureIntegrationSynced(
       };
     }
     return { ok: false, diagnosis, pulled: false };
+  } finally {
+    await restoreGovernanceStashAfterSwitch(cwd, stashed);
   }
 }
