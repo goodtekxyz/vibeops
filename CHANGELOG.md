@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.5.1 - 2026-07-20
+
 ### Fixed
 
 - **`task add`:** Preflight-syncs the integration branch **before** creating a TASK file. On ff-only failure, prints a classified diagnosis (dirty / ahead / diverged) with copy-paste fix commands. Incomplete adds (file created, branch missing) resume on the next `task add` instead of blocking with “finish ship first”.

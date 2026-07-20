@@ -7,7 +7,7 @@
 
 VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on Git branches, and runs a clear GitFlow lifecycle. You plan and implement in your chosen agent; the CLI handles files, Git, and short LLM assists.
 
-**Current release:** [`@goodtek/vibeops@2.5.0`](https://www.npmjs.com/package/@goodtek/vibeops) — interactive init remote (GitHub/GitLab), state-aware `task ship` only (no `task reship`), `status` Now/Next card.
+**Current release:** [`@goodtek/vibeops@2.5.1`](https://www.npmjs.com/package/@goodtek/vibeops) — interactive init remote (GitHub/GitLab), state-aware `task ship` only (no `task reship`), `status` Now/Next card, clearer `task add` integration sync errors.
 
 ## Commands
 
@@ -29,9 +29,9 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 Node.js 20+.
 
 ```bash
-npm install -g @goodtek/vibeops@2.5.0
+npm install -g @goodtek/vibeops@2.5.1
 # or latest: npm install -g @goodtek/vibeops
-vibeops --version   # expect 2.5.0
+vibeops --version   # expect 2.5.1
 ```
 
 If `vibeops --version` stays on an old release after install, check for a **shell alias** or **Volta** shim shadowing npm:
@@ -39,7 +39,7 @@ If `vibeops --version` stays on an old release after install, check for a **shel
 ```bash
 type -a vibeops
 # alias → unalias vibeops (and remove from ~/.zshrc)
-# ~/.volta/bin/vibeops → volta install @goodtek/vibeops@2.5.0
+# ~/.volta/bin/vibeops → volta install @goodtek/vibeops@2.5.1
 ```
 
 **Upgrading from before 2.5:** `task reship` was removed. Use `vibeops task ship` (re-run while the PR is open; after merge use confirm or `--new-cycle`).

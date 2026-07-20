@@ -4,9 +4,10 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.5.0** on npm; **TASK-019** in progress (task-add integration sync UX) on `task/task-019-task-add-integration-sync-ux`.
+- **Package:** `@goodtek/vibeops` **2.5.1** (TASK-019 integration sync UX; publish target).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
+- **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 
 ## Implementation (this repo)
 
@@ -18,8 +19,8 @@
 
 ## Next
 
-- Finish TASK-019 (ship / merge / publish patch if needed).
-- Consumers on 2.5.0: upgrade after patch for clearer `task add` sync errors.
+- Publish `@goodtek/vibeops@2.5.1` to npm; merge TASK-019.
+- Consumers: `npm i -g @goodtek/vibeops@2.5.1`.
 
 ## Progress rules
 
