@@ -22,9 +22,17 @@ export interface GitRunResult {
   stderr: string;
 }
 
+/**
+ * Environment for every git call: output that VibeOps parses (porcelain, refusal
+ * messages) must not be localized.
+ */
+export function gitEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, LC_ALL: "C", LANG: "C", LANGUAGE: "C" };
+}
+
 async function tryGit(cwd: string, args: string[]): Promise<{ stdout: string } | null> {
   try {
-    const { stdout } = await exec("git", args, { cwd });
+    const { stdout } = await exec("git", args, { cwd, env: gitEnv() });
     return { stdout };
   } catch {
     return null;
@@ -42,6 +50,7 @@ export async function runGit(
 ): Promise<GitRunResult> {
   const { stdout, stderr } = await exec("git", args, {
     cwd,
+    env: gitEnv(),
     maxBuffer: options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER,
   });
   return { stdout, stderr };

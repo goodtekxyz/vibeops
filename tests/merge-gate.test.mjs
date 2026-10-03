@@ -116,7 +116,9 @@ const ghPr = (rollup, extra = {}) => ({
   ...extra,
 });
 
-const FAST = { timeoutMs: 400, intervalMs: 10, emptyRollupGraceMs: 0 };
+// Success paths end as soon as the fake host reports green (event-driven); the timeout only
+// bounds a broken run. Tests that exercise the timeout set a small `timeoutMs` explicitly.
+const FAST = { timeoutMs: 30_000, intervalMs: 10, emptyRollupGraceMs: 0 };
 const URL = "https://github.com/o/r/pull/7";
 
 async function merge(extra = {}) {
@@ -447,7 +449,9 @@ test("merge: no checks with allowNoChecks merges and warns exactly once", async 
   const original = console.warn;
   console.warn = (...args) => warnings.push(args.join(" "));
   try {
-    await merge({ gate: { allowNoChecks: true } });
+    // Event-driven: the gate returns as soon as the 4th view reports MERGEABLE; the
+    // generous timeout only bounds a broken run (each poll spawns a fake gh process).
+    await merge({ gate: { allowNoChecks: true, timeoutMs: 60_000 } });
   } finally {
     console.warn = original;
   }

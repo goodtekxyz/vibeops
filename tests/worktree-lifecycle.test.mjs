@@ -25,7 +25,7 @@ import {
   taskNumberFromBranch,
   taskNumberFromFilename,
 } from "../dist/lib/task-id-allocation.js";
-import { parseTaskLockConfig, taskLockPath } from "../dist/lib/task-lock.js";
+import { parseTaskLockConfig, staleReason, taskLockPath } from "../dist/lib/task-lock.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cli = join(repoRoot, "dist/cli.js");
@@ -486,7 +486,7 @@ test("stale lock (dead pid on this host) is removed and the command proceeds", a
   );
   const r = vibeops(b, "task", "add", "--non-interactive", "--idea", "After stale");
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /Removing stale VibeOps lock \(pid \d+ is not running\)/);
+  assert.match(r.out, /Removed stale VibeOps lock \(pid \d+ is not running\)/);
   assert.equal(existsSync(lockPath), false);
 });
 
@@ -673,4 +673,79 @@ test("task ship --new-cycle --recreate-branch works while develop is checked out
   assert.equal(anc.status, 0, `recreated from origin/develop tip\n${r.out}`);
   assert.equal(currentBranch(a), "develop");
   assert.equal(git(a, "rev-parse", "HEAD"), aHead);
+});
+
+test("8 concurrent processes taking over one stale lock: never more than one holder", async () => {
+  const { b } = setupTwoWorktrees();
+  const lockPath = await taskLockPath(b);
+  const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], {
+    encoding: "utf8",
+  });
+  writeFileSync(
+    lockPath,
+    JSON.stringify({
+      token: "stale",
+      pid: Number(dead.stdout),
+      host: hostname(),
+      startedAt: new Date().toISOString(),
+      operation: "task add",
+      cwd: "/gone",
+    }),
+  );
+  const shared = mkdtempSync(join(tmpdir(), "vibeops-holders-"));
+  const marker = join(shared, "holder.marker");
+  const results = join(shared, "results.log");
+  const lockModule = join(repoRoot, "dist/lib/task-lock.js");
+  const worker = `
+    import { acquireTaskLock } from ${JSON.stringify(lockModule)};
+    import { appendFileSync, openSync, closeSync, unlinkSync } from "node:fs";
+    const h = await acquireTaskLock(${JSON.stringify(b)}, "race", { waitSeconds: 60, staleSeconds: 600 });
+    try {
+      // O_EXCL marker: a second simultaneous holder fails to create it.
+      closeSync(openSync(${JSON.stringify(marker)}, "wx"));
+    } catch {
+      appendFileSync(${JSON.stringify(results)}, "VIOLATION\\n");
+      await h.release();
+      process.exit(0);
+    }
+    await new Promise((r) => setTimeout(r, 30));
+    unlinkSync(${JSON.stringify(marker)});
+    await h.release();
+    appendFileSync(${JSON.stringify(results)}, "ok\\n");
+  `;
+  const runs = await Promise.all(
+    Array.from({ length: 8 }, () =>
+      new Promise((done) => {
+        const p = spawn(process.execPath, ["--input-type=module", "-e", worker], { env: ENV });
+        let err = "";
+        p.stderr.on("data", (d) => (err += d));
+        p.on("close", (code) => done({ code, err }));
+      }),
+    ),
+  );
+  for (const r of runs) assert.equal(r.code, 0, r.err);
+  const lines = readFileSync(results, "utf8").trim().split("\n");
+  assert.equal(lines.filter((l) => l === "VIOLATION").length, 0, "max simultaneous holders = 1");
+  assert.equal(lines.filter((l) => l === "ok").length, 8);
+  assert.equal(existsSync(lockPath), false, "lock released");
+  assert.equal(existsSync(`${lockPath}.break`), false, "breaker released");
+});
+
+test("staleReason: dead pid, age bound (pid reuse / other host), future timestamps respected", () => {
+  const cfg = { waitSeconds: 0, staleSeconds: 600 };
+  const now = Date.parse("2026-10-03T12:00:00Z");
+  const base = { token: "t", operation: "x", cwd: "/" };
+  const fresh = new Date(now - 5_000).toISOString();
+  const old = new Date(now - 700_000).toISOString();
+  const future = new Date(now + 3_600_000).toISOString();
+  const dead = Number(spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], { encoding: "utf8" }).stdout);
+
+  assert.match(staleReason({ ...base, pid: dead, host: hostname(), startedAt: fresh }, cfg, now), /not running/);
+  assert.equal(staleReason({ ...base, pid: process.pid, host: hostname(), startedAt: fresh }, cfg, now), null);
+  assert.match(staleReason({ ...base, pid: process.pid, host: hostname(), startedAt: old }, cfg, now), /older than 600s/); // pid reuse
+  assert.equal(staleReason({ ...base, pid: 5, host: "other", startedAt: fresh }, cfg, now), null);
+  assert.match(staleReason({ ...base, pid: 5, host: "other", startedAt: old }, cfg, now), /older than 600s/);
+  assert.equal(staleReason({ ...base, pid: 5, host: "other", startedAt: future }, cfg, now), null);
+  assert.equal(staleReason(null, cfg, now, now - 5_000), null);
+  assert.match(staleReason(null, cfg, now, now - 700_000), /unreadable/);
 });

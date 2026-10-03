@@ -176,10 +176,15 @@ VibeOps supports several `git worktree` checkouts of one repo working in paralle
 
 `task add`, `task sync`, `task del`, `task ship --new-cycle` (branch step) and `vibeops pull` take an exclusive lock, `<git-common-dir>/vibeops-task.lock` (shared by all worktrees), recording pid, host, start time, operation and directory. A second command waits, then fails with a message naming the holder.
 
+- The lock file is created atomically with its content (temp file + `link`), so it is never seen half-written.
+- **Stale** = holder on this host whose pid is not running, or a lock older than `staleSeconds` (any host; covers pid reuse). A start time in the future (clock skew) is respected, not stale.
+- Every removal (release or stale takeover) happens under a short breaker file `vibeops-task.lock.break` and only after re-checking the lock's inode and token, so concurrent takeovers of one stale lock never yield two holders.
+- **The git common dir must be on a local filesystem.** Network filesystems (NFS, SMB, cloud-synced folders) are not supported: their `link` / rename / O_EXCL semantics and clocks are not reliable enough for the lock.
+
 | `.vibeops.json` `lock` key | Default | Allowed | Meaning |
 |---|---|---|---|
 | `waitSeconds` | `60` | integer 0–600 | How long to wait for another holder. |
-| `staleSeconds` | `600` | integer 60–86400 | A lock from **another host** older than this is stale. On this host a lock is stale only when its pid is no longer running. |
+| `staleSeconds` | `600` | integer 60–86400 | A lock older than this is stale (any host). On this host a lock is also stale as soon as its pid is no longer running. |
 
 ## TASK ids
 
