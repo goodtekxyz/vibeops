@@ -274,12 +274,14 @@ export async function gitCheckoutNewBranch(
   cwd: string,
   name: string,
   startPoint?: string,
+  opts: { readonly noTrack?: boolean } = {},
 ): Promise<void> {
   const stashed = await stashGovernanceIfBlocking(cwd);
   if (stashed) {
     log.info(dim("Stashed governance-only changes (.vibeops/, docs/) before branch switch."));
   }
   const args = ["switch", "-c", name];
+  if (opts.noTrack === true) args.push("--no-track");
   if (typeof startPoint === "string" && startPoint.length > 0) args.push(startPoint);
   await runGit(cwd, args);
   await restoreGovernanceStashAfterSwitch(cwd, stashed);

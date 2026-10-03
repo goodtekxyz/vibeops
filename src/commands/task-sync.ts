@@ -7,12 +7,16 @@ import {
   gitDeleteBranch,
   gitDeleteRemoteBranch,
   gitFetchRemote,
-  gitPullFastForwardOnly,
   gitRemoteBranchExists,
   gitRemoteUrl,
-  gitSwitchToBranch,
   readGitInfo,
 } from "../lib/git.js";
+import {
+  branchCheckedOutElsewhere,
+  fastForwardLocalIntegration,
+  leaveTaskBranch,
+  logLocalIntegrationUpdate,
+} from "../lib/git-worktree.js";
 import { bold, cyan, dim, log } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
@@ -88,10 +92,19 @@ export async function taskSyncCommand(
         dim("Would verify MR is merged and integration branch contains task commits before cleanup."),
       );
     }
+    const owner = (await readGitInfo(cwd)).isRepo
+      ? await branchCheckedOutElsewhere(cwd, integrationBranch)
+      : null;
     log.info(bold("dry-run — would:"));
     log.info(`  · git fetch ${remote} --prune`);
-    log.info(`  · git switch ${integrationBranch}`);
-    log.info(`  · git pull --ff-only ${remote} ${integrationBranch}`);
+    log.info(`  · verify the MR is merged (${remote}/${integrationBranch} contains the task commits)`);
+    if (owner === null) {
+      log.info(`  · if on ${taskBranch}: git switch ${integrationBranch}`);
+      log.info(`  · fast-forward local ${integrationBranch} to ${remote}/${integrationBranch} (--ff-only)`);
+    } else {
+      log.info(`  · if on ${taskBranch}: git switch --detach ${remote}/${integrationBranch}`);
+      log.info(dim(`  · ${integrationBranch} is checked out in worktree ${owner} — left unchanged`));
+    }
     log.info(`  · git branch -D ${taskBranch}`);
     if (options.noRemoteDelete !== true) {
       log.info(`  · git push ${remote} --delete ${taskBranch} (if exists)`);
@@ -109,10 +122,6 @@ export async function taskSyncCommand(
     return;
   }
 
-  if (git.branch === taskBranch) {
-    log.info(dim(`On ${taskBranch} — switching to ${integrationBranch} first.`));
-  }
-
   try {
     await gitFetchRemote(cwd, remote);
     log.ok(`Fetched ${remote} (--prune)`);
@@ -121,38 +130,13 @@ export async function taskSyncCommand(
     log.warn(`git fetch failed (${msg}). Continuing with local refs.`);
   }
 
-  const switched = await gitSwitchToBranch(cwd, integrationBranch, remote);
-  if (!switched) {
-    log.error(
-      `Integration branch "${integrationBranch}" not found locally or on ${remote}.`,
-    );
-    process.exitCode = 1;
-    return;
-  }
-  log.ok(`On ${integrationBranch}`);
-
-  if (await gitRemoteBranchExists(cwd, remote, integrationBranch)) {
-    try {
-      await gitPullFastForwardOnly(cwd, remote, integrationBranch);
-      log.ok(`Up to date with ${remote}/${integrationBranch} (--ff-only)`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      log.error(
-        `Could not fast-forward ${integrationBranch}: ${msg}. Resolve locally, then rerun.`,
-      );
-      process.exitCode = 1;
-      return;
-    }
-  } else {
-    log.warn(`No ${remote}/${integrationBranch} — skipped pull.`);
-  }
-
   const remoteUrl = await gitRemoteUrl(cwd, remote);
   const host =
     remoteUrl !== null && detectGitHost(remoteUrl) !== null
       ? detectGitHost(remoteUrl)!
       : gitCfg.host;
 
+  // Verify the merge BEFORE moving HEAD or touching any branch.
   const syncGuard = await checkTaskSyncReady({
     cwd,
     taskFile,
@@ -175,6 +159,45 @@ export async function taskSyncCommand(
     return;
   }
   log.ok(`Ready to sync — ${integrationBranch} contains the task commits.`);
+
+  // Worktree-safe (D-006): leave the task branch without requiring the
+  // integration branch when another worktree has it checked out.
+  if (git.branch === taskBranch) {
+    const left = await leaveTaskBranch(cwd, remote, integrationBranch);
+    if (!left.ok) {
+      log.error(left.message);
+      process.exitCode = 1;
+      return;
+    }
+    log.ok(left.on === "integration" ? `On ${integrationBranch}` : `Detached at ${left.ref}`);
+  }
+
+  if (await gitRemoteBranchExists(cwd, remote, integrationBranch)) {
+    try {
+      const update = await fastForwardLocalIntegration(cwd, remote, integrationBranch);
+      if (update.kind === "up_to_date") {
+        log.ok(`Local ${integrationBranch} is up to date with ${remote}/${integrationBranch}`);
+      } else if (update.kind === "not_fast_forward") {
+        // Same outcome as the former `git pull --ff-only` failure: stop before cleanup.
+        log.error(
+          `Local ${integrationBranch} has commits not on ${remote}/${integrationBranch} — cannot fast-forward (never forced). Push or reset it, then rerun.`,
+        );
+        process.exitCode = 1;
+        return;
+      } else {
+        logLocalIntegrationUpdate(update, remote, integrationBranch);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error(
+        `Could not fast-forward ${integrationBranch}: ${msg}. Resolve locally, then rerun.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    log.warn(`No ${remote}/${integrationBranch} — skipped fast-forward.`);
+  }
 
   if (await gitBranchExists(cwd, taskBranch)) {
     try {

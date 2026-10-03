@@ -17,6 +17,7 @@ import {
   uniqueTaskPath,
 } from "../lib/task-scaffold.js";
 import { findBlockingTask, relPath } from "../lib/task-context.js";
+import { allocateTaskId, TaskIdAllocationError } from "../lib/task-id-allocation.js";
 import { isIncompleteTaskStart, startTaskBranch } from "../lib/task-start.js";
 import { loadActionableTasks, readGitContext } from "../lib/task.js";
 import type { VibeopsGitConfig } from "../types/config.js";
@@ -178,7 +179,30 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
   });
 
   const tasks = await loadActionableTasks(paths.docsTasks);
-  const taskId = formatTaskId(allocateNextTaskNumber(tasks));
+  let taskNumber = allocateNextTaskNumber(tasks);
+  if (gitCfg !== null) {
+    // D-006: ids are unique across the integration branch, every worktree and
+    // every local / remote task/* branch — not just this worktree's docs/tasks.
+    try {
+      const alloc = await allocateTaskId({
+        cwd: root,
+        tasksDir: paths.docsTasks,
+        remote: gitCfg.remote,
+        integrationBranch: gitCfg.integrationBranch,
+      });
+      taskNumber = Math.max(taskNumber, alloc.next);
+    } catch (e) {
+      if (e instanceof TaskIdAllocationError) {
+        log.error(e.message);
+        log.info(dim("No TASK file was created."));
+        process.exitCode = 1;
+        return;
+      }
+      if (!dryRun) throw e;
+      // dry-run outside a git repo: local docs/tasks only.
+    }
+  }
+  const taskId = formatTaskId(taskNumber);
 
   let title: string;
   let slug: string;
@@ -218,7 +242,7 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
   if (dryRun) {
     log.info(`[dry-run] Would create ${bold(taskId)} → ${cyan(relFile)}`);
     log.info(
-      dim(`  branch task/${slugify(slug || title).replace(/^(\d+)-/, "$1-")} from ${integration}`),
+      dim(`  branch task/${slugify(slug || title).replace(/^(\d+)-/, "$1-")} from ${gitCfg?.remote ?? "origin"}/${integration}`),
     );
     if (gitCfg) {
       await startTaskBranch({

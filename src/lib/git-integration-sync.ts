@@ -1,16 +1,18 @@
 import {
-  gitFetchRemote,
+  gitBranchExists,
+  gitFetch,
   gitGovernanceOnlyDirty,
   gitLeftRightCount,
-  gitPullFastForwardOnly,
   gitRemoteBranchExists,
   gitRemoteUrl,
   gitRevParse,
-  gitSwitchToBranch,
   readGitInfo,
-  restoreGovernanceStashAfterSwitch,
-  stashGovernanceIfBlocking,
 } from "./git.js";
+import {
+  fastForwardLocalIntegration,
+  logLocalIntegrationUpdate,
+  resolveIntegrationBaseRef,
+} from "./git-worktree.js";
 import { cyan, dim, log } from "./logger.js";
 
 export type IntegrationSyncKind =
@@ -94,7 +96,7 @@ export async function diagnoseIntegrationSync(
           "git status",
           `# Blocking (non-governance): ${blocking.join(", ")}${more}`,
           "git stash push -u -m \"vibeops: before sync\"",
-          `git checkout ${integrationBranch}`,
+          `git switch ${integrationBranch}   # or run in the worktree that has it (git worktree list)`,
           `git pull --ff-only ${remote} ${integrationBranch}`,
           "git stash pop   # if you stashed",
           "vibeops task add",
@@ -104,8 +106,20 @@ export async function diagnoseIntegrationSync(
     // Governance-only dirty (.vibeops.json after init, docs, …) — proceed.
   }
 
-  const localSha = await gitRevParse(cwd, integrationBranch);
   const remoteSha = await gitRevParse(cwd, remoteRef(remote, integrationBranch));
+  const localSha = (await gitBranchExists(cwd, integrationBranch))
+    ? await gitRevParse(cwd, `refs/heads/${integrationBranch}`)
+    : null;
+  if (localSha === null && remoteSha !== null) {
+    // No local integration branch (e.g. a fresh worktree) — task branches start
+    // from the remote-tracking ref, nothing to fast-forward.
+    return {
+      ok: true,
+      kind: "ok",
+      summary: `No local ${integrationBranch} — using ${remote}/${integrationBranch}.`,
+      fixes: [],
+    };
+  }
   if (localSha === null || remoteSha === null) {
     return {
       ok: false,
@@ -113,7 +127,7 @@ export async function diagnoseIntegrationSync(
       summary: `Could not resolve ${integrationBranch} or ${remote}/${integrationBranch}.`,
       fixes: [
         `git fetch ${remote}`,
-        `git checkout ${integrationBranch}`,
+        `git switch ${integrationBranch}   # or run in the worktree that has it (git worktree list)`,
         `git pull --ff-only ${remote} ${integrationBranch}`,
       ],
     };
@@ -143,7 +157,7 @@ export async function diagnoseIntegrationSync(
       summary: `Local ${integrationBranch} and ${remote}/${integrationBranch} have diverged (local +${ahead}, remote +${behind}).`,
       fixes: [
         `git fetch ${remote}`,
-        `git checkout ${integrationBranch}`,
+        `git switch ${integrationBranch}   # or run in the worktree that has it (git worktree list)`,
         `# Prefer remote (discards local-only commits on ${integrationBranch}):`,
         `git reset --hard ${remote}/${integrationBranch}`,
         `# Or keep local commits: git pull --rebase ${remote} ${integrationBranch}`,
@@ -160,7 +174,7 @@ export async function diagnoseIntegrationSync(
       kind: "ahead",
       summary: `Local ${integrationBranch} is ${ahead} commit(s) ahead of ${remote}/${integrationBranch} — fast-forward pull cannot apply.`,
       fixes: [
-        `git checkout ${integrationBranch}`,
+        `git switch ${integrationBranch}   # or run in the worktree that has it (git worktree list)`,
         `# Push local commits, or reset to remote if they should not exist:`,
         `git push -u ${remote} ${integrationBranch}`,
         `# or: git reset --hard ${remote}/${integrationBranch}`,
@@ -201,13 +215,23 @@ export function printIntegrationSyncDiagnosis(d: IntegrationSyncDiagnosis): void
 export interface EnsureIntegrationSyncedResult {
   readonly ok: boolean;
   readonly diagnosis: IntegrationSyncDiagnosis;
+  /** Local integration ref was fast-forwarded. */
   readonly pulled: boolean;
+  /**
+   * Ref a new task branch must start from: `<remote>/<integration>` when it
+   * exists, else the local integration branch. Null when `ok` is false.
+   */
+  readonly baseRef: string | null;
 }
 
 /**
- * Fetch + ensure local integration can be used as the base for a new task branch.
- * Switches to the integration branch, then `--ff-only` pull when needed. Never force-resets.
- * Governance-only dirt is stashed around switch/pull so post-`init` `.vibeops.json` edits do not block.
+ * Worktree-safe integration preflight (D-006). Never checks out the integration
+ * branch (another worktree may own it) and never force-resets:
+ * 1. `git fetch <remote> <integration>`;
+ * 2. diagnose (app dirt / local ahead / diverged → refuse with fixes);
+ * 3. fast-forward the local integration ref only where safe
+ *    ({@link fastForwardLocalIntegration});
+ * 4. return the base ref for the task branch (`<remote>/<integration>`).
  */
 export async function ensureIntegrationSynced(
   opts: EnsureIntegrationSyncedOptions,
@@ -217,89 +241,77 @@ export async function ensureIntegrationSynced(
 
   if (opts.dryRun === true) {
     const d = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
-    return { ok: d.ok || d.kind === "no_remote_branch", diagnosis: d, pulled: false };
+    const ok = d.ok || d.kind === "no_remote_branch";
+    return {
+      ok,
+      diagnosis: d,
+      pulled: false,
+      baseRef: ok ? await resolveIntegrationBaseRef(cwd, remote, integrationBranch) : null,
+    };
   }
 
-  if ((await gitRemoteUrl(cwd, remote)) === null) {
-    const d = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
-    return { ok: true, diagnosis: d, pulled: false };
-  }
-
-  if (doFetch) {
+  if ((await gitRemoteUrl(cwd, remote)) !== null && doFetch) {
     try {
-      await gitFetchRemote(cwd, remote);
+      await gitFetch(cwd, remote, integrationBranch);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.warn(dim(`git fetch failed (${msg}) — diagnosing with local refs.`));
     }
   }
 
-  const git = await readGitInfo(cwd);
-  if (git.branch !== integrationBranch) {
-    const switched = await gitSwitchToBranch(cwd, integrationBranch, remote);
-    if (!switched) {
-      return {
-        ok: false,
-        diagnosis: {
-          ok: false,
-          kind: "pull_failed",
-          summary: `Could not switch to integration branch "${integrationBranch}".`,
-          fixes: [
-            "git status",
-            `git checkout ${integrationBranch}`,
-            `# If checkout fails due to local changes: git stash -u`,
-            `git pull --ff-only ${remote} ${integrationBranch}`,
-            "vibeops task add",
-          ],
-        },
-        pulled: false,
-      };
-    }
-  }
-
-  let diagnosis = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
+  const diagnosis = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
   if (!diagnosis.ok) {
-    return { ok: false, diagnosis, pulled: false };
+    return { ok: false, diagnosis, pulled: false, baseRef: null };
   }
 
-  if (diagnosis.kind === "no_remote_branch") {
-    return { ok: true, diagnosis, pulled: false };
-  }
-
-  const localSha = await gitRevParse(cwd, integrationBranch);
-  const remoteSha = await gitRevParse(cwd, remoteRef(remote, integrationBranch));
-  if (localSha !== null && remoteSha !== null && localSha === remoteSha) {
-    return { ok: true, diagnosis, pulled: false };
-  }
-
-  // Stash governance dirt so ff-only pull cannot be blocked by `.vibeops.json` etc.
-  const stashed = await stashGovernanceIfBlocking(cwd);
-  try {
-    await gitPullFastForwardOnly(cwd, remote, integrationBranch);
-    diagnosis = {
-      ok: true,
-      kind: "ok",
-      summary: `Pulled latest ${remote}/${integrationBranch} (--ff-only).`,
-      fixes: [],
-    };
-    return { ok: true, diagnosis, pulled: true };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    diagnosis = await diagnoseIntegrationSync(cwd, remote, integrationBranch);
-    if (diagnosis.ok) {
-      diagnosis = {
+  const baseRef = await resolveIntegrationBaseRef(cwd, remote, integrationBranch);
+  if (baseRef === null) {
+    return {
+      ok: false,
+      diagnosis: {
         ok: false,
         kind: "pull_failed",
-        summary: `git pull --ff-only failed: ${msg}`,
-        fixes: [
-          `git checkout ${integrationBranch}`,
-          `git pull --ff-only ${remote} ${integrationBranch}`,
-          "vibeops task add",
-        ],
+        summary: `Integration branch "${integrationBranch}" not found locally or on ${remote}.`,
+        fixes: ["vibeops init   # or create and push the integration branch"],
+      },
+      pulled: false,
+      baseRef: null,
+    };
+  }
+
+  if (diagnosis.kind === "no_remote" || diagnosis.kind === "no_remote_branch") {
+    return { ok: true, diagnosis, pulled: false, baseRef };
+  }
+
+  try {
+    const update = await fastForwardLocalIntegration(cwd, remote, integrationBranch);
+    logLocalIntegrationUpdate(update, remote, integrationBranch);
+    if (update.kind === "fast_forwarded") {
+      return {
+        ok: true,
+        diagnosis: {
+          ok: true,
+          kind: "ok",
+          summary: `Fast-forwarded ${integrationBranch} to ${remote}/${integrationBranch}.`,
+          fixes: [],
+        },
+        pulled: true,
+        baseRef,
       };
     }
-    return { ok: false, diagnosis, pulled: false };
-  } finally {
-    await restoreGovernanceStashAfterSwitch(cwd, stashed);
+    return { ok: true, diagnosis, pulled: false, baseRef };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      diagnosis: {
+        ok: false,
+        kind: "pull_failed",
+        summary: `Could not fast-forward ${integrationBranch}: ${msg}`,
+        fixes: [`git merge --ff-only ${remote}/${integrationBranch}   # in the worktree that has ${integrationBranch}`],
+      },
+      pulled: false,
+      baseRef: null,
+    };
   }
 }

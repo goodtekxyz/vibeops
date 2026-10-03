@@ -13,6 +13,7 @@ import {
   gitSwitchToBranch,
   readGitInfo,
 } from "../lib/git.js";
+import { branchCheckedOutElsewhere } from "../lib/git-worktree.js";
 import { bold, cyan, dim, log } from "../lib/logger.js";
 
 export interface PullCommandOptions {
@@ -80,6 +81,16 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
   }
 
   if (needsSwitch) {
+    // Worktree-safe (D-006): git refuses to check out a branch another worktree has.
+    const owner = await branchCheckedOutElsewhere(cwd, integrationBranch);
+    if (owner !== null) {
+      log.error(
+        `${integrationBranch} is checked out in worktree ${owner} — not switching this worktree.`,
+      );
+      log.info(dim(`Fetched ${remote}. Update ${integrationBranch} there: vibeops pull --cwd "${owner}"`));
+      process.exitCode = 1;
+      return;
+    }
     const switched = await gitSwitchToBranch(cwd, integrationBranch, remote);
     if (!switched) {
       log.error(
