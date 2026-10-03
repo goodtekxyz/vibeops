@@ -23,6 +23,17 @@ export interface VibeopsLlmConfig {
   provider?: LlmProviderPreference;
 }
 
+/** Merge gate for `task merge` / `task release` (GitHub status checks). */
+export interface VibeopsMergeConfig {
+  /**
+   * Check names that must be present and green on the task PR before `task merge`
+   * merges it. Exact names or `*` globs (e.g. `"Strategy diff guards*"`).
+   */
+  requiredChecks?: string[];
+  /** Same as `requiredChecks`, for the release PR (`task release`). */
+  releaseRequiredChecks?: string[];
+}
+
 export interface VibeopsConfig {
   name: string;
   vibeopsVersion: string;
@@ -33,4 +44,5 @@ export interface VibeopsConfig {
   /** Written by init; required for task add/done. */
   git?: VibeopsGitConfig;
   llm?: VibeopsLlmConfig;
+  merge?: VibeopsMergeConfig;
 }

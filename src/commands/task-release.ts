@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 
+import { readConfig } from "../lib/config.js";
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
 import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
@@ -8,6 +9,7 @@ import { bold, dim, log } from "../lib/logger.js";
 import {
   createMergeRequest,
   getMergeRequestState,
+  MergeGateError,
   mergeMergeRequest,
   probeMergeRequestCli,
   type MergeRequestMergeMethod,
@@ -132,6 +134,7 @@ export async function taskReleaseCommand(
       method,
       waitForCi: true,
       immediate: true,
+      requiredChecks: (await readConfig(cwd))?.merge?.releaseRequiredChecks ?? [],
     });
     const verified = await assertMergeRequestMerged({
       cwd,
@@ -148,7 +151,11 @@ export async function taskReleaseCommand(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Release merge failed: ${msg}`);
-    log.info(dim(`Complete merge in the host UI: ${releaseUrl}`));
+    if (e instanceof MergeGateError) {
+      log.info(dim(`Not merged. Fix the failing checks on ${releaseUrl}, then rerun task release.`));
+    } else {
+      log.info(dim(`Complete merge in the host UI: ${releaseUrl}`));
+    }
     process.exitCode = 1;
   }
 }

@@ -4,11 +4,12 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.5.2** (governance-only dirty no longer blocks `task add` sync).
+- **Package:** `@goodtek/vibeops` **2.6.0** (merge gate: `task merge` / `task release` refuse on red / missing checks).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 - **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
+- **2.6.0:** merge gate — CheckRun/StatusContext classification fix, fail-closed, optional `merge.requiredChecks` (TASK-020).
 
 ## Implementation (this repo)
 
@@ -18,10 +19,11 @@
 | npm publish | `scripts/npm-publish.sh`, `scripts/infisical-run.sh` | Infisical / `.env` → temp npmrc |
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; `merge.requiredChecks` |
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@2.5.2` (or `volta install @goodtek/vibeops@2.5.2`).
+- Consumers: `npm i -g @goodtek/vibeops@2.6.0` (or `volta install @goodtek/vibeops@2.6.0`) once published.
 - Maintainers: `pnpm publish:npm` (Infisical `NPM_TOKEN` or `.env`).
 
 ## Progress rules

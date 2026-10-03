@@ -155,12 +155,43 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`). Interactive remote setup: ask GitHub/GitLab, create or connect; soft-gate when `gh`/`glab` is missing.
 - **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
 - **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Use `--new-cycle` in non-interactive mode. Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
-- **`task merge`**: merge MR/PR into integration (CLI or host UI; TASK md unchanged).
+- **`task merge`**: merge MR/PR into integration (TASK md unchanged) — **only when every check is green** (see [Merge gate](#merge-gate)).
 - **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
 - **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command).
 - **`task release`**: integration → production PR + merge (skipped on trunk policy).
 - **`status`**: Now / Next card — focus stage, checklist, PR, and the next command to run.
 - No force-push to shared branches.
+
+## Merge gate
+
+`task merge` and `task release` are the enforcement point for CI (useful when the host plan has no branch protection / required checks, e.g. private GitHub repos on the free plan). Before calling `gh pr merge` / `glab mr merge`:
+
+- **GitHub:** every item in the PR `statusCheckRollup` is classified from GitHub's documented enums — `CheckRun` (Actions) by `status` + `conclusion`, `StatusContext` by `state`:
+  - **passed:** `SUCCESS`, `NEUTRAL`, `SKIPPED`
+  - **failed:** `FAILURE`, `CANCELLED`, `TIMED_OUT`, `ACTION_REQUIRED`, `STARTUP_FAILURE`, `STALE`, `ERROR`
+  - **pending:** CheckRun not `COMPLETED` (`QUEUED`, `IN_PROGRESS`, `WAITING`, `REQUESTED`, `PENDING`); StatusContext `PENDING` / `EXPECTED`
+  - **anything missing or undocumented fails closed** (treated as failed). If `gh` output lacks a field the gate needs (`statusCheckRollup`, `headRefOid`, `mergeable`, `state`), the merge is refused.
+- **GitLab:** the MR head pipeline must be `success` / `skipped` (or absent). `failed`, `canceled`, `manual` and unknown statuses refuse; running statuses wait.
+- **Any failed check → refuse immediately** (exit code 1, failing checks named). **Pending → wait** (up to 15 min, polling every 5 s), then refuse if still not green. There is no override flag; fix CI (re-run `task ship`) and rerun `task merge`.
+- Right after a push the rollup can be empty; the gate keeps polling for up to 30 s before treating "no checks" as green.
+- The GitHub merge is pinned to the checked commit (`--match-head-commit`), so a push between the check and the merge is refused by GitHub.
+
+### Required checks (optional)
+
+Add to `.vibeops.json` to require named checks to exist and pass — a required check that never appears in the rollup within the wait window refuses the merge (`required check "X" never ran`):
+
+```json
+{
+  "merge": {
+    "requiredChecks": ["Migrations lint · vs develop", "Strategy diff guards*"],
+    "releaseRequiredChecks": ["Release smoke"]
+  }
+}
+```
+
+- `requiredChecks` applies to `task merge` (task PR → integration); `releaseRequiredChecks` to `task release` (integration → production).
+- Each entry is an exact check name (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"Strategy diff guards*"`, `"* · vs develop"`).
+- GitHub only; on GitLab the head pipeline status is the gate.
 
 ## License
 

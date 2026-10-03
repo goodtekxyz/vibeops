@@ -3,8 +3,16 @@ import { promisify } from "node:util";
 
 import { mergeRequestLabel } from "./git-host.js";
 import {
+  classifyRollup,
+  evaluateCheckGate,
+  formatCheckGateProblems,
+  type ClassifiedCheck,
+  type RawRollupItem,
+} from "./check-rollup.js";
+import {
   isMergeRequestReadyToMerge,
   isPipelineActive,
+  pipelineGateState,
   pipelineStatusFromHost,
   type MergeRequestReadiness,
   type PipelineStatus,
@@ -114,6 +122,10 @@ export interface MergeRequestDetails {
   readonly detailedMergeStatus: string | null;
   readonly pipelineStatus: PipelineStatus;
   readonly hasConflicts: boolean | null;
+  /** GitHub: classified `statusCheckRollup` items. GitLab: `null` (head pipeline only). */
+  readonly checks: readonly ClassifiedCheck[] | null;
+  /** Head commit SHA (GitHub `headRefOid`, GitLab `sha`), used to pin the merge. */
+  readonly headSha: string | null;
 }
 
 export type { MergeRequestReadiness, PipelineStatus };
@@ -264,76 +276,138 @@ export async function getMergeRequestState(
   return details?.state ?? "unknown";
 }
 
+/** Host CLI returned JSON without a field the merge gate needs — fail closed. */
+export class MergeRequestShapeError extends Error {
+  constructor(tool: string, missing: readonly string[]) {
+    super(
+      `${tool} output is missing ${missing.map((m) => `\`${m}\``).join(", ")} — cannot verify checks (upgrade ${tool}?).`,
+    );
+    this.name = "MergeRequestShapeError";
+  }
+}
+
+function missingFields(obj: Record<string, unknown>, fields: readonly string[]): string[] {
+  return fields.filter((f) => !(f in obj) || obj[f] === undefined);
+}
+
 export async function getMergeRequestDetails(
   cwd: string,
   host: GitHost,
   url: string,
 ): Promise<MergeRequestDetails | null> {
-  const ref = prRefFromUrl(url);
   try {
-    if (host === "gitlab") {
-      const { stdout } = await execFileAsync(
-        "glab",
-        ["mr", "view", ref, "-F", "json"],
-        { cwd, maxBuffer: 1024 * 1024 },
-      );
-      const parsed = JSON.parse(stdout.trim()) as {
-        state?: string;
-        merged_at?: string | null;
-        merge_commit_sha?: string | null;
-        squash_commit_sha?: string | null;
-        merge_status?: string | null;
-        detailed_merge_status?: string | null;
-        has_conflicts?: boolean | null;
-        head_pipeline?: { status?: string | null } | null;
-      };
-      const state = normalizeGlabMergeRequestState(parsed.state ?? "");
-      return {
-        state,
-        mergedAt: parsed.merged_at ?? null,
-        mergeCommitSha: parsed.merge_commit_sha ?? null,
-        squashCommitSha: parsed.squash_commit_sha ?? null,
-        mergeStatus: parsed.merge_status ?? null,
-        detailedMergeStatus: parsed.detailed_merge_status ?? null,
-        pipelineStatus: pipelineStatusFromHost(parsed.head_pipeline?.status),
-        hasConflicts: parsed.has_conflicts ?? null,
-      };
-    }
+    return await readMergeRequestDetails(cwd, host, url, { strict: false });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read MR/PR details from the host CLI. Throws on CLI / JSON errors. With
+ * `strict`, also throws `MergeRequestShapeError` when a field the merge gate
+ * relies on is absent (never treat missing data as green).
+ */
+export async function readMergeRequestDetails(
+  cwd: string,
+  host: GitHost,
+  url: string,
+  options: { readonly strict: boolean },
+): Promise<MergeRequestDetails> {
+  const ref = prRefFromUrl(url);
+  if (host === "gitlab") {
     const { stdout } = await execFileAsync(
-      "gh",
-      ["pr", "view", ref, "--json", "state,mergedAt,mergeCommit,mergeable,statusCheckRollup"],
+      "glab",
+      ["mr", "view", ref, "-F", "json"],
       { cwd, maxBuffer: 1024 * 1024 },
     );
     const parsed = JSON.parse(stdout.trim()) as {
       state?: string;
-      mergedAt?: string | null;
-      mergeCommit?: { oid?: string | null } | null;
-      mergeable?: string | null;
-      statusCheckRollup?: Array<{ state?: string | null }> | null;
+      merged_at?: string | null;
+      merge_commit_sha?: string | null;
+      squash_commit_sha?: string | null;
+      merge_status?: string | null;
+      detailed_merge_status?: string | null;
+      has_conflicts?: boolean | null;
+      head_pipeline?: { status?: string | null } | null;
+      sha?: string | null;
     };
-    const checks = parsed.statusCheckRollup ?? [];
-    let pipelineStatus: PipelineStatus = "none";
-    if (checks.some((c) => (c.state ?? "").toUpperCase() === "PENDING")) {
-      pipelineStatus = "running";
-    } else if (checks.some((c) => (c.state ?? "").toUpperCase() === "FAILURE")) {
-      pipelineStatus = "failed";
-    } else if (checks.length > 0) {
-      pipelineStatus = "success";
+    if (options.strict) {
+      const missing = missingFields(parsed as Record<string, unknown>, [
+        "state",
+        "merge_status",
+        "detailed_merge_status",
+        "head_pipeline",
+      ]);
+      if (missing.length > 0) throw new MergeRequestShapeError("glab", missing);
     }
-    const mergeable = parsed.mergeable?.trim().toUpperCase() ?? "";
+    const state = normalizeGlabMergeRequestState(parsed.state ?? "");
     return {
-      state: normalizeGhMergeRequestState(parsed.state ?? ""),
-      mergedAt: parsed.mergedAt ?? null,
-      mergeCommitSha: parsed.mergeCommit?.oid ?? null,
-      squashCommitSha: null,
-      mergeStatus: mergeable === "MERGEABLE" ? "can_be_merged" : mergeable.toLowerCase(),
-      detailedMergeStatus: mergeable.toLowerCase(),
-      pipelineStatus,
-      hasConflicts: mergeable === "CONFLICTING" ? true : mergeable === "MERGEABLE" ? false : null,
+      state,
+      mergedAt: parsed.merged_at ?? null,
+      mergeCommitSha: parsed.merge_commit_sha ?? null,
+      squashCommitSha: parsed.squash_commit_sha ?? null,
+      mergeStatus: parsed.merge_status ?? null,
+      detailedMergeStatus: parsed.detailed_merge_status ?? null,
+      pipelineStatus: pipelineStatusFromHost(parsed.head_pipeline?.status),
+      hasConflicts: parsed.has_conflicts ?? null,
+      checks: null,
+      headSha: parsed.sha ?? null,
     };
-  } catch {
-    return null;
   }
+  const { stdout } = await execFileAsync(
+    "gh",
+    [
+      "pr",
+      "view",
+      ref,
+      "--json",
+      "state,mergedAt,mergeCommit,mergeable,headRefOid,statusCheckRollup",
+    ],
+    { cwd, maxBuffer: 4 * 1024 * 1024 },
+  );
+  const parsed = JSON.parse(stdout.trim()) as {
+    state?: string;
+    mergedAt?: string | null;
+    mergeCommit?: { oid?: string | null } | null;
+    mergeable?: string | null;
+    headRefOid?: string | null;
+    statusCheckRollup?: RawRollupItem[] | null;
+  };
+  if (options.strict) {
+    const missing = missingFields(parsed as Record<string, unknown>, [
+      "state",
+      "mergeable",
+      "headRefOid",
+      "statusCheckRollup",
+    ]);
+    if (!Array.isArray(parsed.statusCheckRollup) && !missing.includes("statusCheckRollup")) {
+      missing.push("statusCheckRollup[]");
+    }
+    if (missing.length > 0) throw new MergeRequestShapeError("gh", missing);
+  }
+  const checks = classifyRollup(parsed.statusCheckRollup);
+  const gate = evaluateCheckGate(checks);
+  let pipelineStatus: PipelineStatus = "none";
+  if (gate.state === "red") {
+    pipelineStatus = "failed";
+  } else if (gate.state === "pending") {
+    pipelineStatus = "running";
+  } else if (checks.length > 0) {
+    pipelineStatus = "success";
+  }
+  const mergeable = parsed.mergeable?.trim().toUpperCase() ?? "";
+  return {
+    state: normalizeGhMergeRequestState(parsed.state ?? ""),
+    mergedAt: parsed.mergedAt ?? null,
+    mergeCommitSha: parsed.mergeCommit?.oid ?? null,
+    squashCommitSha: null,
+    mergeStatus: mergeable === "MERGEABLE" ? "can_be_merged" : mergeable.toLowerCase(),
+    detailedMergeStatus: mergeable.toLowerCase(),
+    pipelineStatus,
+    hasConflicts: mergeable === "CONFLICTING" ? true : mergeable === "MERGEABLE" ? false : null,
+    checks,
+    headSha: parsed.headRefOid ?? null,
+  };
 }
 
 export interface WaitForMergeRequestMergedOptions {
@@ -376,38 +450,155 @@ function mergeRequestReadinessFromDetails(
   };
 }
 
-export interface WaitForMergeRequestReadyToMergeOptions {
+export interface MergeGateOptions {
+  /** Max time to wait for pending checks / mergeability. Default 15 min. */
   readonly timeoutMs?: number;
   readonly intervalMs?: number;
+  /** Wait while checks are pending. When false, pending checks refuse immediately. */
+  readonly waitForPending?: boolean;
+  /** Check names (exact or `*` glob) that must be present and green. GitHub only. */
+  readonly requiredChecks?: readonly string[];
+  /**
+   * Right after a push the host may not have registered any checks yet. While the
+   * rollup is empty, keep polling this long before treating "no checks" as green.
+   * Default 30 s.
+   */
+  readonly emptyRollupGraceMs?: number;
 }
 
-/** Poll until MR/PR CI finished and host reports mergeable (or already merged). */
-export async function waitForMergeRequestReadyToMerge(
+export type MergeGateResult =
+  | { readonly ok: true; readonly alreadyMerged: boolean; readonly details: MergeRequestDetails }
+  | { readonly ok: false; readonly problems: readonly string[] };
+
+/** Thrown by `mergeMergeRequest` when the merge gate refuses (red / pending / missing checks). */
+export class MergeGateError extends Error {
+  readonly problems: readonly string[];
+  constructor(label: string, problems: readonly string[]) {
+    super(
+      `Refusing to merge ${label} — checks are not green:\n${problems
+        .map((p) => `  - ${p}`)
+        .join("\n")}`,
+    );
+    this.name = "MergeGateError";
+    this.problems = problems;
+  }
+}
+
+interface GateEvaluation {
+  readonly state: "green" | "pending" | "red";
+  readonly problems: string[];
+  readonly noChecks: boolean;
+}
+
+function evaluateDetailsGate(
+  details: MergeRequestDetails,
+  requiredChecks: readonly string[],
+): GateEvaluation {
+  if (details.checks !== null) {
+    const gate = evaluateCheckGate(details.checks, requiredChecks);
+    return {
+      state: gate.state,
+      problems: formatCheckGateProblems(gate),
+      noChecks: details.checks.length === 0,
+    };
+  }
+  const state = pipelineGateState(details.pipelineStatus);
+  return {
+    state,
+    problems: state === "green" ? [] : [`head pipeline is ${details.pipelineStatus}`],
+    noChecks: details.pipelineStatus === "none",
+  };
+}
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+
+/**
+ * Merge gate: poll the MR/PR until every check is green and the host reports it
+ * mergeable. Refuses immediately on any failed check; refuses after the timeout
+ * when checks stay pending or a required check never appears.
+ */
+export async function waitForMergeGate(
   cwd: string,
   host: GitHost,
   url: string,
-  options: WaitForMergeRequestReadyToMergeOptions = {},
-): Promise<boolean> {
+  options: MergeGateOptions = {},
+): Promise<MergeGateResult> {
   const timeoutMs = options.timeoutMs ?? 900_000;
   const intervalMs = options.intervalMs ?? 5_000;
-  const deadline = Date.now() + timeoutMs;
+  const graceMs = options.emptyRollupGraceMs ?? 30_000;
+  const waitForPending = options.waitForPending !== false;
+  const required = options.requiredChecks ?? [];
   const label = mergeRequestLabel(host);
+  const start = Date.now();
+  const deadline = start + timeoutMs;
   let loggedWait = false;
+  let warnedGitLabRequired = false;
 
-  while (Date.now() < deadline) {
-    const details = await getMergeRequestDetails(cwd, host, url);
-    const readiness = mergeRequestReadinessFromDetails(details);
-    if (readiness !== null && isMergeRequestReadyToMerge(readiness)) {
-      return true;
+  for (;;) {
+    let problems: string[] = [];
+    let details: MergeRequestDetails | null = null;
+    try {
+      details = await readMergeRequestDetails(cwd, host, url, { strict: true });
+    } catch (error) {
+      if (error instanceof MergeRequestShapeError) {
+        return { ok: false, problems: [error.message] };
+      }
+      const msg = error instanceof Error ? error.message.split("\n")[0] : String(error);
+      problems = [`could not read ${label} details from the host: ${msg}`];
+    }
+    if (details === null) {
+      // problems set in catch; keep polling (transient CLI / network error).
+    } else if (details.state === "merged") {
+      return { ok: true, alreadyMerged: true, details };
+    } else if (details.state !== "open") {
+      return { ok: false, problems: [`${label} is ${details.state}, not open`] };
+    } else {
+      if (details.checks === null && required.length > 0 && !warnedGitLabRequired) {
+        log.warn("merge.requiredChecks is GitHub-only; GitLab uses the head pipeline status.");
+        warnedGitLabRequired = true;
+      }
+      const ev = evaluateDetailsGate(details, required);
+      if (ev.state === "red") {
+        return { ok: false, problems: ev.problems };
+      }
+      if (details.hasConflicts === true) {
+        return { ok: false, problems: [`${label} has merge conflicts`] };
+      }
+      const inGrace = waitForPending && ev.noChecks && Date.now() - start < graceMs;
+      if (ev.state === "pending") {
+        problems = ev.problems;
+      } else if (inGrace) {
+        problems = ["no status checks reported yet"];
+      } else {
+        const readiness = mergeRequestReadinessFromDetails(details);
+        if (readiness !== null && isMergeRequestReadyToMerge(readiness)) {
+          return { ok: true, alreadyMerged: false, details };
+        }
+        problems = [
+          `host does not report the ${label} as mergeable yet (${
+            details.detailedMergeStatus || details.mergeStatus || "unknown"
+          })`,
+        ];
+      }
+    }
+
+    const now = Date.now();
+    if (!waitForPending || now >= deadline) {
+      const suffix = waitForPending
+        ? ` (gave up after ${Math.round(timeoutMs / 1000)}s)`
+        : "";
+      return {
+        ok: false,
+        problems: problems.map((p, i) => (i === problems.length - 1 ? `${p}${suffix}` : p)),
+      };
     }
     if (!loggedWait) {
-      log.info(dim(`Waiting for ${label} pipeline / merge checks…`));
+      log.info(dim(`Waiting for ${label} checks: ${problems.join("; ")}…`));
       loggedWait = true;
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await sleep(Math.min(intervalMs, deadline - now));
   }
-
-  return false;
 }
 
 function isMergeHttp405(error: unknown): boolean {
@@ -421,11 +612,18 @@ export interface MergeMergeRequestOptions {
   readonly url: string;
   readonly method?: MergeRequestMergeMethod;
   readonly dryRun?: boolean;
-  /** Wait for MR/PR CI to finish before attempting merge. Default false. */
+  /**
+   * Wait (bounded) for pending checks before merging. Default false: pending checks
+   * refuse immediately. Failed checks always refuse — there is no bypass.
+   */
   readonly waitForCi?: boolean;
+  /** Check names (exact or `*` glob) that must be present and green (GitHub). */
+  readonly requiredChecks?: readonly string[];
+  /** Merge-gate polling overrides (tests / tuning). */
+  readonly gate?: Pick<MergeGateOptions, "timeoutMs" | "intervalMs" | "emptyRollupGraceMs">;
   /**
    * GitLab only: merge now instead of scheduling auto-merge when CI is running.
-   * When `waitForCi` is true, defaults to true after CI is green.
+   * Defaults to true once the gate is green.
    */
   readonly immediate?: boolean;
 }
@@ -465,30 +663,31 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
   const method = opts.method ?? "squash";
   const label = mergeRequestLabel(opts.host);
 
-  if (opts.waitForCi === true && opts.dryRun !== true) {
-    const ready = await waitForMergeRequestReadyToMerge(opts.cwd, opts.host, opts.url);
-    if (!ready) {
-      throw new Error(
-        `${label} is not ready to merge yet (pipeline running, checks pending, or timeout).`,
-      );
-    }
-  }
-
-  const details = await getMergeRequestDetails(opts.cwd, opts.host, opts.url);
-  const readiness = mergeRequestReadinessFromDetails(details);
-  const pipelineActive =
-    readiness !== null ? isPipelineActive(readiness.pipelineStatus) : false;
-
   if (opts.dryRun === true) {
+    const required =
+      opts.requiredChecks && opts.requiredChecks.length > 0
+        ? ` + required: ${opts.requiredChecks.join(", ")}`
+        : "";
+    log.info(`would check ${label} status checks (all green${required}) before merging`);
     if (opts.host === "gitlab") {
-      const immediate = opts.immediate !== false && !pipelineActive;
-      const flags = immediate ? " --auto-merge=false" : " (auto-merge when pipeline succeeds)";
       const methodFlag =
         method === "squash" ? " --squash" : method === "rebase" ? " --rebase" : "";
-      log.info(`would ${label} merge ${ref} (glab mr merge${flags}${methodFlag})`);
+      log.info(`would ${label} merge ${ref} (glab mr merge --auto-merge=false${methodFlag})`);
     } else {
-      log.info(`would gh pr merge ${ref} --${method}`);
+      log.info(`would gh pr merge ${ref} --${method} --match-head-commit <head sha>`);
     }
+    return;
+  }
+
+  const gate = await waitForMergeGate(opts.cwd, opts.host, opts.url, {
+    ...opts.gate,
+    waitForPending: opts.waitForCi === true,
+    requiredChecks: opts.requiredChecks ?? [],
+  });
+  if (!gate.ok) {
+    throw new MergeGateError(label, gate.problems);
+  }
+  if (gate.alreadyMerged) {
     return;
   }
 
@@ -497,12 +696,16 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
       cwd: opts.cwd,
       ref,
       method,
-      immediate: opts.immediate !== false && !pipelineActive,
+      immediate: opts.immediate !== false,
     });
     return;
   }
 
   const args = ["pr", "merge", ref, `--${method}`];
+  // Pin the merge to the commit the gate checked: a push after the gate refuses.
+  if (gate.details.headSha) {
+    args.push("--match-head-commit", gate.details.headSha);
+  }
   await execFileAsync("gh", args, { cwd: opts.cwd, maxBuffer: 4 * 1024 * 1024 });
 }
 
