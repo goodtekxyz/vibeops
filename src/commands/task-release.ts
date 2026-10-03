@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
-import { readConfig } from "../lib/config.js";
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { MergeConfigError, mergeGateTiming, readMergeConfig } from "../lib/merge-config.js";
 import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
 import { gitRemoteUrl } from "../lib/git.js";
@@ -51,6 +51,19 @@ export async function taskReleaseCommand(
 
   const { integrationBranch, productionBranch, remote } = gitCfg;
 
+  let mergeCfg;
+  try {
+    mergeCfg = await readMergeConfig(cwd);
+  } catch (e) {
+    if (e instanceof MergeConfigError) {
+      log.error(e.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+  const requiredChecks = mergeCfg.releaseRequiredChecks;
+
   if (integrationBranch === productionBranch) {
     log.info(
       "Trunk policy: integration and production are the same branch — no release PR step.",
@@ -80,7 +93,13 @@ export async function taskReleaseCommand(
     log.info(bold("dry-run — would:"));
     log.info(`  · ${label}: ${integrationBranch} → ${productionBranch}`);
     if (options.noMerge !== true) {
-      log.info(`  · merge ${label} (${resolveReleaseMergeMethod(options)}, wait for CI)`);
+      log.info(`  · merge ${label} (${resolveReleaseMergeMethod(options)}) only when all checks are green`);
+      log.info(
+        `  · required checks: ${requiredChecks.length > 0 ? requiredChecks.join(", ") : "(none configured)"}`,
+      );
+      if (mergeCfg.allowNoChecks) {
+        log.info("  · allowNoChecks: true (a release PR with no checks would merge)");
+      }
     }
     return;
   }
@@ -133,8 +152,8 @@ export async function taskReleaseCommand(
       url: releaseUrl,
       method,
       waitForCi: true,
-      immediate: true,
-      requiredChecks: (await readConfig(cwd))?.merge?.releaseRequiredChecks ?? [],
+      requiredChecks,
+      gate: { ...mergeGateTiming(mergeCfg), allowNoChecks: mergeCfg.allowNoChecks },
     });
     const verified = await assertMergeRequestMerged({
       cwd,

@@ -164,34 +164,48 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 
 ## Merge gate
 
-`task merge` and `task release` are the enforcement point for CI (useful when the host plan has no branch protection / required checks, e.g. private GitHub repos on the free plan). Before calling `gh pr merge` / `glab mr merge`:
+`task merge` and `task release` are a client-side CI gate (useful when the host plan has no branch protection / required checks, e.g. private GitHub repos on the free plan). **Where server-side branch protection / required checks are available, enable them — the host remains the final authority;** this gate only stops VibeOps itself from merging red work (a human can still merge in the host UI).
+
+Before calling `gh pr merge` / `glab mr merge`:
 
 - **GitHub:** every item in the PR `statusCheckRollup` is classified from GitHub's documented enums — `CheckRun` (Actions) by `status` + `conclusion`, `StatusContext` by `state`:
   - **passed:** `SUCCESS`, `NEUTRAL`, `SKIPPED`
   - **failed:** `FAILURE`, `CANCELLED`, `TIMED_OUT`, `ACTION_REQUIRED`, `STARTUP_FAILURE`, `STALE`, `ERROR`
-  - **pending:** CheckRun not `COMPLETED` (`QUEUED`, `IN_PROGRESS`, `WAITING`, `REQUESTED`, `PENDING`); StatusContext `PENDING` / `EXPECTED`
-  - **anything missing or undocumented fails closed** (treated as failed). If `gh` output lacks a field the gate needs (`statusCheckRollup`, `headRefOid`, `mergeable`, `state`), the merge is refused.
-- **GitLab:** the MR head pipeline must be `success` / `skipped` (or absent). `failed`, `canceled`, `manual` and unknown statuses refuse; running statuses wait.
-- **Any failed check → refuse immediately** (exit code 1, failing checks named). **Pending → wait** (up to 15 min, polling every 5 s), then refuse if still not green. There is no override flag; fix CI (re-run `task ship`) and rerun `task merge`.
-- Right after a push the rollup can be empty; the gate keeps polling for up to 30 s before treating "no checks" as green.
-- The GitHub merge is pinned to the checked commit (`--match-head-commit`), so a push between the check and the merge is refused by GitHub.
+  - **pending:** CheckRun `REQUESTED`, `QUEUED`, `IN_PROGRESS`, `WAITING`, `PENDING`; StatusContext `PENDING`, `EXPECTED`
+  - **anything missing or undocumented fails closed** (treated as failed). Several checks with the same name: any failure fails.
+- **GitLab:** the MR head pipeline must be `success` or `skipped`. `failed`, `canceled`, `manual` and unknown statuses refuse; `created` / `pending` / `running` / `scheduled` / … wait.
+- **Host output is verified:** if `gh pr view` lacks or has empty `state`, `mergeable`, `headRefOid`, or `statusCheckRollup` is not a list (GitLab: `state`, `sha`, `merge_status`, `detailed_merge_status`, `head_pipeline`), the merge is refused.
+- **Failed check → refuse immediately** (exit code 1, checks named). **Pending → wait** up to `waitTimeoutSeconds`, then refuse. There is no override flag: fix CI (re-run `task ship`) and rerun `task merge`.
+- **No checks at all → refuse** (after `emptyRollupGraceSeconds`, which covers checks not yet registered right after a push) unless `allowNoChecks: true`.
+- **The merge is pinned to the checked commit:** `gh pr merge --match-head-commit <sha>` (requires **gh ≥ 2.13.0**) / `glab mr merge --auto-merge=false --sha <sha>` (verified with glab 1.106). A push after the check makes the host refuse. A GitLab `405` re-runs the gate and retries once with the same flags.
 
-### Required checks (optional)
-
-Add to `.vibeops.json` to require named checks to exist and pass — a required check that never appears in the rollup within the wait window refuses the merge (`required check "X" never ran`):
+### Configuration (`.vibeops.json` → `merge`)
 
 ```json
 {
   "merge": {
-    "requiredChecks": ["Migrations lint · vs develop", "Strategy diff guards*"],
-    "releaseRequiredChecks": ["Release smoke"]
+    "requiredChecks": ["build", "lint*"],
+    "releaseRequiredChecks": ["release smoke"],
+    "waitTimeoutSeconds": 900,
+    "pollIntervalSeconds": 5,
+    "emptyRollupGraceSeconds": 30,
+    "allowNoChecks": false
   }
 }
 ```
 
-- `requiredChecks` applies to `task merge` (task PR → integration); `releaseRequiredChecks` to `task release` (integration → production).
-- Each entry is an exact check name (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"Strategy diff guards*"`, `"* · vs develop"`).
-- GitHub only; on GitLab the head pipeline status is the gate.
+| Key | Default | Allowed | Meaning |
+|-----|---------|---------|---------|
+| `requiredChecks` | `[]` | array of non-empty strings | Checks that must be present and green for `task merge`. A missing one refuses: `required check "X" never ran`. |
+| `releaseRequiredChecks` | `[]` | array of non-empty strings | Same for `task release` (integration → production). Shown by `task release --dry-run`. |
+| `waitTimeoutSeconds` | `900` | integer 1–7200 | Max wait for pending checks. |
+| `pollIntervalSeconds` | `5` | integer 1–300, ≤ timeout | Poll interval while waiting. |
+| `emptyRollupGraceSeconds` | `30` | integer 0–600 | How long an empty check list is re-polled before "no checks" applies. |
+| `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Logs a warning on every merge. |
+
+- Check names are exact (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"lint*"`, `"* · linux"`). Required checks are GitHub-only; GitLab gates on the head pipeline.
+- The block is validated strictly: it must be an object, unknown keys (typos) and wrong types are errors, and `task merge` / `task release` exit 1 naming the key.
+- **Recommended:** list your CI jobs in `requiredChecks`. Without it, the gate only sees the checks that happened to start — a workflow that never triggers is invisible.
 
 ## License
 

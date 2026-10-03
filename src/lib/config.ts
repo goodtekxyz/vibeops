@@ -10,7 +10,6 @@ import {
   type VibeopsConfig,
   type VibeopsGitConfig,
   type VibeopsLlmConfig,
-  type VibeopsMergeConfig,
   VIBEOPS_CONFIG_SCHEMA_VERSION,
 } from "../types/config.js";
 import { isVibeopsClientId } from "./init-clients.js";
@@ -66,29 +65,6 @@ function parseLlmBlock(raw: unknown): VibeopsLlmConfig | undefined {
   return undefined;
 }
 
-function parseCheckNameList(raw: unknown): string[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const out = raw
-    .filter((v): v is string => typeof v === "string")
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
-  return out.length > 0 ? out : undefined;
-}
-
-export function parseMergeBlock(raw: unknown): VibeopsMergeConfig | undefined {
-  if (raw === null || raw === undefined || typeof raw !== "object" || Array.isArray(raw)) {
-    return undefined;
-  }
-  const o = raw as Record<string, unknown>;
-  const requiredChecks = parseCheckNameList(o.requiredChecks);
-  const releaseRequiredChecks = parseCheckNameList(o.releaseRequiredChecks);
-  if (!requiredChecks && !releaseRequiredChecks) return undefined;
-  return {
-    ...(requiredChecks ? { requiredChecks } : {}),
-    ...(releaseRequiredChecks ? { releaseRequiredChecks } : {}),
-  };
-}
-
 export async function readConfig(root: string): Promise<VibeopsConfig | null> {
   const text = await readTextOrNull(join(root, VIBEOPS_CONFIG_FILE));
   if (text === null) return null;
@@ -102,7 +78,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
     ) {
       const llm = parseLlmBlock(parsed.llm);
       const git = parseGitBlock(parsed.git);
-      const merge = parseMergeBlock(parsed.merge);
+      const merge = (parsed as { merge?: unknown }).merge;
       const clients = parseClientsBlock(parsed.clients) ?? ["cursor"];
       return {
         name: parsed.name,
@@ -112,7 +88,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
         clients,
         ...(git ? { git } : {}),
         ...(llm ? { llm } : {}),
-        ...(merge ? { merge } : {}),
+        ...(merge !== undefined ? { merge } : {}),
       };
     }
     return null;
@@ -136,7 +112,7 @@ export function buildConfig(
     clients,
     git,
     llm: existing?.llm ?? { provider: "auto" },
-    ...(existing?.merge ? { merge: existing.merge } : {}),
+    ...(existing?.merge !== undefined ? { merge: existing.merge } : {}),
   };
 }
 

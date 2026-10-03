@@ -9,7 +9,7 @@
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 - **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
-- **2.6.0:** merge gate — CheckRun/StatusContext classification fix, fail-closed, optional `merge.requiredChecks` (TASK-020).
+- **2.6.0:** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 
 ## Implementation (this repo)
 
@@ -19,7 +19,7 @@
 | npm publish | `scripts/npm-publish.sh`, `scripts/infisical-run.sh` | Infisical / `.env` → temp npmrc |
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
-| Merge gate | `src/lib/check-rollup.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; `merge.requiredChecks` |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; `.vibeops.json` `merge` block |
 
 ## Next
 

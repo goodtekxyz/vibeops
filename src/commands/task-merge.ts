@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
-import { readConfig } from "../lib/config.js";
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { MergeConfigError, mergeGateTiming, readMergeConfig } from "../lib/merge-config.js";
 import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
 import { gitRemoteUrl } from "../lib/git.js";
@@ -62,6 +62,20 @@ export async function taskMergeCommand(
     throw e;
   }
 
+  let mergeCfg;
+  try {
+    mergeCfg = await readMergeConfig(cwd);
+  } catch (e) {
+    if (e instanceof MergeConfigError) {
+      log.error(e.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+  const requiredChecks = mergeCfg.requiredChecks;
+  const gate = { ...mergeGateTiming(mergeCfg), allowNoChecks: mergeCfg.allowNoChecks };
+
   const target = await resolveLifecycleTarget(paths, cwd, taskRef);
   if (target === null) {
     if (taskRef?.trim()) {
@@ -106,7 +120,6 @@ export async function taskMergeCommand(
 
   const method = resolveMergeMethod(options);
   const label = mergeRequestLabel(host);
-  const requiredChecks = (await readConfig(cwd))?.merge?.requiredChecks ?? [];
 
   log.info(bold(`vibeops task merge ${target.taskId}`));
   log.info(`  ${dim("file")}       ${relPath(cwd, target.taskFile)}`);
@@ -116,7 +129,7 @@ export async function taskMergeCommand(
   log.info(
     `  ${dim("checks")}     all green${
       requiredChecks.length > 0 ? ` + required: ${requiredChecks.join(", ")}` : ""
-    }`,
+    }${mergeCfg.allowNoChecks ? dim(" (allowNoChecks: true)") : ""}`,
   );
   log.blank();
 
@@ -127,6 +140,7 @@ export async function taskMergeCommand(
       url: mergeRequestUrl,
       method,
       requiredChecks,
+      gate,
       dryRun: true,
     });
     log.blank();
@@ -159,8 +173,8 @@ export async function taskMergeCommand(
         url: mergeRequestUrl,
         method,
         waitForCi: true,
-        immediate: true,
         requiredChecks,
+        gate,
       });
       const verified = await assertMergeRequestMerged({
         cwd,
@@ -194,8 +208,8 @@ export async function taskMergeCommand(
         url: mergeRequestUrl,
         method,
         waitForCi: true,
-        immediate: true,
         requiredChecks,
+        gate,
       });
       const verified = await assertMergeRequestMerged({
         cwd,

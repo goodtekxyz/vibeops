@@ -102,7 +102,7 @@ export function classifyRollup(items: readonly RawRollupItem[] | null | undefine
   return (items ?? []).map(classifyRollupItem);
 }
 
-/** Exact name, or a `*` glob (e.g. `Strategy diff guards*`, `* · vs develop`). */
+/** Exact name, or a `*` glob (e.g. `lint*`, `* · linux`). */
 export function checkNameMatches(name: string, pattern: string): boolean {
   const p = pattern.trim();
   if (p.length === 0) return false;

@@ -23,15 +23,23 @@ export interface VibeopsLlmConfig {
   provider?: LlmProviderPreference;
 }
 
-/** Merge gate for `task merge` / `task release` (GitHub status checks). */
+/**
+ * Merge gate settings for `task merge` / `task release` (`.vibeops.json` `merge`).
+ * Validated strictly by `src/lib/merge-config.ts` — see README "Merge gate".
+ */
 export interface VibeopsMergeConfig {
-  /**
-   * Check names that must be present and green on the task PR before `task merge`
-   * merges it. Exact names or `*` globs (e.g. `"Strategy diff guards*"`).
-   */
+  /** Check names (exact or `*` glob) required on the task PR for `task merge`. */
   requiredChecks?: string[];
   /** Same as `requiredChecks`, for the release PR (`task release`). */
   releaseRequiredChecks?: string[];
+  /** Max wait for pending checks, seconds. Default 900. */
+  waitTimeoutSeconds?: number;
+  /** Poll interval while waiting, seconds. Default 5. */
+  pollIntervalSeconds?: number;
+  /** How long an empty check list is re-polled after a push, seconds. Default 30. */
+  emptyRollupGraceSeconds?: number;
+  /** Allow merging when the host reports no checks at all. Default false (refuse). */
+  allowNoChecks?: boolean;
 }
 
 export interface VibeopsConfig {
@@ -44,5 +52,9 @@ export interface VibeopsConfig {
   /** Written by init; required for task add/done. */
   git?: VibeopsGitConfig;
   llm?: VibeopsLlmConfig;
-  merge?: VibeopsMergeConfig;
+  /**
+   * Raw `merge` block, preserved verbatim on re-init. Not validated here —
+   * `task merge` / `task release` validate it with `readMergeConfig` (fail closed).
+   */
+  merge?: unknown;
 }
