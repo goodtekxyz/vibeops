@@ -4,7 +4,18 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
-## 2.6.0 - 2026-10-03
+## 3.0.0 - 2026-10-03
+
+### Breaking changes
+
+- **`task merge` / `task release` refuse to merge a PR/MR with no checks at all** (default `merge.allowNoChecks: false`). Previously such PRs merged.
+  **Migration (repos without CI):** add to `.vibeops.json`:
+  ```json
+  { "merge": { "allowNoChecks": true } }
+  ```
+  A warning is printed on each such merge.
+- **Requires gh ≥ 2.13.0** (`gh pr merge --match-head-commit`). Check with `gh --version`; upgrade e.g. `brew upgrade gh`.
+- **Invalid `.vibeops.json` `merge` block** (non-object, unknown key, wrong type, out-of-range number) makes `task merge` / `task release` exit 1.
 
 ### Fixed
 
@@ -18,12 +29,11 @@ All notable changes to VibeOps are documented here.
 
 ### Behaviour changes
 
-- **`task merge` / `task release` now refuse when the host reports no checks at all** (after a 30 s grace for checks that are not registered yet). Repos without CI must set `merge.allowNoChecks: true` (logged as a warning on every merge). Previously such PRs merged.
+- No checks at all: refused after a 30 s grace (`emptyRollupGraceSeconds`) for checks not registered yet — see Breaking changes.
 - **Host output is verified:** missing or empty `state` / `mergeable` / `headRefOid` / `statusCheckRollup` from `gh pr view` (GitLab: `state` / `sha` / `merge_status` / `detailed_merge_status` / `head_pipeline`) refuses the merge instead of being treated as green.
 - **GitLab `manual` head pipelines refuse** (previously merged when the MR was otherwise mergeable).
 - **Pending checks are always waited for** on `task merge` / `task release` (up to `waitTimeoutSeconds`); a PR whose checks are still running is no longer merged or auto-merge-scheduled.
-- **Invalid `merge` block** (non-object, unknown key, wrong type, out-of-range number) makes `task merge` / `task release` exit 1.
-- **Requires gh ≥ 2.13.0** (`gh pr merge --match-head-commit`). `glab mr merge --sha` verified with glab 1.106.
+- `glab mr merge --sha` verified with glab 1.106.
 
 ## 2.5.2 - 2026-07-20
 

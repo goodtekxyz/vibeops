@@ -164,6 +164,8 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 
 ## Merge gate
 
+> **3.0.0 breaking:** a PR/MR with **no checks at all** is refused by default. Repos without CI: set `"merge": {"allowNoChecks": true}` in `.vibeops.json`. Requires **gh ≥ 2.13.0**.
+
 `task merge` and `task release` are a client-side CI gate (useful when the host plan has no branch protection / required checks, e.g. private GitHub repos on the free plan). **Where server-side branch protection / required checks are available, enable them — the host remains the final authority;** this gate only stops VibeOps itself from merging red work (a human can still merge in the host UI).
 
 Before calling `gh pr merge` / `glab mr merge`:
@@ -201,7 +203,7 @@ Before calling `gh pr merge` / `glab mr merge`:
 | `waitTimeoutSeconds` | `900` | integer 1–7200 | Max wait for pending checks. |
 | `pollIntervalSeconds` | `5` | integer 1–300, ≤ timeout | Poll interval while waiting. |
 | `emptyRollupGraceSeconds` | `30` | integer 0–600 | How long an empty check list is re-polled before "no checks" applies. |
-| `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Logs a warning on every merge. |
+| `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Prints one warning per such merge. |
 
 - Check names are exact (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"lint*"`, `"* · linux"`). Required checks are GitHub-only; GitLab gates on the head pipeline.
 - The block is validated strictly: it must be an object, unknown keys (typos) and wrong types are errors, and `task merge` / `task release` exit 1 naming the key.

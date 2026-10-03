@@ -612,13 +612,14 @@ export async function waitForMergeGate(
           ],
         };
       } else {
-        if (noChecksRule) {
-          log.warn(
-            `WARNING: merging ${label} with NO checks (merge.allowNoChecks is true). Nothing verified this change.`,
-          );
-        }
         const readiness = mergeRequestReadinessFromDetails(details);
         if (readiness !== null && isMergeRequestReadyToMerge(readiness)) {
+          if (noChecksRule) {
+            // Once, after the gate has decided to merge — not on every poll.
+            log.warn(
+              `WARNING: merging ${label} with NO checks (merge.allowNoChecks is true). Nothing verified this change.`,
+            );
+          }
           return { ok: true, alreadyMerged: false, details };
         }
         problems = [

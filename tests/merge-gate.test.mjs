@@ -435,10 +435,25 @@ test("merge: no checks after grace refuses by default (fail closed)", async () =
   assert.deepEqual(mergeCalls(), []);
 });
 
-test("merge: no checks with allowNoChecks merges (and warns)", async () => {
-  queueViews([ghPr([])]);
-  await merge({ gate: { allowNoChecks: true } });
+test("merge: no checks with allowNoChecks merges and warns exactly once", async () => {
+  // Several polls before the host reports mergeable: the warning must not repeat.
+  queueViews([
+    ghPr([], { mergeable: "UNKNOWN" }),
+    ghPr([], { mergeable: "UNKNOWN" }),
+    ghPr([], { mergeable: "UNKNOWN" }),
+    ghPr([]),
+  ]);
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try {
+    await merge({ gate: { allowNoChecks: true } });
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(viewCount(), 4);
   assert.equal(mergeCalls().length, 1);
+  assert.equal(warnings.filter((w) => w.includes("with NO checks")).length, 1);
 });
 
 test("merge: no checks + requiredChecks refuses with 'never ran' even if allowNoChecks", async () => {

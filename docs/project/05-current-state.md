@@ -4,12 +4,12 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **2.6.0** (merge gate: `task merge` / `task release` refuse on red / missing checks).
+- **Package:** `@goodtek/vibeops` **3.0.0** (breaking: merge gate — `task merge` / `task release` refuse on red / missing / no checks).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 - **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
-- **2.6.0:** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
+- **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 
 ## Implementation (this repo)
 
@@ -23,7 +23,7 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@2.6.0` (or `volta install @goodtek/vibeops@2.6.0`) once published.
+- Consumers: `npm i -g @goodtek/vibeops@3.0.0` (or `volta install @goodtek/vibeops@3.0.0`) once published. Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: `pnpm publish:npm` (Infisical `NPM_TOKEN` or `.env`).
 
 ## Progress rules
