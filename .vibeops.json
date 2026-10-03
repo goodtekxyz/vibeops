@@ -18,5 +18,8 @@
     "remote": "origin",
     "visibility": "public",
     "url": "https://github.com/goodtekxyz/vibeops"
+  },
+  "merge": {
+    "allowNoChecks": true
   }
 }
