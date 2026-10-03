@@ -190,7 +190,8 @@ async function recreateTaskBranchFromIntegration(
     }
   }
 
-  const head = ((await gitRevParse(cwd, baseRef)) ?? "").slice(0, 7);
+  // Full SHA: unambiguous base for later diff ranges.
+  const head = (await gitRevParse(cwd, `${baseRef}^{commit}`)) ?? "";
   if (head.length === 0) {
     log.error("Integration branch has no commits.");
     return false;

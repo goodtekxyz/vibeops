@@ -9,15 +9,23 @@ All notable changes to VibeOps are documented here.
 ### Added
 
 - **Worktree-safe lifecycle:** VibeOps never needs to check out the integration branch, so it works when another `git worktree` has `develop` checked out (previously `fatal: 'develop' is already used by worktree at …`).
-  - `task add`: `git fetch <remote> <integration>`, then `git switch -c task/NNN-slug --no-track <remote>/<integration>` (governance stash unchanged). The local integration ref is fast-forwarded only where safe: in this worktree with `merge --ff-only`, via a guarded `update-ref` when no worktree has it, and **left alone** when another worktree owns it.
+  - `task add`: `git fetch <remote> <integration>`, then `git switch -c task/NNN-slug --no-track <remote>/<integration>`.
+  - The local integration branch is fast-forwarded only where safe: in this worktree with `merge --ff-only`; otherwise with `git fetch . refs/remotes/<remote>/<integration>:refs/heads/<integration>` — git itself refuses non-fast-forward updates and branches checked out in any worktree, and that refusal is reported as "left for the owning worktree", not an error.
   - `task sync`: verifies the merge **before** moving HEAD; leaves the task branch by switching to the integration branch, or `git switch --detach <remote>/<integration>` when another worktree owns it; deletes local + remote task branch.
   - `task del` / `task ship --new-cycle` (branch recreate) use the same rules; `vibeops pull` refuses to switch (exit 1, names the worktree) instead of failing inside git.
-- **Collision-free TASK ids:** next id = 1 + max over local `docs/tasks`, `docs/tasks` on `<remote>/<integration>`, every worktree's `docs/tasks`, local + remote-tracking `task/NNN-*` branches, and `git ls-remote --heads <remote> 'task/*'`. If the remote cannot be listed, `task add` refuses without creating a TASK file.
+- **Repository lock:** `task add` (id allocation → TASK file → branch), `task sync`, `task del`, `task ship --new-cycle` branch handling and `vibeops pull` run under an exclusive lock file `<git-common-dir>/vibeops-task.lock` (O_EXCL; pid, host, start time, operation, cwd). Another holder → wait up to `lock.waitSeconds` (default 60), then a clear error naming the holder. Stale lock → removed when its pid is dead on this host, or (other host) when older than `lock.staleSeconds` (default 600). `.vibeops.json` `lock` is strictly validated.
+- **Collision-free TASK ids:** next id = 1 + max over local `docs/tasks`, `docs/tasks` on `<remote>/<integration>`, every worktree's `docs/tasks`, and VibeOps task branches (local + `git fetch --prune <remote> +refs/heads/task/*:refs/remotes/<remote>/task/*`). A branch counts only in the generated form `task/<NNN>[-<slug>]` (NNN zero-padded ≥ 3 digits, slug = lowercase `a-z0-9` words joined by single hyphens) **and** when its tree contains that TASK file — `task/2026-q4-plan` does not inflate ids. If the remote cannot be fetched, `task add` refuses without creating a TASK file.
+- **Cross-machine id guard:** `task ship` runs `git ls-remote --heads <remote> 'task/*'` right before pushing and refuses when a different task branch with the same TASK number exists on the remote (or when the remote cannot be listed).
+
+### Fixed
+
+- **Shared `refs/stash`:** governance changes were set aside with `stash push` / `stash pop`, which act on the top of the stash list shared by all worktrees — another worktree's entry could be popped and the TASK file lost. Untracked governance files are no longer stashed (they move with the switch); tracked changes are saved with `git stash create` + `git stash store`, re-applied by SHA, and exactly that entry is dropped.
 
 ### Changed
 
 - `task sync` checks merge verification before switching branches (a refused sync now leaves HEAD on the task branch).
 - New task branches are created with `--no-track`, so they never inherit `<remote>/<integration>` as upstream; `task ship` sets the upstream on first push as before.
+- Git Context `baseCommit` is recorded as a full SHA (was a 7-character prefix).
 
 ## 3.0.0 - 2026-10-03
 

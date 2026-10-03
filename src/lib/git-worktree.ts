@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 
 import {
   gitBranchExists,
-  gitIsAncestor,
   gitRemoteBranchExists,
   gitRemoteUrl,
   gitRevParse,
@@ -136,10 +135,12 @@ export type LocalIntegrationUpdate =
 /**
  * Fast-forward the local integration branch to `<remote>/<integration>` without
  * ever forcing and without touching another worktree:
- * - checked out in this worktree → `git merge --ff-only` (governance dirt stashed);
- * - checked out in another worktree → left alone (that worktree owns it);
- * - not checked out anywhere → `git update-ref` guarded by the old value.
- * Local commits not on the remote (ahead / diverged) → `not_fast_forward`, unchanged.
+ * - checked out in this worktree → `git merge --ff-only <remote>/<integration>`;
+ * - otherwise → `git fetch . refs/remotes/<remote>/<integration>:refs/heads/<integration>`. git itself
+ *   refuses a non-fast-forward update and refuses to update a branch checked out
+ *   in any worktree; those refusals are reported (`not_fast_forward` /
+ *   `owned_elsewhere`), not treated as failures. No check-then-update race.
+ * A missing local branch is not created.
  */
 export async function fastForwardLocalIntegration(
   cwd: string,
@@ -152,34 +153,54 @@ export async function fastForwardLocalIntegration(
   }
   if (!(await gitBranchExists(cwd, integrationBranch))) return { kind: "no_local_branch" };
 
-  const localSha = await gitRevParse(cwd, `refs/heads/${integrationBranch}`);
-  const remoteSha = await gitRevParse(cwd, `refs/remotes/${remoteRef}`);
-  if (localSha === null || remoteSha === null) return { kind: "no_local_branch" };
-  if (localSha === remoteSha) return { kind: "up_to_date" };
-  if (!(await gitIsAncestor(cwd, localSha, remoteSha))) return { kind: "not_fast_forward" };
-
-  const owner = await branchCheckedOutElsewhere(cwd, integrationBranch);
-  if (owner !== null) return { kind: "owned_elsewhere", worktree: owner };
-
   if ((await currentBranch(cwd)) === integrationBranch) {
+    const before = await gitRevParse(cwd, `refs/heads/${integrationBranch}`);
+    const remoteSha = await gitRevParse(cwd, `refs/remotes/${remoteRef}`);
+    if (before === remoteSha) return { kind: "up_to_date" };
     const stashed = await stashGovernanceIfBlocking(cwd);
     try {
       await runGit(cwd, ["merge", "--ff-only", remoteRef]);
+    } catch (e) {
+      if (/not possible to fast-forward|diverg|non-fast-forward/i.test(errorText(e))) {
+        return { kind: "not_fast_forward" };
+      }
+      throw e;
     } finally {
       await restoreGovernanceStashAfterSwitch(cwd, stashed);
     }
     return { kind: "fast_forwarded", where: "here" };
   }
 
-  await runGit(cwd, [
-    "update-ref",
-    "-m",
-    `vibeops: fast-forward ${integrationBranch} to ${remoteRef}`,
-    `refs/heads/${integrationBranch}`,
-    remoteSha,
-    localSha,
-  ]);
-  return { kind: "fast_forwarded", where: "ref" };
+  const before = await gitRevParse(cwd, `refs/heads/${integrationBranch}`);
+  try {
+    // Fetch from this repository (`.`) into the local branch: same git safety as
+    // `git fetch <remote> <b>:<b>` (refuses non-fast-forward, refuses a branch
+    // checked out in any worktree) using the remote-tracking ref the caller just
+    // fetched — no second network round-trip.
+    await runGit(cwd, [
+      "fetch",
+      ".",
+      `refs/remotes/${remoteRef}:refs/heads/${integrationBranch}`,
+    ]);
+  } catch (e) {
+    const text = errorText(e);
+    if (/refusing to fetch into branch|checked out at/i.test(text)) {
+      const owner = await branchCheckedOutElsewhere(cwd, integrationBranch);
+      return { kind: "owned_elsewhere", worktree: owner ?? "(another worktree)" };
+    }
+    if (/non-fast-forward|rejected/i.test(text)) return { kind: "not_fast_forward" };
+    throw e;
+  }
+  const after = await gitRevParse(cwd, `refs/heads/${integrationBranch}`);
+  return after === before ? { kind: "up_to_date" } : { kind: "fast_forwarded", where: "ref" };
+}
+
+function errorText(e: unknown): string {
+  if (e && typeof e === "object") {
+    const o = e as { stderr?: unknown; message?: unknown };
+    return `${typeof o.stderr === "string" ? o.stderr : ""}\n${typeof o.message === "string" ? o.message : ""}`;
+  }
+  return String(e);
 }
 
 /** One-line log for {@link fastForwardLocalIntegration} results. */

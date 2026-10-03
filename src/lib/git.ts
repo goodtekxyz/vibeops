@@ -195,69 +195,69 @@ export async function gitCreateBranch(
 }
 
 /**
- * When only governance / VibeOps paths are dirty, stash them so `git switch` can proceed.
- * Callers that switch branches should restore with {@link restoreGovernanceStashAfterSwitch}.
+ * When only governance / VibeOps paths are dirty, set aside the TRACKED
+ * governance modifications so `git switch` can proceed. Untracked files are not
+ * stashed — they move with the switch.
+ *
+ * `refs/stash` is shared by every worktree of a repository, so this never uses
+ * `stash push` / `stash pop` (which act on the top entry, possibly another
+ * worktree's). It creates a stash commit (`git stash create`), records it in the
+ * stash list for safety (`git stash store`), and returns its SHA; restore with
+ * {@link restoreGovernanceStashAfterSwitch}, which applies and drops exactly that
+ * entry. Returns null when nothing was set aside.
  */
-export async function stashGovernanceIfBlocking(cwd: string): Promise<boolean> {
+export async function stashGovernanceIfBlocking(cwd: string): Promise<string | null> {
   const git = await readGitInfo(cwd);
-  if (git.dirty !== true) return false;
+  if (git.dirty !== true) return null;
   const gov = await gitGovernanceOnlyDirty(cwd);
-  if (!gov.onlyGovernance || gov.allPaths.length === 0) return false;
+  if (!gov.onlyGovernance || gov.allPaths.length === 0) return null;
 
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
-  const tracked: string[] = [];
-  const untracked: string[] = [];
-  for (const e of entries) {
-    if (!isGovernanceDocumentationPath(e.path)) continue;
-    if (e.untracked) untracked.push(e.path);
-    else tracked.push(e.path);
-  }
+  const tracked = parsePorcelain(await gitStatusPorcelain(cwd))
+    .filter((e) => !e.untracked && isGovernanceDocumentationPath(e.path))
+    .map((e) => e.path);
+  if (tracked.length === 0) return null;
 
-  let didStash = false;
-  if (tracked.length > 0) {
-    await runGit(cwd, [
-      "stash",
-      "push",
-      "-m",
-      "vibeops: governance before branch switch",
-      "--",
-      ...tracked,
-    ]);
-    didStash = true;
-  }
-  if (untracked.length > 0) {
-    try {
-      await runGit(cwd, [
-        "stash",
-        "push",
-        "-u",
-        "-m",
-        "vibeops: governance untracked before branch switch",
-        "--",
-        ...untracked,
-      ]);
-      didStash = true;
-    } catch {
-      // Untracked generated files (e.g. cursor-implement-*.md) may not stash; switch can still proceed.
-    }
-  }
-  return didStash;
+  const message = "vibeops: governance before branch switch";
+  const { stdout } = await runGit(cwd, ["stash", "create", message]);
+  const sha = stdout.trim();
+  if (sha.length === 0) return null;
+  await runGit(cwd, ["stash", "store", "-q", "-m", message, sha]);
+  await runGit(cwd, ["restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]);
+  return sha;
 }
 
-/** Re-apply governance paths stashed for a branch switch (e.g. new `docs/tasks/*.md`). */
+/**
+ * Re-apply the governance changes set aside by {@link stashGovernanceIfBlocking}
+ * (by SHA) and drop exactly that stash entry — never another worktree's.
+ */
 export async function restoreGovernanceStashAfterSwitch(
   cwd: string,
-  didStash: boolean,
+  stashSha: string | null,
 ): Promise<void> {
-  if (!didStash) return;
+  if (stashSha === null) return;
   try {
-    await runGit(cwd, ["stash", "pop"]);
-    log.info(dim("Restored stashed governance paths on the task branch."));
+    await runGit(cwd, ["stash", "apply", "-q", stashSha]);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
     log.warn(
-      `Could not restore stashed governance files (${msg}). Run ${dim("git stash pop")} manually.`,
+      `Could not restore governance changes (${msg}). They are kept in the stash list: ${dim(`git stash apply ${stashSha}`)}`,
     );
+    return;
+  }
+  try {
+    const { stdout } = await runGit(cwd, ["stash", "list", "--format=%H"]);
+    const index = stdout.split("\n").indexOf(stashSha);
+    if (index >= 0) {
+      const ref = `stash@{${index}}`;
+      // Re-check right before dropping: the list is shared with other worktrees.
+      if ((await gitRevParse(cwd, ref)) === stashSha) {
+        await runGit(cwd, ["stash", "drop", "-q", ref]);
+      }
+    }
+    log.info(dim("Restored governance changes after the branch switch."));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
+    log.warn(`Restored governance changes; could not drop stash entry ${stashSha} (${msg}).`);
   }
 }
 

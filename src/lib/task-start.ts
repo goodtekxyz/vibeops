@@ -137,7 +137,9 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
   }
 
   const baseBranch = integrationBranch;
-  const baseCommit = baseRef !== null ? ((await gitRevParse(cwd, baseRef)) ?? "").slice(0, 7) : "";
+  // Full SHA: unambiguous base for later diff ranges (display is shortened below).
+  const baseCommit =
+    baseRef !== null ? ((await gitRevParse(cwd, `${baseRef}^{commit}`)) ?? "") : "";
   if (baseCommit.length === 0 && !branchExists) {
     log.error("No commits on integration branch. Create an initial commit first.");
     return false;

@@ -21,6 +21,7 @@ import { bold, cyan, dim, log } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
 import { relPath } from "../lib/task-context.js";
+import { runUnderTaskLock } from "../lib/task-lock.js";
 import { resolveLifecycleTarget } from "../lib/task-lifecycle-target.js";
 import { checkTaskSyncReady } from "../lib/task-sync-guard.js";
 import { readTaskFile } from "../lib/task.js";
@@ -39,6 +40,16 @@ function isProtectedBranch(name: string, integration: string, production: string
 export async function taskSyncCommand(
   taskRef: string | undefined,
   options: TaskSyncCommandOptions = {},
+): Promise<void> {
+  const cwd = resolve(options.cwd ?? process.cwd());
+  if (options.dryRun === true) return taskSyncUnlocked(taskRef, options);
+  // D-006: branch switch / stash / delete are serialized across worktrees.
+  await runUnderTaskLock(cwd, "task sync", () => taskSyncUnlocked(taskRef, options));
+}
+
+async function taskSyncUnlocked(
+  taskRef: string | undefined,
+  options: TaskSyncCommandOptions,
 ): Promise<void> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dryRun = options.dryRun === true;

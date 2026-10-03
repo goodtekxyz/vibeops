@@ -15,6 +15,7 @@ import {
 } from "../lib/git.js";
 import { branchCheckedOutElsewhere } from "../lib/git-worktree.js";
 import { bold, cyan, dim, log } from "../lib/logger.js";
+import { runUnderTaskLock } from "../lib/task-lock.js";
 
 export interface PullCommandOptions {
   dryRun?: boolean;
@@ -25,6 +26,14 @@ export interface PullCommandOptions {
  * One-step remote sync: fetch, switch to integration branch, fast-forward pull.
  */
 export async function pullCommand(options: PullCommandOptions = {}): Promise<void> {
+  if (options.dryRun === true) return pullUnlocked(options);
+  // D-006: branch switch / fast-forward are serialized across worktrees.
+  await runUnderTaskLock(resolve(options.cwd ?? process.cwd()), "pull", () =>
+    pullUnlocked(options),
+  );
+}
+
+async function pullUnlocked(options: PullCommandOptions): Promise<void> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dryRun = options.dryRun === true;
 
