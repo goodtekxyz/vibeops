@@ -4,6 +4,21 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.0 - 2026-10-03
+
+### Added
+
+- **Worktree-safe lifecycle:** VibeOps never needs to check out the integration branch, so it works when another `git worktree` has `develop` checked out (previously `fatal: 'develop' is already used by worktree at …`).
+  - `task add`: `git fetch <remote> <integration>`, then `git switch -c task/NNN-slug --no-track <remote>/<integration>` (governance stash unchanged). The local integration ref is fast-forwarded only where safe: in this worktree with `merge --ff-only`, via a guarded `update-ref` when no worktree has it, and **left alone** when another worktree owns it.
+  - `task sync`: verifies the merge **before** moving HEAD; leaves the task branch by switching to the integration branch, or `git switch --detach <remote>/<integration>` when another worktree owns it; deletes local + remote task branch.
+  - `task del` / `task ship --new-cycle` (branch recreate) use the same rules; `vibeops pull` refuses to switch (exit 1, names the worktree) instead of failing inside git.
+- **Collision-free TASK ids:** next id = 1 + max over local `docs/tasks`, `docs/tasks` on `<remote>/<integration>`, every worktree's `docs/tasks`, local + remote-tracking `task/NNN-*` branches, and `git ls-remote --heads <remote> 'task/*'`. If the remote cannot be listed, `task add` refuses without creating a TASK file.
+
+### Changed
+
+- `task sync` checks merge verification before switching branches (a refused sync now leaves HEAD on the task branch).
+- New task branches are created with `--no-track`, so they never inherit `<remote>/<integration>` as upstream; `task ship` sets the upstream on first push as before.
+
 ## 3.0.0 - 2026-10-03
 
 ### Breaking changes
