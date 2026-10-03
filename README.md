@@ -179,6 +179,7 @@ VibeOps supports several `git worktree` checkouts of one repo working in paralle
 - The lock file is created atomically with its content (temp file + `link`), so it is never seen half-written.
 - **Stale** = holder on this host whose pid is not running, or a lock older than `staleSeconds` (any host; covers pid reuse). A start time in the future (clock skew) is respected, not stale.
 - Every removal (release or stale takeover) happens under a short breaker file `vibeops-task.lock.break` and only after re-checking the lock's inode and token, so concurrent takeovers of one stale lock never yield two holders.
+- Breaker timings are internal (not in `.vibeops.json`) because the breaker is held for microseconds and only matters after a crash: a breaker older than 30 s is treated as left by a crash; waiting for it is bounded by 60 s (a stale takeover waits at most `waitSeconds`; a release always uses the full 60 s so the lock is not left behind).
 - **The git common dir must be on a local filesystem.** Network filesystems (NFS, SMB, cloud-synced folders) are not supported: their `link` / rename / O_EXCL semantics and clocks are not reliable enough for the lock.
 
 | `.vibeops.json` `lock` key | Default | Allowed | Meaning |

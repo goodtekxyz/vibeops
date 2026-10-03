@@ -25,7 +25,12 @@ import {
   taskNumberFromBranch,
   taskNumberFromFilename,
 } from "../dist/lib/task-id-allocation.js";
-import { parseTaskLockConfig, staleReason, taskLockPath } from "../dist/lib/task-lock.js";
+import {
+  acquireTaskLock,
+  parseTaskLockConfig,
+  staleReason,
+  taskLockPath,
+} from "../dist/lib/task-lock.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cli = join(repoRoot, "dist/cli.js");
@@ -748,4 +753,35 @@ test("staleReason: dead pid, age bound (pid reuse / other host), future timestam
   assert.equal(staleReason({ ...base, pid: 5, host: "other", startedAt: future }, cfg, now), null);
   assert.equal(staleReason(null, cfg, now, now - 5_000), null);
   assert.match(staleReason(null, cfg, now, now - 700_000), /unreadable/);
+});
+
+test("stale takeover waits for a held breaker within lock.waitSeconds and logs once", async () => {
+  const { b } = setupTwoWorktrees();
+  const lockPath = await taskLockPath(b);
+  const dead = Number(
+    spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], { encoding: "utf8" }).stdout,
+  );
+  writeFileSync(
+    lockPath,
+    JSON.stringify({ token: "s", pid: dead, host: hostname(), startedAt: new Date().toISOString(), operation: "x", cwd: "/" }),
+  );
+  // A fresh breaker held by "someone else" (not stale: younger than 30 s).
+  writeFileSync(`${lockPath}.break`, JSON.stringify({ token: "other", pid: process.pid, host: hostname() }));
+
+  const lines = [];
+  const original = console.log;
+  console.log = (...a) => lines.push(a.join(" "));
+  const started = Date.now();
+  try {
+    await assert.rejects(
+      acquireTaskLock(b, "t", { waitSeconds: 1, staleSeconds: 600 }),
+      /lock breaker .* is held/,
+    );
+  } finally {
+    console.log = original;
+  }
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed >= 900 && elapsed < 10_000, `bounded by waitSeconds, took ${elapsed} ms`);
+  assert.equal(lines.filter((l) => l.includes("Waiting for VibeOps lock breaker")).length, 1);
+  assert.ok(existsSync(lockPath), "stale lock not removed without the breaker");
 });

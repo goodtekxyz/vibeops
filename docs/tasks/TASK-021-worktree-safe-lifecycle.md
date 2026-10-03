@@ -70,5 +70,5 @@ Make `vibeops task add` / `task sync` (and every other lifecycle step) work when
 - Reviewer race script (two concurrent `task add`, remote `task/2026-q4-plan`): now `TASK-002` and `TASK-003`, both exit 0, the second waited for the lock
 - `pnpm typecheck` OK, `pnpm build` OK
 - Reviewer lock script (`lock.mjs`): dead pid / pid reuse (old) / other host old / no-token dead pid → acquired; other host future timestamp and fresh empty file → respected; 8 in-process contenders → max simultaneous holders 1 (was 2)
-- `pnpm test` ×3 — 88 pass, 0 fail each run (28 in `tests/worktree-lifecycle.test.mjs`, incl. 8-process stale takeover with O_EXCL holder marker: 0 violations)
+- `pnpm test` ×3 — 88 pass, 0 fail each run; after breaker polish 89 pass (29 in `tests/worktree-lifecycle.test.mjs`, incl. 8-process stale takeover with O_EXCL holder marker: 0 violations)
 - `pnpm smoke` OK

@@ -19,11 +19,14 @@ import { VIBEOPS_CONFIG_FILE } from "./paths.js";
  * Repository-wide lock for VibeOps operations that allocate TASK ids, write TASK
  * files, create / switch / delete task branches, or stash (D-006). All worktrees
  * of a repository share one git common dir, so the lock file lives there:
- * `<git-common-dir>/vibeops-task.lock`, created with O_EXCL.
+ * `<git-common-dir>/vibeops-task.lock`, created atomically with its content
+ * (temp file + `link`, EEXIST when held).
  *
- * Stale lock: holder on THIS host whose pid is no longer alive, or (other host,
- * pid not checkable) older than `lock.staleSeconds`. A live holder on this host
- * is never considered stale.
+ * Stale lock: holder on THIS host whose pid is no longer alive, or a lock older
+ * than `lock.staleSeconds` on ANY host (covers pid reuse on this host and
+ * unverifiable pids on other hosts). A start time in the future (clock skew) is
+ * respected, not stale. Removal (release / stale takeover) is guarded by a
+ * breaker file — see {@link withBreakerSync}.
  */
 
 export const LOCK_FILE_NAME = "vibeops-task.lock";
@@ -196,7 +199,14 @@ function createExclusiveSync(path: string, content: string): boolean {
   }
 }
 
-/** A breaker is held for microseconds; one older than this was left by a crash. */
+/**
+ * Internal, not configurable: a breaker is held for microseconds (re-check +
+ * unlink), so these only matter after a crash inside that window.
+ * - BREAKER_STALE_MS: a breaker older than this was left by a crash.
+ * - BREAKER_WAIT_MS: upper bound on waiting for the breaker. A stale TAKEOVER
+ *   waits min(this, lock.waitSeconds) — the user's wait budget. RELEASE always
+ *   uses this full bound: giving up early would leave the lock behind.
+ */
 const BREAKER_STALE_MS = 30_000;
 const BREAKER_WAIT_MS = 60_000;
 
@@ -206,10 +216,11 @@ const BREAKER_WAIT_MS = 60_000;
  * while the breaker is held the lock file cannot change identity: "verify
  * identity, then unlink" is atomic with respect to all other VibeOps processes.
  */
-function withBreakerSync<T>(lockPath: string, fn: () => T): T {
+function withBreakerSync<T>(lockPath: string, fn: () => T, waitMs = BREAKER_WAIT_MS): T {
   const breaker = `${lockPath}.break`;
   const token = randomUUID();
-  const deadline = Date.now() + BREAKER_WAIT_MS;
+  const deadline = Date.now() + Math.min(BREAKER_WAIT_MS, waitMs);
+  let loggedWait = false;
   for (;;) {
     if (createExclusiveSync(breaker, `${JSON.stringify({ token, pid: process.pid, host: hostname() })}\n`)) {
       break;
@@ -241,7 +252,13 @@ function withBreakerSync<T>(lockPath: string, fn: () => T): T {
       continue;
     }
     if (Date.now() >= deadline) {
-      throw new TaskLockHeldError(`VibeOps lock breaker ${breaker} is held; retry, or delete it if no vibeops process is running.`);
+      throw new TaskLockHeldError(
+        `VibeOps lock breaker ${breaker} is held; retry, or delete it if no vibeops process is running.`,
+      );
+    }
+    if (!loggedWait) {
+      log.info(dim(`Waiting for VibeOps lock breaker ${breaker}…`));
+      loggedWait = true;
     }
     sleepSync(2);
   }
@@ -258,14 +275,19 @@ function withBreakerSync<T>(lockPath: string, fn: () => T): T {
 }
 
 /** Unlink the lock only if it is still the file identified by (inode, token). */
-function removeLockIfSame(path: string, ino: number, token: string | null): boolean {
+function removeLockIfSame(
+  path: string,
+  ino: number,
+  token: string | null,
+  breakerWaitMs?: number,
+): boolean {
   return withBreakerSync(path, () => {
     if (inodeOf(path) !== ino) return false;
     const cur = readLockSync(path);
     if ((typeof cur?.token === "string" ? cur.token : null) !== token) return false;
     unlinkSync(path);
     return true;
-  });
+  }, breakerWaitMs);
 }
 
 /** Acquire the repository task lock, waiting up to `waitSeconds` for another holder. */
@@ -299,7 +321,9 @@ export async function acquireTaskLock(
     const holder = readLockSync(path);
     const stale = staleReason(holder, cfg, Date.now(), st.mtimeMs);
     if (stale !== null) {
-      if (removeLockIfSame(path, st.ino, typeof holder?.token === "string" ? holder.token : null)) {
+      const judgedToken = typeof holder?.token === "string" ? holder.token : null;
+      // Takeover honours the user's wait budget; release (below) does not.
+      if (removeLockIfSame(path, st.ino, judgedToken, cfg.waitSeconds * 1000)) {
         log.warn(`Removed stale VibeOps lock (${stale}): ${path}`);
       }
       continue;
