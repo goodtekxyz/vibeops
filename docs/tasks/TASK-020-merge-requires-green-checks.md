@@ -2,7 +2,7 @@
 
 ## Status
 
-In Progress
+Shipped
 
 ## Goal
 
@@ -52,6 +52,7 @@ Make `vibeops task merge` (and `task release`) the CI enforcement point for host
 - `src/lib/merge-request-readiness.ts`: `pipelineGateState`; GitLab `manual` / unknown → red
 - `src/types/config.ts`, `src/lib/config.ts`: `VibeopsMergeConfig`; raw `merge` block preserved verbatim on re-init
 - `task merge` / `task release`: validate config first (exit 1 on error), pass required checks + timing, no-bypass hint on refusal; `task release --dry-run` prints required checks
+- This repo has no PR CI: own `.vibeops.json` sets `merge.allowNoChecks: true`
 - Docs: README "Merge gate" (config table, host-is-final-authority note, gh ≥ 2.13.0), CHANGELOG 3.0.0 incl. Breaking changes (migration: `merge.allowNoChecks: true`, gh ≥ 2.13.0) and Behaviour changes, D-005, `05-current-state.md`
 
 ## Test Result
