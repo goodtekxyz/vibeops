@@ -29,6 +29,7 @@ import {
 import { hasNonEmptySection, parseTaskFilename, readGitContext } from "./task.js";
 import { prRefLabel } from "./task-ship-state.js";
 import type { ProjectPaths } from "./paths.js";
+import { runUnderTaskLock } from "./task-lock.js";
 
 export interface NewCycleOptions {
   readonly dryRun?: boolean;
@@ -107,15 +108,25 @@ export async function runPostMergeNewCycle(
     return;
   }
 
-  const branchOk = await ensureTaskBranchForReship({
-    cwd,
-    taskFile,
-    gitCtx: initialCtx,
-    integrationBranch,
-    remote,
-    recreateBranch: options.recreateBranch === true,
-    dryRun,
-  });
+  const ensureBranch = (): Promise<boolean> =>
+    ensureTaskBranchForReship({
+      cwd,
+      taskFile,
+      gitCtx: initialCtx,
+      integrationBranch,
+      remote,
+      recreateBranch: options.recreateBranch === true,
+      dryRun,
+    });
+  let branchOk = false;
+  if (dryRun) {
+    branchOk = await ensureBranch();
+  } else {
+    // D-006: branch switch / recreate / stash are serialized across worktrees.
+    await runUnderTaskLock(cwd, "task ship --new-cycle", async () => {
+      branchOk = await ensureBranch();
+    });
+  }
   if (!branchOk) {
     process.exitCode = 1;
     return;

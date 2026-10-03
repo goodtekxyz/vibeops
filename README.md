@@ -153,14 +153,52 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 ## Git
 
 - **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`). Interactive remote setup: ask GitHub/GitLab, create or connect; soft-gate when `gh`/`glab` is missing.
-- **`task add`**: `task/<slug>` from **integration** (e.g. `develop`).
+- **`task add`**: `task/<NNN-slug>` from **`<remote>/<integration>`** (e.g. `origin/develop`), after `git fetch`. See [Worktrees](#worktrees) and [TASK ids](#task-ids).
 - **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Use `--new-cycle` in non-interactive mode. Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
 - **`task merge`**: merge MR/PR into integration (TASK md unchanged) — **only when every check is green** (see [Merge gate](#merge-gate)).
-- **`task sync`**: integration ff-only pull → delete `task/*` branches (TASK md unchanged).
-- **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command).
+- **`task sync`**: verify merge → leave the task branch (switch to integration, or detach at `<remote>/<integration>` when another worktree owns it) → fast-forward local integration where safe → delete local + remote `task/*` branch (TASK md unchanged).
+- **`pull`**: fetch + switch to integration branch + `git pull --ff-only` (one command). Refuses (exit 1) when another worktree has the integration branch checked out — run it there.
 - **`task release`**: integration → production PR + merge (skipped on trunk policy).
 - **`status`**: Now / Next card — focus stage, checklist, PR, and the next command to run.
 - No force-push to shared branches.
+
+## Worktrees
+
+VibeOps supports several `git worktree` checkouts of one repo working in parallel. It never needs to check out the integration branch:
+
+- New task branches start from `<remote>/<integration>` (`git switch -c task/NNN-slug --no-track origin/develop`).
+- The local integration branch is fast-forwarded only when safe: in the worktree that has it checked out (`merge --ff-only`), otherwise with `git fetch . refs/remotes/origin/develop:refs/heads/develop`, which git refuses for non-fast-forward updates and for a branch checked out in another worktree — then it is left alone and the log says so (update it in that worktree).
+- `task sync` / `task del` / `task ship --new-cycle` leave the task branch by detaching at `<remote>/<integration>` when the integration branch is checked out elsewhere.
+- Governance changes set aside for a branch switch are restored by stash SHA, never by `stash pop` (the stash list is shared by all worktrees). Untracked files are not stashed.
+- Nothing is ever forced; local integration commits that are not on the remote stop `task add` / `task sync` with fix commands.
+
+### Repository lock
+
+`task add`, `task sync`, `task del`, `task ship --new-cycle` (branch step) and `vibeops pull` take an exclusive lock, `<git-common-dir>/vibeops-task.lock` (shared by all worktrees), recording pid, host, start time, operation and directory. A second command waits, then fails with a message naming the holder.
+
+- The lock file is created atomically with its content (temp file + `link`), so it is never seen half-written.
+- **Stale** = holder on this host whose pid is not running, or a lock older than `staleSeconds` (any host; covers pid reuse). A start time in the future (clock skew) is respected, not stale.
+- Every removal (release or stale takeover) happens under a short breaker file `vibeops-task.lock.break` and only after re-checking the lock's inode and token, so concurrent takeovers of one stale lock never yield two holders.
+- Breaker timings are internal (not in `.vibeops.json`) because the breaker is held for microseconds and only matters after a crash: a breaker older than 30 s is treated as left by a crash; waiting for it is bounded by 60 s (a stale takeover waits at most `waitSeconds`; a release always uses the full 60 s so the lock is not left behind).
+- **The git common dir must be on a local filesystem.** Network filesystems (NFS, SMB, cloud-synced folders) are not supported: their `link` / rename / O_EXCL semantics and clocks are not reliable enough for the lock.
+
+| `.vibeops.json` `lock` key | Default | Allowed | Meaning |
+|---|---|---|---|
+| `waitSeconds` | `60` | integer 0–600 | How long to wait for another holder. |
+| `staleSeconds` | `600` | integer 60–86400 | A lock older than this is stale (any host). On this host a lock is also stale as soon as its pid is no longer running. |
+
+## TASK ids
+
+`task add` picks **1 + the highest TASK number found anywhere** so parallel worktrees and unmerged branches never reuse an id:
+
+1. `docs/tasks` in this worktree (including uncommitted files);
+2. `docs/tasks` on `<remote>/<integration>` (`git ls-tree`);
+3. `docs/tasks` in every worktree (`git worktree list`) — covers task branches whose TASK file is not committed yet;
+4. VibeOps task branches, local and on the remote (`git fetch --prune <remote> '+refs/heads/task/*:refs/remotes/<remote>/task/*'`).
+
+A branch counts only when its name has the **generated form** `task/<NNN>` or `task/<NNN>-<slug>` — NNN is the TASK number zero-padded to at least 3 digits, slug is lowercase `a-z0-9` words joined by single hyphens (exactly what `task add` creates from `TASK-<NNN>-<slug>.md`) — **and** its tree contains `docs/tasks/TASK-<NNN>…md`. Other branches (`task/2026-q4-plan`, `task/task-020-x`) are ignored.
+
+If a configured remote cannot be fetched, `task add` stops without creating a TASK file. Across machines, `task ship` re-checks the remote (`git ls-remote`) right before pushing and refuses if another task branch with the same number already exists there.
 
 ## Merge gate
 

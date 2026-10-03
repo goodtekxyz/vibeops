@@ -21,6 +21,7 @@ import { fallbackTaskPr, generateTaskPrWithLlm } from "./task-pr-llm.js";
 import { readGitContext, readTaskFile } from "./task.js";
 import type { GitContext } from "../types/task.js";
 import type { LlmProviderPreference } from "../types/config.js";
+import { assertTaskIdFreeOnRemote } from "./task-id-allocation.js";
 
 export interface FinishTaskPullRequestOptions {
   readonly cwd: string;
@@ -113,6 +114,13 @@ export async function finishTaskWithPullRequest(
   const ahead = await gitCommitsAhead(opts.cwd, gitCtx.baseCommit, "HEAD");
   if (ahead === 0) {
     log.warn("No commits ahead of base — pushing branch anyway.");
+  }
+
+  // D-006: another machine may have pushed a task branch with the same TASK id.
+  const idFree = await assertTaskIdFreeOnRemote(opts.cwd, gitCfg.remote, gitCtx.taskBranch);
+  if (!idFree.ok) {
+    log.error(idFree.message);
+    return { ok: false };
   }
 
   try {

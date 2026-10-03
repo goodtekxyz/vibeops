@@ -9,9 +9,9 @@ import {
   gitDeleteRemoteBranch,
   gitGovernanceOnlyDirty,
   gitRemoteBranchExists,
-  gitSwitchToBranch,
   readGitInfo,
 } from "./git.js";
+import { leaveTaskBranch } from "./git-worktree.js";
 import { dim, log } from "./logger.js";
 import type { ProjectPaths } from "./paths.js";
 import {
@@ -151,12 +151,13 @@ export async function deleteTaskBranches(opts: DeleteTaskBranchesOptions): Promi
 
   const git = await readGitInfo(cwd);
   if (git.branch === opts.taskBranch) {
-    const switched = await gitSwitchToBranch(cwd, opts.integrationBranch, opts.remote);
-    if (!switched) {
-      log.error(`Integration branch "${opts.integrationBranch}" not found.`);
+    // Worktree-safe (D-006): detach when another worktree owns the integration branch.
+    const left = await leaveTaskBranch(cwd, opts.remote, opts.integrationBranch);
+    if (!left.ok) {
+      log.error(left.message);
       return false;
     }
-    log.ok(`On ${opts.integrationBranch}`);
+    log.ok(left.on === "integration" ? `On ${opts.integrationBranch}` : `Detached at ${left.ref}`);
   }
 
   if (await gitBranchExists(cwd, opts.taskBranch)) {

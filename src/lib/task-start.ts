@@ -12,10 +12,10 @@ import {
   gitCheckout,
   gitCheckoutNewBranch,
   gitGovernanceOnlyDirty,
-  gitHeadCommit,
-  gitSwitchToBranch,
+  gitRevParse,
   readGitInfo,
 } from "./git.js";
+import { resolveIntegrationBaseRef } from "./git-worktree.js";
 import {
   ensureIntegrationSynced,
   printIntegrationSyncDiagnosis,
@@ -31,8 +31,9 @@ export interface StartTaskBranchOptions {
   readonly dryRun?: boolean;
   readonly allowDirty?: boolean;
   /**
-   * Skip fetch+ff pull (caller already ran {@link ensureIntegrationSynced}).
-   * Still verifies we are on the integration branch before creating a new task branch.
+   * Skip fetch + fast-forward (caller already ran {@link ensureIntegrationSynced}).
+   * The task branch still starts from `<remote>/<integration>` (or the local
+   * integration branch when there is no remote-tracking ref).
    */
   readonly skipIntegrationPull?: boolean;
 }
@@ -84,21 +85,50 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
   const branchExists = await gitBranchExists(cwd, taskBranch);
 
   if (opts.dryRun) {
+    const base =
+      (await resolveIntegrationBaseRef(cwd, remote, integrationBranch)) ??
+      `${remote}/${integrationBranch}`;
     log.info(`  ${dim("integration")}  ${integrationBranch}`);
     log.info(`  ${dim("task branch")}  ${cyan(taskBranch)}`);
     log.info(
       dim(
         branchExists
           ? `dry-run — would git switch ${taskBranch}`
-          : `dry-run — would checkout ${integrationBranch}, then git switch -c ${taskBranch}`,
+          : `dry-run — would git fetch ${remote} ${integrationBranch}, then git switch -c ${taskBranch} --no-track ${base}`,
       ),
     );
     return true;
   }
 
-  if (!branchExists && git.branch !== integrationBranch) {
-    const ok = await gitSwitchToBranch(cwd, integrationBranch, remote);
-    if (!ok) {
+  // Worktree-safe (D-006): never check out the integration branch — another
+  // worktree may own it. New task branches start from <remote>/<integration>.
+  let baseRef: string | null = null;
+  if (!branchExists) {
+    if (opts.skipIntegrationPull === true) {
+      baseRef = await resolveIntegrationBaseRef(cwd, remote, integrationBranch);
+    } else {
+      const synced = await ensureIntegrationSynced({
+        cwd,
+        remote,
+        integrationBranch,
+        fetch: true,
+      });
+      if (!synced.ok) {
+        printIntegrationSyncDiagnosis(synced.diagnosis);
+        log.blank();
+        log.info(
+          dim(
+            `TASK file is already created — after fixing sync, rerun ${cyan("vibeops task add")} to resume the branch (does not create a second TASK).`,
+          ),
+        );
+        return false;
+      }
+      if (synced.pulled) {
+        log.info(dim(synced.diagnosis.summary));
+      }
+      baseRef = synced.baseRef;
+    }
+    if (baseRef === null) {
       log.error(
         `Integration branch "${integrationBranch}" not found locally or on ${remote}. Run vibeops init or create the branch.`,
       );
@@ -106,31 +136,10 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
     }
   }
 
-  // Ensure integration branch is up-to-date before creating a new task branch.
-  if (!branchExists && opts.skipIntegrationPull !== true) {
-    const synced = await ensureIntegrationSynced({
-      cwd,
-      remote,
-      integrationBranch,
-      fetch: true,
-    });
-    if (!synced.ok) {
-      printIntegrationSyncDiagnosis(synced.diagnosis);
-      log.blank();
-      log.info(
-        dim(
-          `TASK file is already created — after fixing sync, rerun ${cyan("vibeops task add")} to resume the branch (does not create a second TASK).`,
-        ),
-      );
-      return false;
-    }
-    if (synced.pulled) {
-      log.info(dim(synced.diagnosis.summary));
-    }
-  }
-
   const baseBranch = integrationBranch;
-  const baseCommit = (await gitHeadCommit(cwd)) ?? "";
+  // Full SHA: unambiguous base for later diff ranges (display is shortened below).
+  const baseCommit =
+    baseRef !== null ? ((await gitRevParse(cwd, `${baseRef}^{commit}`)) ?? "") : "";
   if (baseCommit.length === 0 && !branchExists) {
     log.error("No commits on integration branch. Create an initial commit first.");
     return false;
@@ -143,7 +152,9 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
     startedAt: existingCtx?.startedAt ?? new Date().toISOString(),
   };
 
-  log.info(`  ${dim("integration")}  ${baseBranch} @ ${ctx.baseCommit.slice(0, 7)}`);
+  log.info(
+    `  ${dim("integration")}  ${baseRef ?? baseBranch} @ ${ctx.baseCommit.slice(0, 7)}`,
+  );
   log.info(`  ${dim("task branch")}  ${cyan(taskBranch)}`);
 
   if (branchExists) {
@@ -156,7 +167,7 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
     }
     log.ok(`Resumed ${taskBranch}`);
   } else {
-    await gitCheckoutNewBranch(cwd, taskBranch, baseBranch);
+    await gitCheckoutNewBranch(cwd, taskBranch, baseRef!, { noTrack: true });
     await updateInlineStatus(taskFile, "in_progress");
     await upsertGitContext(taskFile, ctx);
     log.ok(`Branch ${taskBranch} ready`);

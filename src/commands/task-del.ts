@@ -15,6 +15,7 @@ import {
   validateTaskBranchForDel,
 } from "../lib/task-del.js";
 import { readGitContext, statusDisplay } from "../lib/task.js";
+import { runUnderTaskLock } from "../lib/task-lock.js";
 
 export interface TaskDelCommandOptions {
   dryRun?: boolean;
@@ -27,6 +28,17 @@ export interface TaskDelCommandOptions {
 export async function taskDelCommand(
   taskRef: string | undefined,
   options: TaskDelCommandOptions = {},
+): Promise<void> {
+  if (options.dryRun === true) return taskDelUnlocked(taskRef, options);
+  // D-006: branch switch / stash / delete are serialized across worktrees.
+  await runUnderTaskLock(resolve(options.cwd ?? process.cwd()), "task del", () =>
+    taskDelUnlocked(taskRef, options),
+  );
+}
+
+async function taskDelUnlocked(
+  taskRef: string | undefined,
+  options: TaskDelCommandOptions,
 ): Promise<void> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dryRun = options.dryRun === true;

@@ -10,12 +10,20 @@ import {
   gitHeadCommit,
   gitMergeRemoteBranch,
   gitMergeInProgress,
-  gitPullFastForwardOnly,
+  gitFetch,
   gitRemoteBranchExists,
+  gitRemoteUrl,
+  gitRevParse,
   gitSwitchToBranch,
   listUnmergedRelPaths,
   readGitInfo,
 } from "./git.js";
+import {
+  fastForwardLocalIntegration,
+  leaveTaskBranch,
+  logLocalIntegrationUpdate,
+  resolveIntegrationBaseRef,
+} from "./git-worktree.js";
 import { dim, log } from "./logger.js";
 import type { ProjectPaths } from "./paths.js";
 import { findMergeRequestByBranches } from "./pr-create.js";
@@ -127,9 +135,10 @@ async function removeLocalTaskBranch(
 
   const git = await readGitInfo(cwd);
   if (git.branch === taskBranch) {
-    const ok = await gitSwitchToBranch(cwd, integrationBranch, remote);
-    if (!ok) {
-      log.error(`Integration branch "${integrationBranch}" not found.`);
+    // Worktree-safe (D-006): detach when another worktree owns the integration branch.
+    const left = await leaveTaskBranch(cwd, remote, integrationBranch);
+    if (!left.ok) {
+      log.error(left.message);
       return false;
     }
   }
@@ -151,15 +160,29 @@ async function recreateTaskBranchFromIntegration(
   const cwd = resolve(opts.cwd);
   const { taskBranch } = opts.gitCtx;
 
-  const ok = await gitSwitchToBranch(cwd, opts.integrationBranch, opts.remote);
-  if (!ok) {
+  // Worktree-safe (D-006): start from <remote>/<integration>; never check out
+  // the integration branch (another worktree may own it).
+  if ((await gitRemoteUrl(cwd, opts.remote)) !== null) {
+    try {
+      await gitFetch(cwd, opts.remote, opts.integrationBranch);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.warn(`git fetch failed (${msg}). Continuing with local refs.`);
+    }
+  }
+  const baseRef = await resolveIntegrationBaseRef(cwd, opts.remote, opts.integrationBranch);
+  if (baseRef === null) {
     log.error(`Integration branch "${opts.integrationBranch}" not found.`);
     return false;
   }
-
   if (await gitRemoteBranchExists(cwd, opts.remote, opts.integrationBranch)) {
     try {
-      await gitPullFastForwardOnly(cwd, opts.remote, opts.integrationBranch);
+      const update = await fastForwardLocalIntegration(
+        cwd,
+        opts.remote,
+        opts.integrationBranch,
+      );
+      logLocalIntegrationUpdate(update, opts.remote, opts.integrationBranch);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`Could not update ${opts.integrationBranch}: ${msg}`);
@@ -167,18 +190,19 @@ async function recreateTaskBranchFromIntegration(
     }
   }
 
-  const head = await gitHeadCommit(cwd);
-  if (head === null || head.length === 0) {
+  // Full SHA: unambiguous base for later diff ranges.
+  const head = (await gitRevParse(cwd, `${baseRef}^{commit}`)) ?? "";
+  if (head.length === 0) {
     log.error("Integration branch has no commits.");
     return false;
   }
 
   try {
-    await gitCheckoutNewBranch(cwd, taskBranch, opts.integrationBranch);
+    await gitCheckoutNewBranch(cwd, taskBranch, baseRef, { noTrack: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(
-      `Could not create ${taskBranch} from ${opts.integrationBranch} with uncommitted changes.`,
+      `Could not create ${taskBranch} from ${baseRef} with uncommitted changes.`,
     );
     if (msg.length > 0) log.info(dim(msg));
     return false;
@@ -189,7 +213,7 @@ async function recreateTaskBranchFromIntegration(
     baseBranch: opts.integrationBranch,
     baseCommit: head,
   });
-  log.ok(`Created ${taskBranch} from ${opts.integrationBranch}`);
+  log.ok(`Created ${taskBranch} from ${baseRef}`);
   return true;
 }
 

@@ -42,6 +42,7 @@ import {
   updateInlineStatus,
 } from "../lib/task.js";
 import type { GitContext, TaskMeta } from "../types/task.js";
+import { assertTaskIdFreeOnRemote } from "../lib/task-id-allocation.js";
 
 export interface TaskShipCommandOptions {
   dryRun?: boolean;
@@ -340,6 +341,13 @@ async function runUpdateOpenPr(ctx: ShipContext): Promise<void> {
   if (ahead === 0 && !stillDirty) {
     log.blank();
     log.info(`Nothing to ship (working tree clean, PR ${prRefLabel(prCtx.number)} up to date).`);
+    return;
+  }
+
+  const idFree = await assertTaskIdFreeOnRemote(cwd, remote, gitCtx.taskBranch);
+  if (!idFree.ok) {
+    log.error(idFree.message);
+    process.exitCode = 1;
     return;
   }
 
