@@ -4,6 +4,37 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.0.0 - 2026-10-03
+
+### Breaking changes
+
+- **`task merge` / `task release` refuse to merge a PR/MR with no checks at all** (default `merge.allowNoChecks: false`). Previously such PRs merged.
+  **Migration (repos without CI):** add to `.vibeops.json`:
+  ```json
+  { "merge": { "allowNoChecks": true } }
+  ```
+  A warning is printed on each such merge.
+- **Requires gh ≥ 2.13.0** (`gh pr merge --match-head-commit`). Check with `gh --version`; upgrade e.g. `brew upgrade gh`.
+- **Invalid `.vibeops.json` `merge` block** (non-object, unknown key, wrong type, out-of-range number) makes `task merge` / `task release` exit 1.
+
+### Fixed
+
+- **`task merge` / `task release` (GitHub):** GitHub Actions checks (`CheckRun`) were read from a `state` field they do not have, so a **failed Actions check counted as green** and the PR merged. Checks are now classified from `status` + `conclusion` (CheckRun) and `state` (StatusContext); missing or undocumented values fail closed.
+- **`task merge` / `task release` (GitLab):** `manual` and unknown head-pipeline statuses no longer count as mergeable; `scheduled` / `waiting_for_callback` / `canceling` count as running. A `405` on merge no longer falls back to scheduling auto-merge; it re-runs the gate and retries once with `--auto-merge=false`.
+
+### Added
+
+- **Merge gate:** refuse on any failed check (immediately), wait bounded on pending checks then refuse, refuse on merge conflicts. No override flag. Merges are pinned to the checked commit (`gh pr merge --match-head-commit`, `glab mr merge --sha`).
+- **`.vibeops.json` `merge` block:** `requiredChecks`, `releaseRequiredChecks` (exact or `*` glob; absent → `required check "X" never ran`), `waitTimeoutSeconds` (900), `pollIntervalSeconds` (5), `emptyRollupGraceSeconds` (30), `allowNoChecks` (false). Strictly validated; `task release --dry-run` shows the release required checks.
+
+### Behaviour changes
+
+- No checks at all: refused after a 30 s grace (`emptyRollupGraceSeconds`) for checks not registered yet — see Breaking changes.
+- **Host output is verified:** missing or empty `state` / `mergeable` / `headRefOid` / `statusCheckRollup` from `gh pr view` (GitLab: `state` / `sha` / `merge_status` / `detailed_merge_status` / `head_pipeline`) refuses the merge instead of being treated as green.
+- **GitLab `manual` head pipelines refuse** (previously merged when the MR was otherwise mergeable).
+- **Pending checks are always waited for** on `task merge` / `task release` (up to `waitTimeoutSeconds`); a PR whose checks are still running is no longer merged or auto-merge-scheduled.
+- `glab mr merge --sha` verified with glab 1.106.
+
 ## 2.5.2 - 2026-07-20
 
 ### Fixed

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import { GitConfigError, requireGitConfig } from "../lib/git-config.js";
+import { MergeConfigError, mergeGateTiming, readMergeConfig } from "../lib/merge-config.js";
 import { formatHostCliHint, formatHostCliMissingMessage } from "../lib/git-host-cli.js";
 import { detectGitHost, mergeRequestLabel } from "../lib/git-host.js";
 import { gitRemoteUrl } from "../lib/git.js";
@@ -9,6 +10,7 @@ import { projectPaths } from "../lib/paths.js";
 import { taskNotFoundMessage } from "../lib/resolve-task.js";
 import {
   getMergeRequestState,
+  MergeGateError,
   mergeMergeRequest,
   probeMergeRequestCli,
   type MergeRequestMergeMethod,
@@ -33,6 +35,13 @@ function resolveMergeMethod(opts: TaskMergeCommandOptions): MergeRequestMergeMet
   return "squash";
 }
 
+function mergeFailureHint(error: unknown): string {
+  if (error instanceof MergeGateError) {
+    return "Not merged. Fix the failing checks (re-run `vibeops task ship` to push a fix and re-run CI), then rerun `vibeops task merge`.";
+  }
+  return "Merge in the host UI if branch protection blocks CLI merge.";
+}
+
 export async function taskMergeCommand(
   taskRef: string | undefined,
   options: TaskMergeCommandOptions = {},
@@ -52,6 +61,20 @@ export async function taskMergeCommand(
     }
     throw e;
   }
+
+  let mergeCfg;
+  try {
+    mergeCfg = await readMergeConfig(cwd);
+  } catch (e) {
+    if (e instanceof MergeConfigError) {
+      log.error(e.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+  const requiredChecks = mergeCfg.requiredChecks;
+  const gate = { ...mergeGateTiming(mergeCfg), allowNoChecks: mergeCfg.allowNoChecks };
 
   const target = await resolveLifecycleTarget(paths, cwd, taskRef);
   if (target === null) {
@@ -103,6 +126,11 @@ export async function taskMergeCommand(
   log.info(`  ${dim("MR/PR")}      ${mergeRequestUrl}`);
   log.info(`  ${dim("target")}     ${ctx.baseBranch} (${gitCfg.integrationBranch})`);
   log.info(`  ${dim("method")}     ${method}`);
+  log.info(
+    `  ${dim("checks")}     all green${
+      requiredChecks.length > 0 ? ` + required: ${requiredChecks.join(", ")}` : ""
+    }${mergeCfg.allowNoChecks ? dim(" (allowNoChecks: true)") : ""}`,
+  );
   log.blank();
 
   if (dryRun) {
@@ -111,6 +139,8 @@ export async function taskMergeCommand(
       host,
       url: mergeRequestUrl,
       method,
+      requiredChecks,
+      gate,
       dryRun: true,
     });
     log.blank();
@@ -143,7 +173,8 @@ export async function taskMergeCommand(
         url: mergeRequestUrl,
         method,
         waitForCi: true,
-        immediate: true,
+        requiredChecks,
+        gate,
       });
       const verified = await assertMergeRequestMerged({
         cwd,
@@ -160,7 +191,7 @@ export async function taskMergeCommand(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`Merge failed: ${msg}`);
-      log.info(dim("Merge in the host UI if branch protection blocks CLI merge."));
+      log.info(dim(mergeFailureHint(e)));
       process.exitCode = 1;
       return;
     }
@@ -177,7 +208,8 @@ export async function taskMergeCommand(
         url: mergeRequestUrl,
         method,
         waitForCi: true,
-        immediate: true,
+        requiredChecks,
+        gate,
       });
       const verified = await assertMergeRequestMerged({
         cwd,
@@ -194,6 +226,7 @@ export async function taskMergeCommand(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`Merge failed: ${msg}`);
+      log.info(dim(mergeFailureHint(e)));
       process.exitCode = 1;
       return;
     }

@@ -21,6 +21,10 @@ No body sync. No realtime.
 - Legacy Review/Done/Merged/Planned normalize when read.
 - Same-TASK follow-up after merge: **`task ship --new-cycle`** (or interactive confirm), not a new TASK id.
 
+## D-005 · `task merge` is a fail-closed CI gate (3.0+)
+
+Hosts without enforceable branch protection (e.g. private GitHub repos on the free plan) cannot require checks, so `task merge` / `task release` enforce them client-side: any failed, unknown or missing check, untrusted host output (missing/empty fields), or a PR with no checks at all refuses the merge; pending checks wait (bounded, configurable) then refuse; merges are pinned to the checked head SHA. No `--force` override on merge — the repo's `--force` convention (`task sync`, `task del`) bypasses local safety checks, not CI, and agents run these commands; humans keep the host UI. Repos without CI opt in explicitly with `merge.allowNoChecks: true` (one warning per such merge) — fail closed by default rather than silently merging unverified work. Because this refuses PRs that merged before, it shipped as a major version (3.0.0). Required check names and gate timing live only in the consumer's `.vibeops.json` `merge` block (strictly validated), never in VibeOps code. Server-side branch protection, where available, remains the final authority.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.
