@@ -4,6 +4,18 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 2.6.0 - 2026-10-03
+
+### Fixed
+
+- **`task merge` / `task release` (GitHub):** GitHub Actions checks (`CheckRun`) were read from a `state` field they do not have, so a **failed Actions check counted as green** and the PR merged. Checks are now classified from `status` + `conclusion` (CheckRun) and `state` (StatusContext); missing or undocumented values fail closed.
+- **`task merge` / `task release` (GitLab):** `manual` and unknown head-pipeline statuses no longer count as mergeable; `scheduled` / `waiting_for_callback` / `canceling` count as running.
+
+### Added
+
+- **Merge gate:** `task merge` / `task release` refuse to merge (exit 1, failing / pending checks named) on any failed check, wait (bounded, 15 min) on pending checks, and refuse if still not green. No override flag. GitHub merges are pinned with `--match-head-commit`.
+- **`.vibeops.json` `merge.requiredChecks` / `merge.releaseRequiredChecks`:** optional check names (exact or `*` glob) that must be present and green; refuses with `required check "X" never ran` otherwise.
+
 ## 2.5.2 - 2026-07-20
 
 ### Fixed
